@@ -79,6 +79,10 @@ staples, zips, and creates a GitHub Release with `MacDown.app.zip` attached.
 
 ## Option B — Build & release manually on your Mac
 
+`./scripts/build-app.sh` **auto-detects** your "Developer ID Application"
+certificate and signs with it — no `SIGN_IDENTITY` needed for a signed local
+build. To also notarize (required before others can run it without warnings):
+
 ```sh
 # 1. Store notary credentials once (creates a keychain profile)
 xcrun notarytool store-credentials macdown-notary \

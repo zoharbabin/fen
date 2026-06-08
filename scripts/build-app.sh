@@ -78,7 +78,17 @@ set_key NSHumanReadableCopyright "MacDown © 2014 Tzu-ping Chung. Swift rewrite 
 # PkgInfo
 printf 'APPL????' > "$CONTENTS/PkgInfo"
 
-# Code signing
+# Code signing — auto-detect a Developer ID if none was provided.
+if [ -z "${SIGN_IDENTITY:-}" ]; then
+    DETECTED="$(security find-identity -v -p codesigning 2>/dev/null \
+        | grep "Developer ID Application" | head -1 \
+        | sed -E 's/.*"(.*)".*/\1/')"
+    if [ -n "$DETECTED" ]; then
+        SIGN_IDENTITY="$DETECTED"
+        echo "==> Auto-detected signing identity: $SIGN_IDENTITY"
+    fi
+fi
+
 if [ -n "${SIGN_IDENTITY:-}" ]; then
     echo "==> Signing with: $SIGN_IDENTITY"
     codesign --force --deep --options runtime --timestamp \
