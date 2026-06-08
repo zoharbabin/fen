@@ -84,8 +84,11 @@ jobs:
           name: MacDown-app
           path: dist/MacDown.app.zip
 
+      # Only publish from CI when signing secrets are configured, so an
+      # unsigned CI build never gets attached to a public release. Until then,
+      # releases are cut locally from a notarized build (see RELEASING.md).
       - name: Publish release
-        if: startsWith(github.ref, 'refs/tags/')
+        if: ${{ startsWith(github.ref, 'refs/tags/') && env.MACOS_SIGN_IDENTITY != '' }}
         uses: softprops/action-gh-release@v2
         with:
           files: dist/MacDown.app.zip
