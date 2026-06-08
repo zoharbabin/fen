@@ -79,7 +79,7 @@ struct EditorSettingsTab: View {
 
             Section("Theme") {
                 Picker("Editor Theme", selection: editorStyleBinding) {
-                    ForEach(EditorTheme.availableThemes(), id: \.self) { theme in
+                    ForEach(MarkdownSyntaxHighlighter.availableThemes, id: \.self) { theme in
                         Text(theme).tag(theme)
                     }
                 }

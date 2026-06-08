@@ -171,7 +171,7 @@ struct PreferencesTests {
         let prefs = Preferences.shared
         #expect(prefs.editorFontName == "Menlo-Regular")
         #expect(prefs.editorFontSize == 14)
-        #expect(prefs.editorStyleName == "Tomorrow+")
+        #expect(prefs.editorStyleName == "xcode")
         #expect(prefs.htmlStyleName == "GitHub2")
     }
 }

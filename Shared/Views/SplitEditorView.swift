@@ -88,9 +88,7 @@ public struct SplitEditorView: View {
         MarkdownTextView(
             text: $document.text,
             font: editorFont,
-            textColor: editorTextColor,
-            backgroundColor: editorBackgroundColor,
-            insertionPointColor: editorInsertionPointColor,
+            highlightThemeName: preferences.editorStyleName,
             lineSpacing: preferences.editorLineSpacing,
             horizontalInset: preferences.editorHorizontalInset,
             verticalInset: preferences.editorVerticalInset,
@@ -189,33 +187,5 @@ public struct SplitEditorView: View {
     private var editorFont: PlatformFont {
         PlatformFont(name: preferences.editorFontName, size: preferences.editorFontSize)
             ?? PlatformFont.monospacedSystemFont(ofSize: preferences.editorFontSize, weight: .regular)
-    }
-
-    private var editorTheme: EditorTheme? {
-        EditorTheme.load(named: preferences.editorStyleName)
-    }
-
-    private var editorTextColor: PlatformColor {
-        #if os(macOS)
-        editorTheme?.editorForeground ?? NSColor.labelColor
-        #else
-        editorTheme?.editorForeground ?? UIColor.label
-        #endif
-    }
-
-    private var editorBackgroundColor: PlatformColor {
-        #if os(macOS)
-        editorTheme?.editorBackground ?? NSColor.textBackgroundColor
-        #else
-        editorTheme?.editorBackground ?? UIColor.systemBackground
-        #endif
-    }
-
-    private var editorInsertionPointColor: PlatformColor {
-        #if os(macOS)
-        editorTheme?.caretColor ?? NSColor.labelColor
-        #else
-        editorTheme?.caretColor ?? UIColor.label
-        #endif
     }
 }

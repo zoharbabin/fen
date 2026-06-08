@@ -124,8 +124,10 @@ public final class Preferences {
         set { defaults.set(newValue, forKey: "editorSmartHome") }
     }
 
+    /// Highlightr (highlight.js) theme name used for editor syntax highlighting.
+    /// Defaults to "xcode" — a light theme that pairs with the GitHub2 preview.
     var editorStyleName: String {
-        get { defaults.string(forKey: "editorStyleName") ?? "Tomorrow+" }
+        get { defaults.string(forKey: "editorStyleName") ?? "xcode" }
         set { defaults.set(newValue, forKey: "editorStyleName") }
     }
 

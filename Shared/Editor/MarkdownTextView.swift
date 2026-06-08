@@ -1,15 +1,27 @@
 import SwiftUI
+import Highlightr
+
+/// Shared helper: pick a readable caret/insertion-point color for a background.
+@MainActor
+private func caretColor(for background: PlatformColor) -> PlatformColor {
+    var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+    #if os(macOS)
+    (background.usingColorSpace(.deviceRGB) ?? background).getRed(&r, green: &g, blue: &b, alpha: &a)
+    #else
+    background.getRed(&r, green: &g, blue: &b, alpha: &a)
+    #endif
+    let luminance = 0.299 * r + 0.587 * g + 0.114 * b
+    return luminance < 0.5 ? .white : .black
+}
 
 #if os(macOS)
 import AppKit
 
-/// NSTextView-backed markdown editor for macOS.
+/// NSTextView-backed markdown editor for macOS with live syntax highlighting.
 struct MarkdownTextView: NSViewRepresentable {
     @Binding var text: String
     var font: NSFont
-    var textColor: NSColor
-    var backgroundColor: NSColor
-    var insertionPointColor: NSColor
+    var highlightThemeName: String
     var lineSpacing: CGFloat
     var horizontalInset: CGFloat
     var verticalInset: CGFloat
@@ -29,22 +41,26 @@ struct MarkdownTextView: NSViewRepresentable {
         scrollView.autohidesScrollers = true
         scrollView.borderType = .noBorder
 
-        // Create text storage, layout manager, and text container
-        let textStorage = NSTextStorage()
+        // Highlightr's CodeAttributedString is an NSTextStorage that
+        // re-highlights its contents as Markdown whenever they change.
+        let textStorage = CodeAttributedString()
+        textStorage.language = "markdown"
+        textStorage.highlightr.setTheme(to: highlightThemeName)
+        textStorage.highlightr.theme.codeFont = font
+
         let layoutManager = NSLayoutManager()
         textStorage.addLayoutManager(layoutManager)
-        
+
         let textContainer = NSTextContainer(size: NSSize(width: 0, height: CGFloat.greatestFiniteMagnitude))
         textContainer.widthTracksTextView = true
         layoutManager.addTextContainer(textContainer)
 
-        // Create text view with proper initialization
         let textView = MarkdownNSTextView(frame: .zero, textContainer: textContainer)
         textView.scrollsPastEnd = scrollsPastEnd
         textView.isEditable = isEditable
         textView.isSelectable = true
         textView.allowsUndo = true
-        textView.isRichText = false
+        textView.isRichText = true   // required for attributed (highlighted) text to render
         textView.usesFindBar = true
         textView.isAutomaticQuoteSubstitutionEnabled = false
         textView.isAutomaticDashSubstitutionEnabled = false
@@ -52,16 +68,16 @@ struct MarkdownTextView: NSViewRepresentable {
         textView.isAutomaticSpellingCorrectionEnabled = false
         textView.isContinuousSpellCheckingEnabled = false
         textView.font = font
-        textView.textColor = textColor
-        textView.backgroundColor = backgroundColor
-        textView.insertionPointColor = insertionPointColor
+
+        let background = textStorage.highlightr.theme.themeBackgroundColor ?? .textBackgroundColor
+        textView.backgroundColor = background
+        textView.insertionPointColor = caretColor(for: background)
 
         textView.textContainerInset = NSSize(width: horizontalInset, height: verticalInset)
         textView.isVerticallyResizable = true
         textView.isHorizontallyResizable = false
         textView.autoresizingMask = [.width]
 
-        // Line spacing
         let paragraphStyle = NSMutableParagraphStyle()
         paragraphStyle.lineSpacing = lineSpacing
         textView.defaultParagraphStyle = paragraphStyle
@@ -72,7 +88,6 @@ struct MarkdownTextView: NSViewRepresentable {
 
         scrollView.documentView = textView
 
-        // Observe scroll
         NotificationCenter.default.addObserver(
             context.coordinator,
             selector: #selector(Coordinator.scrollViewDidScroll(_:)),
@@ -85,19 +100,28 @@ struct MarkdownTextView: NSViewRepresentable {
     }
 
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
-        guard let textView = scrollView.documentView as? MarkdownNSTextView else { return }
+        guard let textView = scrollView.documentView as? MarkdownNSTextView,
+              let textStorage = textView.textStorage as? CodeAttributedString else { return }
 
-        // Update text only if it changed externally
+        if textStorage.highlightr.theme.codeFont != font {
+            textStorage.highlightr.theme.codeFont = font
+        }
+        if context.coordinator.themeName != highlightThemeName {
+            textStorage.highlightr.setTheme(to: highlightThemeName)
+            textStorage.highlightr.theme.codeFont = font
+            context.coordinator.themeName = highlightThemeName
+            let background = textStorage.highlightr.theme.themeBackgroundColor ?? .textBackgroundColor
+            textView.backgroundColor = background
+            textView.insertionPointColor = caretColor(for: background)
+        }
+
+        // Update text only if it changed externally (not from user typing).
         if textView.string != text {
             let selectedRanges = textView.selectedRanges
             textView.string = text
             textView.selectedRanges = selectedRanges
         }
 
-        textView.font = font
-        textView.textColor = textColor
-        textView.backgroundColor = backgroundColor
-        textView.insertionPointColor = insertionPointColor
         textView.textContainerInset = NSSize(width: horizontalInset, height: verticalInset)
 
         let paragraphStyle = NSMutableParagraphStyle()
@@ -108,9 +132,11 @@ struct MarkdownTextView: NSViewRepresentable {
     class Coordinator: NSObject, NSTextViewDelegate {
         var parent: MarkdownTextView
         weak var textView: MarkdownNSTextView?
+        var themeName: String
 
         init(_ parent: MarkdownTextView) {
             self.parent = parent
+            self.themeName = parent.highlightThemeName
         }
 
         func textDidChange(_ notification: Notification) {
@@ -154,13 +180,11 @@ class MarkdownNSTextView: NSTextView {
 #else
 import UIKit
 
-/// UITextView-backed markdown editor for iOS.
+/// UITextView-backed markdown editor for iOS with live syntax highlighting.
 struct MarkdownTextView: UIViewRepresentable {
     @Binding var text: String
     var font: UIFont
-    var textColor: UIColor
-    var backgroundColor: UIColor
-    var insertionPointColor: UIColor
+    var highlightThemeName: String
     var lineSpacing: CGFloat
     var horizontalInset: CGFloat
     var verticalInset: CGFloat
@@ -174,33 +198,34 @@ struct MarkdownTextView: UIViewRepresentable {
     }
 
     func makeUIView(context: Context) -> UITextView {
-        let textView = UITextView()
+        let textStorage = CodeAttributedString()
+        textStorage.language = "markdown"
+        textStorage.highlightr.setTheme(to: highlightThemeName)
+        textStorage.highlightr.theme.codeFont = font
+
+        let layoutManager = NSLayoutManager()
+        textStorage.addLayoutManager(layoutManager)
+
+        let textContainer = NSTextContainer(size: CGSize(width: 0, height: CGFloat.greatestFiniteMagnitude))
+        layoutManager.addTextContainer(textContainer)
+
+        let textView = UITextView(frame: .zero, textContainer: textContainer)
         textView.isEditable = isEditable
         textView.isSelectable = true
         textView.font = font
-        textView.textColor = textColor
-        textView.backgroundColor = backgroundColor
-        textView.tintColor = insertionPointColor
         textView.autocorrectionType = .no
         textView.autocapitalizationType = .none
         textView.smartQuotesType = .no
         textView.smartDashesType = .no
 
-        textView.textContainerInset = UIEdgeInsets(
-            top: verticalInset,
-            left: horizontalInset,
-            bottom: verticalInset,
-            right: horizontalInset
-        )
+        let background = textStorage.highlightr.theme.themeBackgroundColor ?? .systemBackground
+        textView.backgroundColor = background
+        textView.tintColor = caretColor(for: background)
 
-        // Line spacing
-        let paragraphStyle = NSMutableParagraphStyle()
-        paragraphStyle.lineSpacing = lineSpacing
-        textView.typingAttributes = [
-            .font: font,
-            .foregroundColor: textColor,
-            .paragraphStyle: paragraphStyle
-        ]
+        textView.textContainerInset = UIEdgeInsets(
+            top: verticalInset, left: horizontalInset,
+            bottom: verticalInset, right: horizontalInset
+        )
 
         textView.text = text
         textView.delegate = context.coordinator
@@ -208,14 +233,23 @@ struct MarkdownTextView: UIViewRepresentable {
         if scrollsPastEnd {
             textView.contentInset.bottom = 300
         }
-
-        // Keyboard dismiss
         textView.keyboardDismissMode = .interactive
 
         return textView
     }
 
     func updateUIView(_ textView: UITextView, context: Context) {
+        guard let textStorage = textView.textStorage as? CodeAttributedString else { return }
+
+        if context.coordinator.themeName != highlightThemeName {
+            textStorage.highlightr.setTheme(to: highlightThemeName)
+            textStorage.highlightr.theme.codeFont = font
+            context.coordinator.themeName = highlightThemeName
+            let background = textStorage.highlightr.theme.themeBackgroundColor ?? .systemBackground
+            textView.backgroundColor = background
+            textView.tintColor = caretColor(for: background)
+        }
+
         if textView.text != text {
             let selectedRange = textView.selectedRange
             textView.text = text
@@ -223,22 +257,19 @@ struct MarkdownTextView: UIViewRepresentable {
         }
 
         textView.font = font
-        textView.textColor = textColor
-        textView.backgroundColor = backgroundColor
-        textView.tintColor = insertionPointColor
         textView.textContainerInset = UIEdgeInsets(
-            top: verticalInset,
-            left: horizontalInset,
-            bottom: verticalInset,
-            right: horizontalInset
+            top: verticalInset, left: horizontalInset,
+            bottom: verticalInset, right: horizontalInset
         )
     }
 
     class Coordinator: NSObject, UITextViewDelegate {
         var parent: MarkdownTextView
+        var themeName: String
 
         init(_ parent: MarkdownTextView) {
             self.parent = parent
+            self.themeName = parent.highlightThemeName
         }
 
         func textViewDidChange(_ textView: UITextView) {
