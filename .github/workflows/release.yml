@@ -1,0 +1,92 @@
+name: Release
+
+# Builds the macOS app and attaches MacDown.app.zip to a GitHub Release.
+# Trigger by pushing a version tag, e.g.:  git tag v0.1.0 && git push origin v0.1.0
+# You can also run it manually from the Actions tab (Run workflow).
+#
+# Without signing secrets it produces an *unsigned* build (Gatekeeper will warn
+# users). To ship a proper signed + notarized app, add these repository secrets:
+#   MACOS_CERTIFICATE       base64 of your "Developer ID Application" .p12
+#   MACOS_CERTIFICATE_PWD   password you set when exporting the .p12
+#   MACOS_SIGN_IDENTITY     e.g. "Developer ID Application: Your Name (TEAMID)"
+#   APPLE_ID                your Apple ID email
+#   APPLE_APP_PASSWORD      an app-specific password (appleid.apple.com)
+#   APPLE_TEAM_ID           your 10-character Team ID
+# (See RELEASING.md for step-by-step instructions.)
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-15
+    env:
+      MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+      MACOS_CERTIFICATE_PWD: ${{ secrets.MACOS_CERTIFICATE_PWD }}
+      MACOS_SIGN_IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # tags + commit count for versioning
+
+      - name: Select latest Xcode
+        run: sudo xcode-select -s /Applications/Xcode_16.app || true
+
+      - name: Run tests
+        run: swift test
+
+      - name: Import signing certificate
+        if: ${{ env.MACOS_CERTIFICATE != '' }}
+        run: |
+          KEYCHAIN="$RUNNER_TEMP/build.keychain-db"
+          KEYCHAIN_PWD="$(uuidgen)"
+          echo "$MACOS_CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p "$KEYCHAIN_PWD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PWD" "$KEYCHAIN"
+          security import "$RUNNER_TEMP/cert.p12" -k "$KEYCHAIN" \
+            -P "$MACOS_CERTIFICATE_PWD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: \
+            -s -k "$KEYCHAIN_PWD" "$KEYCHAIN" >/dev/null
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+          rm -f "$RUNNER_TEMP/cert.p12"
+
+      - name: Store notary credentials
+        if: ${{ env.APPLE_ID != '' }}
+        run: |
+          xcrun notarytool store-credentials macdown-notary \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_APP_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID"
+
+      - name: Build app
+        env:
+          SIGN_IDENTITY: ${{ env.MACOS_SIGN_IDENTITY }}
+          NOTARY_PROFILE: ${{ env.APPLE_ID != '' && 'macdown-notary' || '' }}
+        run: ./scripts/build-app.sh
+
+      - name: Package zip
+        run: |
+          cd dist
+          ditto -c -k --keepParent "MacDown.app" "MacDown.app.zip"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MacDown-app
+          path: dist/MacDown.app.zip
+
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/MacDown.app.zip
+          generate_release_notes: true
