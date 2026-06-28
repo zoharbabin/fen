@@ -9,6 +9,13 @@ Status legend: `[ ]` planned · `[~]` partial/started · `[x]` done
 
 ---
 
+## ✅ Shipped (v0.2.3)
+- [x] Fix crash on file open (macOS 26 Tahoe): vendor Highlightr with `resourceURL`-based bundle lookup; inject `Info.plist` into SPM resource bundles so macOS 26 recognises them as valid bundle packages
+
+## ✅ Shipped (v0.2.0 – v0.2.2)
+- [x] GitHub2 Dark theme; settings live-update and picker-revert fixes
+- [x] CI/CD pipeline with signed + notarized releases via GitHub Actions
+
 ## ✅ Shipped (v0.1.0)
 - [x] Swift/SwiftUI rewrite, Apple Silicon native, macOS + iOS core
 - [x] GFM rendering (tables, task lists, strikethrough, autolinks, footnotes), MathJax, Mermaid
