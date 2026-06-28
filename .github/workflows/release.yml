@@ -84,6 +84,41 @@ jobs:
           NOTARY_PROFILE: ${{ env.APPLE_ID != '' && 'macdown-notary' || '' }}
         run: ./scripts/build-app.sh
 
+      - name: Verify bundle structure
+        # Guard against the bundleURL vs resourceURL regression (v0.2.0–v0.2.3):
+        # both SPM resource bundles must land in Contents/Resources/ with an
+        # Info.plist so macOS 26+ Bundle(url:) accepts them, and must contain
+        # their key assets.
+        run: |
+          set -euo pipefail
+          APP="dist/MacDown.app"
+          RES="$APP/Contents/Resources"
+          fail() { echo "FAIL: $1" >&2; exit 1; }
+
+          [ -d "$RES/Highlightr_Highlightr.bundle" ] \
+            || fail "Highlightr_Highlightr.bundle missing from Contents/Resources/"
+          [ -f "$RES/Highlightr_Highlightr.bundle/Info.plist" ] \
+            || fail "Highlightr_Highlightr.bundle/Info.plist missing (macOS 26 requires it)"
+          [ -f "$RES/Highlightr_Highlightr.bundle/highlight.min.js" ] \
+            || fail "highlight.min.js missing from Highlightr bundle"
+          [ -f "$RES/Highlightr_Highlightr.bundle/github-dark.min.css" ] \
+            || fail "github-dark.min.css missing from Highlightr bundle"
+
+          [ -d "$RES/MacDown_MacDownCore.bundle" ] \
+            || fail "MacDown_MacDownCore.bundle missing from Contents/Resources/"
+          [ -f "$RES/MacDown_MacDownCore.bundle/Info.plist" ] \
+            || fail "MacDown_MacDownCore.bundle/Info.plist missing (macOS 26 requires it)"
+          [ -d "$RES/MacDown_MacDownCore.bundle/Styles" ] \
+            || fail "Styles/ directory missing from MacDownCore bundle"
+          [ -f "$RES/MacDown_MacDownCore.bundle/Styles/GitHub2.css" ] \
+            || fail "Styles/GitHub2.css missing from MacDownCore bundle"
+          [ -d "$RES/MacDown_MacDownCore.bundle/Themes" ] \
+            || fail "Themes/ directory missing from MacDownCore bundle"
+          [ -d "$RES/MacDown_MacDownCore.bundle/Templates" ] \
+            || fail "Templates/ directory missing from MacDownCore bundle"
+
+          echo "Bundle structure OK"
+
       - name: Package zip
         run: |
           cd dist
