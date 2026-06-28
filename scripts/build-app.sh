@@ -49,9 +49,11 @@ mkdir -p "$CONTENTS/MacOS" "$CONTENTS/Resources"
 cp "$BIN_PATH/$PRODUCT" "$CONTENTS/MacOS/$APP_NAME"
 chmod +x "$CONTENTS/MacOS/$APP_NAME"
 
-# SwiftPM resource bundles (themes, styles, templates, extensions)
-# macOS 26+ requires Info.plist for Bundle(url:) to recognise a directory as a
-# bundle; SPM doesn't generate one, so we inject a minimal one after copying.
+# SwiftPM resource bundles (themes, styles, templates, extensions).
+# Bundles live in Contents/Resources/ (Bundle.main.resourceURL), where codesign
+# expects nested bundles. Our vendored Highlightr resolves against resourceURL.
+# macOS 26+ requires an Info.plist in each bundle for Bundle(url:) to recognise
+# it as a valid bundle package; SPM doesn't generate one, so we inject one here.
 shopt -s nullglob
 for b in "$BIN_PATH"/*.bundle; do
     bname="$(basename "$b" .bundle)"

@@ -25,7 +25,7 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-cmark.git", from: "0.4.0"),
         .package(url: "https://github.com/jpsim/Yams.git", from: "5.0.0"),
         .package(url: "https://github.com/apple/swift-collections.git", from: "1.1.0"),
-        .package(url: "https://github.com/raspu/Highlightr.git", from: "2.2.0"),
+        .package(path: "Dependency/Highlightr"),
     ],
     targets: [
         .target(
