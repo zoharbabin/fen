@@ -50,9 +50,18 @@ cp "$BIN_PATH/$PRODUCT" "$CONTENTS/MacOS/$APP_NAME"
 chmod +x "$CONTENTS/MacOS/$APP_NAME"
 
 # SwiftPM resource bundles (themes, styles, templates, extensions)
+# macOS 26+ requires Info.plist for Bundle(url:) to recognise a directory as a
+# bundle; SPM doesn't generate one, so we inject a minimal one after copying.
 shopt -s nullglob
 for b in "$BIN_PATH"/*.bundle; do
-    cp -R "$b" "$CONTENTS/Resources/"
+    bname="$(basename "$b" .bundle)"
+    dest="$CONTENTS/Resources/$(basename "$b")"
+    cp -R "$b" "$dest"
+    if [ ! -f "$dest/Info.plist" ]; then
+        /usr/libexec/PlistBuddy -c "Add :CFBundlePackageType string BNDL" \
+            -c "Add :CFBundleIdentifier string $BUNDLE_ID.$bname" \
+            "$dest/Info.plist" >/dev/null
+    fi
 done
 shopt -u nullglob
 
