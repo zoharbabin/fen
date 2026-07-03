@@ -1,0 +1,16 @@
+--swiftversion 6.0
+--indent 4
+--tabwidth 4
+--maxwidth 120
+--wrapcollections before-first
+--wraparguments before-first
+--wrapparameters before-first
+--closingparen balanced
+--self remove
+--importgrouping alphabetized
+--commas always
+--semicolons never
+--linebreaks lf
+--trimwhitespace always
+--header strip
+--exclude .build,Dependency,MacDown,macdown-cmd,Tools,Pods
