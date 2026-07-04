@@ -7,6 +7,7 @@ public struct SplitEditorView: View {
     public init(document: MarkdownDocument) {
         self.document = document
     }
+
     @State private var renderer = MarkdownRenderer()
     @State private var composer = HTMLComposer()
     @State private var scrollSync = ScrollSync()
@@ -55,33 +56,33 @@ public struct SplitEditorView: View {
     @ViewBuilder
     private var splitView: some View {
         #if os(macOS)
-        HSplitView {
-            if editorOnRight {
-                previewView
-                editorView
-            } else {
-                editorView
-                previewView
-            }
-        }
-        #else
-        GeometryReader { geometry in
-            HStack(spacing: 0) {
+            HSplitView {
                 if editorOnRight {
                     previewView
-                        .frame(width: geometry.size.width / 2)
-                    Divider()
                     editorView
-                        .frame(width: geometry.size.width / 2)
                 } else {
                     editorView
-                        .frame(width: geometry.size.width / 2)
-                    Divider()
                     previewView
-                        .frame(width: geometry.size.width / 2)
                 }
             }
-        }
+        #else
+            GeometryReader { geometry in
+                HStack(spacing: 0) {
+                    if editorOnRight {
+                        previewView
+                            .frame(width: geometry.size.width / 2)
+                        Divider()
+                        editorView
+                            .frame(width: geometry.size.width / 2)
+                    } else {
+                        editorView
+                            .frame(width: geometry.size.width / 2)
+                        Divider()
+                        previewView
+                            .frame(width: geometry.size.width / 2)
+                    }
+                }
+            }
         #endif
     }
 
@@ -97,6 +98,8 @@ public struct SplitEditorView: View {
             verticalInset: preferences.editorVerticalInset,
             isEditable: true,
             scrollsPastEnd: preferences.editorScrollsPastEnd,
+            scrollFraction: scrollSync.editorScrollFraction,
+            isScrollSyncEnabled: preferences.editorSyncScrolling,
             onScroll: { fraction in
                 if preferences.editorSyncScrolling {
                     scrollSync.editorDidScroll(to: fraction)
@@ -192,4 +195,3 @@ public struct SplitEditorView: View {
             ?? PlatformFont.monospacedSystemFont(ofSize: preferences.editorFontSize, weight: .regular)
     }
 }
-
