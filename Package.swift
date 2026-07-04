@@ -5,7 +5,7 @@ let package = Package(
     name: "MacDown",
     platforms: [
         .macOS(.v15),
-        .iOS(.v18)
+        .iOS(.v18),
     ],
     products: [
         .library(

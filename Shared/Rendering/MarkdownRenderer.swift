@@ -1,11 +1,10 @@
-import Foundation
 import cmark_gfm
 import cmark_gfm_extensions
+import Foundation
 import Yams
 
 /// Renders Markdown text to HTML using cmark-gfm.
 public struct MarkdownRenderer: Sendable {
-
     public struct Options: Sendable {
         public var tables: Bool = true
         public var strikethrough: Bool = true
@@ -38,8 +37,8 @@ public struct MarkdownRenderer: Sendable {
         public let frontMatter: [String: Any]?
         public let title: String?
 
-        // frontMatter is [String: Any] which isn't Sendable, but we only
-        // produce it from controlled YAML parsing. Mark as safe.
+        /// frontMatter is [String: Any] which isn't Sendable, but we only
+        /// produce it from controlled YAML parsing. Mark as safe.
         static let empty = RenderResult(html: "", frontMatter: nil, title: nil)
     }
 
@@ -121,16 +120,14 @@ public struct MarkdownRenderer: Sendable {
         guard lines.count > 2 else { return (text, nil) }
 
         var endIndex: Int?
-        for i in 1..<lines.count {
-            if lines[i].trimmingCharacters(in: .whitespaces) == "---" {
-                endIndex = i
-                break
-            }
+        for i in 1 ..< lines.count where lines[i].trimmingCharacters(in: .whitespaces) == "---" {
+            endIndex = i
+            break
         }
 
         guard let end = endIndex else { return (text, nil) }
 
-        let yamlContent = lines[1..<end].joined(separator: "\n")
+        let yamlContent = lines[1 ..< end].joined(separator: "\n")
         let remaining = lines[(end + 1)...].joined(separator: "\n")
 
         let yaml = try? Yams.load(yaml: yamlContent) as? [String: Any]

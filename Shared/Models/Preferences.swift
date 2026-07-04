@@ -3,7 +3,7 @@ import SwiftUI
 
 @Observable
 public final class Preferences {
-    nonisolated(unsafe) public static let shared = Preferences()
+    public nonisolated(unsafe) static let shared = Preferences()
 
     // MARK: - General
 
@@ -22,19 +22,27 @@ public final class Preferences {
     }
 
     var extensionTables: Bool = true {
-        didSet { defaults.set(extensionTables, forKey: "extensionTables"); renderRevision += 1 }
+        didSet { defaults.set(extensionTables, forKey: "extensionTables")
+            renderRevision += 1
+        }
     }
 
     var extensionFencedCode: Bool = true {
-        didSet { defaults.set(extensionFencedCode, forKey: "extensionFencedCode"); renderRevision += 1 }
+        didSet { defaults.set(extensionFencedCode, forKey: "extensionFencedCode")
+            renderRevision += 1
+        }
     }
 
     var extensionAutolink: Bool = true {
-        didSet { defaults.set(extensionAutolink, forKey: "extensionAutolink"); renderRevision += 1 }
+        didSet { defaults.set(extensionAutolink, forKey: "extensionAutolink")
+            renderRevision += 1
+        }
     }
 
     var extensionStrikethrough: Bool = true {
-        didSet { defaults.set(extensionStrikethrough, forKey: "extensionStrikethrough"); renderRevision += 1 }
+        didSet { defaults.set(extensionStrikethrough, forKey: "extensionStrikethrough")
+            renderRevision += 1
+        }
     }
 
     var extensionUnderline: Bool = false {
@@ -58,7 +66,9 @@ public final class Preferences {
     }
 
     var extensionSmartyPants: Bool = false {
-        didSet { defaults.set(extensionSmartyPants, forKey: "extensionSmartyPants"); renderRevision += 1 }
+        didSet { defaults.set(extensionSmartyPants, forKey: "extensionSmartyPants")
+            renderRevision += 1
+        }
     }
 
     var markdownManualRender: Bool = false {
@@ -142,55 +152,77 @@ public final class Preferences {
     // MARK: - HTML / Preview
 
     var htmlStyleName: String = "GitHub2" {
-        didSet { defaults.set(htmlStyleName, forKey: "htmlStyleName"); renderRevision += 1 }
+        didSet { defaults.set(htmlStyleName, forKey: "htmlStyleName")
+            renderRevision += 1
+        }
     }
 
     var htmlDetectFrontMatter: Bool = true {
-        didSet { defaults.set(htmlDetectFrontMatter, forKey: "htmlDetectFrontMatter"); renderRevision += 1 }
+        didSet { defaults.set(htmlDetectFrontMatter, forKey: "htmlDetectFrontMatter")
+            renderRevision += 1
+        }
     }
 
     var htmlTaskList: Bool = true {
-        didSet { defaults.set(htmlTaskList, forKey: "htmlTaskList"); renderRevision += 1 }
+        didSet { defaults.set(htmlTaskList, forKey: "htmlTaskList")
+            renderRevision += 1
+        }
     }
 
     var htmlHardWrap: Bool = false {
-        didSet { defaults.set(htmlHardWrap, forKey: "htmlHardWrap"); renderRevision += 1 }
+        didSet { defaults.set(htmlHardWrap, forKey: "htmlHardWrap")
+            renderRevision += 1
+        }
     }
 
     var htmlMathJax: Bool = false {
-        didSet { defaults.set(htmlMathJax, forKey: "htmlMathJax"); renderRevision += 1 }
+        didSet { defaults.set(htmlMathJax, forKey: "htmlMathJax")
+            renderRevision += 1
+        }
     }
 
     var htmlMathJaxInlineDollar: Bool = false {
-        didSet { defaults.set(htmlMathJaxInlineDollar, forKey: "htmlMathJaxInlineDollar"); renderRevision += 1 }
+        didSet { defaults.set(htmlMathJaxInlineDollar, forKey: "htmlMathJaxInlineDollar")
+            renderRevision += 1
+        }
     }
 
     var htmlSyntaxHighlighting: Bool = true {
-        didSet { defaults.set(htmlSyntaxHighlighting, forKey: "htmlSyntaxHighlighting"); renderRevision += 1 }
+        didSet { defaults.set(htmlSyntaxHighlighting, forKey: "htmlSyntaxHighlighting")
+            renderRevision += 1
+        }
     }
 
     var htmlHighlightingThemeName: String = "prism" {
-        didSet { defaults.set(htmlHighlightingThemeName, forKey: "htmlHighlightingThemeName"); renderRevision += 1 }
+        didSet { defaults.set(htmlHighlightingThemeName, forKey: "htmlHighlightingThemeName")
+            renderRevision += 1
+        }
     }
 
     var htmlLineNumbers: Bool = false {
-        didSet { defaults.set(htmlLineNumbers, forKey: "htmlLineNumbers"); renderRevision += 1 }
+        didSet { defaults.set(htmlLineNumbers, forKey: "htmlLineNumbers")
+            renderRevision += 1
+        }
     }
 
     var htmlMermaid: Bool = false {
-        didSet { defaults.set(htmlMermaid, forKey: "htmlMermaid"); renderRevision += 1 }
+        didSet { defaults.set(htmlMermaid, forKey: "htmlMermaid")
+            renderRevision += 1
+        }
     }
 
     var htmlRendersTOC: Bool = false {
-        didSet { defaults.set(htmlRendersTOC, forKey: "htmlRendersTOC"); renderRevision += 1 }
+        didSet { defaults.set(htmlRendersTOC, forKey: "htmlRendersTOC")
+            renderRevision += 1
+        }
     }
 
     // MARK: - Private
 
     private let defaults: UserDefaults
 
-    // Stored property tracked by @Observable; incremented by every render-affecting setter
-    // so SplitEditorView can watch a single value instead of every individual preference.
+    /// Stored property tracked by @Observable; incremented by every render-affecting setter
+    /// so SplitEditorView can watch a single value instead of every individual preference.
     var renderRevision: Int = 0
 
     public init(defaults: UserDefaults = .standard) {
@@ -198,9 +230,18 @@ public final class Preferences {
         // Load persisted values. didSet is NOT called for direct property assignments
         // within the class's own init, so no side effects (no UserDefaults writes, no
         // renderRevision increments) occur here.
+        loadGeneralDefaults(from: defaults)
+        loadExtensionDefaults(from: defaults)
+        loadEditorDefaults(from: defaults)
+        loadHTMLDefaults(from: defaults)
+    }
+
+    private func loadGeneralDefaults(from defaults: UserDefaults) {
         suppressesUntitledDocumentOnLaunch = defaults.bool(forKey: "suppressesUntitledDocumentOnLaunch")
         createFileForLinkTarget = defaults.bool(forKey: "createFileForLinkTarget")
+    }
 
+    private func loadExtensionDefaults(from defaults: UserDefaults) {
         extensionIntraEmphasis = defaults.bool(forKey: "extensionIntraEmphasis")
         extensionTables = defaults.object(forKey: "extensionTables") != nil
             ? defaults.bool(forKey: "extensionTables") : true
@@ -217,7 +258,9 @@ public final class Preferences {
         extensionQuote = defaults.bool(forKey: "extensionQuote")
         extensionSmartyPants = defaults.bool(forKey: "extensionSmartyPants")
         markdownManualRender = defaults.bool(forKey: "markdownManualRender")
+    }
 
+    private func loadEditorDefaults(from defaults: UserDefaults) {
         editorFontName = defaults.string(forKey: "editorFontName") ?? "Menlo-Regular"
         let fontSize = defaults.double(forKey: "editorFontSize")
         editorFontSize = fontSize > 0 ? fontSize : 14
@@ -249,7 +292,9 @@ public final class Preferences {
             ? defaults.bool(forKey: "editorScrollsPastEnd") : true
         editorEnsuresNewlineAtEndOfFile = defaults.object(forKey: "editorEnsuresNewlineAtEndOfFile") != nil
             ? defaults.bool(forKey: "editorEnsuresNewlineAtEndOfFile") : true
+    }
 
+    private func loadHTMLDefaults(from defaults: UserDefaults) {
         htmlStyleName = defaults.string(forKey: "htmlStyleName") ?? "GitHub2"
         htmlDetectFrontMatter = defaults.object(forKey: "htmlDetectFrontMatter") != nil
             ? defaults.bool(forKey: "htmlDetectFrontMatter") : true

@@ -12,8 +12,8 @@ import Foundation
 let coreBundle: Bundle = {
     let name = "MacDown_MacDownCore.bundle"
     let resourceBase = Bundle.main.resourceURL ?? Bundle.main.bundleURL
-    if let b = Bundle(url: resourceBase.appendingPathComponent(name)) {
-        return b
+    if let resolved = Bundle(url: resourceBase.appendingPathComponent(name)) {
+        return resolved
     }
     return Bundle.module
 }()

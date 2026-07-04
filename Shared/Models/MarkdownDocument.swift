@@ -37,15 +37,15 @@ public final class MarkdownDocument: ReferenceFileDocument, @unchecked Sendable 
         text = String(data: data, encoding: .utf8) ?? ""
     }
 
-    public func snapshot(contentType: UTType) throws -> String {
+    public func snapshot(contentType _: UTType) throws -> String {
         var content = text
-        if Preferences.shared.editorEnsuresNewlineAtEndOfFile && !content.hasSuffix("\n") {
+        if Preferences.shared.editorEnsuresNewlineAtEndOfFile, !content.hasSuffix("\n") {
             content += "\n"
         }
         return content
     }
 
-    public func fileWrapper(snapshot: String, configuration: WriteConfiguration) throws -> FileWrapper {
+    public func fileWrapper(snapshot: String, configuration _: WriteConfiguration) throws -> FileWrapper {
         guard let data = snapshot.data(using: .utf8) else {
             throw CocoaError(.fileWriteInapplicableStringEncoding)
         }
@@ -60,7 +60,7 @@ public final class MarkdownDocument: ReferenceFileDocument, @unchecked Sendable 
             if trimmed.hasPrefix("# ") {
                 return String(trimmed.dropFirst(2))
             }
-            if !trimmed.isEmpty && !trimmed.hasPrefix("---") {
+            if !trimmed.isEmpty, !trimmed.hasPrefix("---") {
                 break
             }
         }

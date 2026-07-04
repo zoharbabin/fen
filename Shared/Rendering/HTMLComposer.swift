@@ -3,7 +3,6 @@ import Foundation
 /// Composes a full HTML document by wrapping rendered markdown HTML
 /// with CSS styles, JavaScript extensions, and a document template.
 public struct HTMLComposer: Sendable {
-
     public init() {}
 
     /// Compose a complete HTML document from rendered markdown body.
@@ -15,74 +14,103 @@ public struct HTMLComposer: Sendable {
         var styleTags: [String] = []
         var scriptTags: [String] = []
 
-        // Base preview stylesheet
         if let css = loadStyleCSS(named: preferences.htmlStyleName) {
             styleTags.append(inlineStyle(css))
         }
 
-        // Syntax highlighting via Prism
-        if preferences.htmlSyntaxHighlighting {
-            if let prismCSS = loadPrismThemeCSS(named: preferences.htmlHighlightingThemeName) {
-                styleTags.append(inlineStyle(prismCSS))
+        let highlighting = syntaxHighlightingTags(preferences: preferences)
+        styleTags += highlighting.styles
+        scriptTags += highlighting.scripts
+
+        scriptTags += mathJaxTags(preferences: preferences)
+        scriptTags += mermaidTags(preferences: preferences)
+        scriptTags += taskListTags(preferences: preferences)
+
+        return htmlDocument(
+            title: title,
+            body: body,
+            styleTags: styleTags,
+            scriptTags: scriptTags,
+            includeViewportMeta: true
+        )
+    }
+
+    private func syntaxHighlightingTags(preferences: Preferences) -> (styles: [String], scripts: [String]) {
+        guard preferences.htmlSyntaxHighlighting else { return ([], []) }
+
+        var styles: [String] = []
+        var scripts: [String] = []
+        if let prismCSS = loadPrismThemeCSS(named: preferences.htmlHighlightingThemeName) {
+            styles.append(inlineStyle(prismCSS))
+        }
+        if let prismJS = loadPrismCoreJS() {
+            scripts.append(inlineScript(prismJS))
+        }
+        if preferences.htmlLineNumbers {
+            if let lineNumCSS = loadPrismPluginCSS(named: "line-numbers") {
+                styles.append(inlineStyle(lineNumCSS))
             }
-            if let prismJS = loadPrismCoreJS() {
-                scriptTags.append(inlineScript(prismJS))
-            }
-            // Line numbers plugin
-            if preferences.htmlLineNumbers {
-                if let lineNumCSS = loadPrismPluginCSS(named: "line-numbers") {
-                    styleTags.append(inlineStyle(lineNumCSS))
-                }
-                if let lineNumJS = loadPrismPluginJS(named: "line-numbers") {
-                    scriptTags.append(inlineScript(lineNumJS))
-                }
+            if let lineNumJS = loadPrismPluginJS(named: "line-numbers") {
+                scripts.append(inlineScript(lineNumJS))
             }
         }
+        return (styles, scripts)
+    }
 
-        // MathJax
-        if preferences.htmlMathJax {
-            let mathjaxCDN = "https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.3/MathJax.js?config=TeX-AMS-MML_HTMLorMML"
-            scriptTags.append(externalScript(mathjaxCDN))
-            if preferences.htmlMathJaxInlineDollar {
-                let config = """
-                <script type="text/x-mathjax-config">
-                MathJax.Hub.Config({
-                    tex2jax: { inlineMath: [['$','$'], ['\\\\(','\\\\)']] }
-                });
-                </script>
-                """
-                scriptTags.append(config)
-            }
+    private func mathJaxTags(preferences: Preferences) -> [String] {
+        guard preferences.htmlMathJax else { return [] }
+
+        let mathjaxCDN = "https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.3/MathJax.js?config=TeX-AMS-MML_HTMLorMML"
+        var scripts = [externalScript(mathjaxCDN)]
+        if preferences.htmlMathJaxInlineDollar {
+            scripts.append("""
+            <script type="text/x-mathjax-config">
+            MathJax.Hub.Config({
+                tex2jax: { inlineMath: [['$','$'], ['\\\\(','\\\\)']] }
+            });
+            </script>
+            """)
         }
+        return scripts
+    }
 
-        // Mermaid
-        if preferences.htmlMermaid {
-            if let mermaidJS = loadExtensionFile(named: "mermaid.min", ext: "js") {
-                scriptTags.append(inlineScript(mermaidJS))
-            }
-            if let initJS = loadExtensionFile(named: "mermaid.init", ext: "js") {
-                scriptTags.append(inlineScript(initJS))
-            }
-        }
+    private func mermaidTags(preferences: Preferences) -> [String] {
+        guard preferences.htmlMermaid else { return [] }
 
-        // Task list interactivity
-        if preferences.htmlTaskList {
-            if let taskJS = loadExtensionFile(named: "tasklist", ext: "js") {
-                scriptTags.append(inlineScript(taskJS))
-            }
-        }
+        return [
+            loadExtensionFile(named: "mermaid.min", ext: "js"),
+            loadExtensionFile(named: "mermaid.init", ext: "js"),
+        ]
+        .compactMap(\.self)
+        .map { inlineScript($0) }
+    }
 
-        // Build the HTML document from template
+    private func taskListTags(preferences: Preferences) -> [String] {
+        guard preferences.htmlTaskList,
+              let taskJS = loadExtensionFile(named: "tasklist", ext: "js") else { return [] }
+        return [inlineScript(taskJS)]
+    }
+
+    private func htmlDocument(
+        title: String?,
+        body: String,
+        styleTags: [String],
+        scriptTags: [String],
+        includeViewportMeta: Bool
+    ) -> String {
         let titleTag = title.map { "<title>\($0)</title>" } ?? ""
         let styleBlock = styleTags.joined(separator: "\n")
         let scriptBlock = scriptTags.joined(separator: "\n")
+        let viewportMeta = includeViewportMeta
+            ? "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, user-scalable=yes\">"
+            : ""
 
         return """
         <!DOCTYPE html>
         <html>
         <head>
         <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+        \(viewportMeta)
         \(titleTag)
         \(styleBlock)
         </head>
@@ -102,20 +130,15 @@ public struct HTMLComposer: Sendable {
         includeStyles: Bool,
         includeHighlighting: Bool
     ) -> String {
-        let exportPrefs = preferences
-        // For export, we might want to adjust preferences
-        // but for simplicity, delegate to compose with filtered options
         var styleTags: [String] = []
         var scriptTags: [String] = []
 
-        if includeStyles {
-            if let css = loadStyleCSS(named: exportPrefs.htmlStyleName) {
-                styleTags.append(inlineStyle(css))
-            }
+        if includeStyles, let css = loadStyleCSS(named: preferences.htmlStyleName) {
+            styleTags.append(inlineStyle(css))
         }
 
-        if includeHighlighting && exportPrefs.htmlSyntaxHighlighting {
-            if let prismCSS = loadPrismThemeCSS(named: exportPrefs.htmlHighlightingThemeName) {
+        if includeHighlighting, preferences.htmlSyntaxHighlighting {
+            if let prismCSS = loadPrismThemeCSS(named: preferences.htmlHighlightingThemeName) {
                 styleTags.append(inlineStyle(prismCSS))
             }
             if let prismJS = loadPrismCoreJS() {
@@ -123,24 +146,13 @@ public struct HTMLComposer: Sendable {
             }
         }
 
-        let titleTag = title.map { "<title>\($0)</title>" } ?? ""
-        let styleBlock = styleTags.joined(separator: "\n")
-        let scriptBlock = scriptTags.joined(separator: "\n")
-
-        return """
-        <!DOCTYPE html>
-        <html>
-        <head>
-        <meta charset="utf-8">
-        \(titleTag)
-        \(styleBlock)
-        </head>
-        <body>
-        \(body)
-        \(scriptBlock)
-        </body>
-        </html>
-        """
+        return htmlDocument(
+            title: title,
+            body: body,
+            styleTags: styleTags,
+            scriptTags: scriptTags,
+            includeViewportMeta: false
+        )
     }
 
     // MARK: - Resource Loading

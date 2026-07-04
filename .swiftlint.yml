@@ -41,6 +41,11 @@ opt_in_rules:
 disabled_rules:
   - trailing_whitespace  # SwiftFormat handles this
 
+# SwiftFormat's `--commas always` requires a trailing comma on multiline
+# collection literals; keep SwiftLint in agreement instead of disallowing it.
+trailing_comma:
+  mandatory_comma: true
+
 line_length:
   warning: 120
   error: 160

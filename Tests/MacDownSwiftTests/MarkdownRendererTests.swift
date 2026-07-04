@@ -1,11 +1,10 @@
 import Foundation
-import Testing
 import Highlightr
 @testable import MacDownCore
+import Testing
 
 @Suite("MarkdownRenderer Tests")
 struct MarkdownRendererTests {
-
     let renderer = MarkdownRenderer()
 
     @Test("Renders basic paragraph")
@@ -136,7 +135,6 @@ struct MarkdownRendererTests {
 
 @Suite("Theme Parser Tests")
 struct ThemeParserTests {
-
     @Test("Parses editor theme")
     func parseTheme() {
         let content = """
@@ -166,6 +164,7 @@ struct ThemeParserTests {
 }
 
 // MARK: - Bundle Resolution Tests
+
 //
 // These tests guard against the Bundle.main.bundleURL vs Bundle.main.resourceURL
 // failure mode that caused crashes in v0.2.0–v0.2.3. The SPM-generated
@@ -179,7 +178,6 @@ struct ThemeParserTests {
 
 @Suite("Bundle Resolution Tests")
 struct BundleResolutionTests {
-
     @Test("coreBundle resolves a Styles CSS resource")
     func coreBundleStyles() {
         // coreBundle must find at least one style; "GitHub2.css" ships with the app.
@@ -219,19 +217,25 @@ struct BundleResolutionTests {
         // Highlightr() returns nil when its bundle lookup fails (it calls
         // bundle.path(forResource:ofType:) which returns nil, causing init to
         // return nil). This is the exact failure path that crashed v0.2.0–v0.2.2.
-        let h = Highlightr()
-        #expect(h != nil, "Highlightr() returned nil — Highlightr_Highlightr.bundle is not resolving correctly")
+        let highlightr = Highlightr()
+        #expect(
+            highlightr != nil,
+            "Highlightr() returned nil — Highlightr_Highlightr.bundle is not resolving correctly"
+        )
     }
 
     @Test("Highlightr lists available themes")
     func highlightrAvailableThemes() {
-        guard let h = Highlightr() else {
+        guard let highlightr = Highlightr() else {
             Issue.record("Highlightr() returned nil — cannot test availableThemes")
             return
         }
-        let themes = h.availableThemes()
+        let themes = highlightr.availableThemes()
         #expect(!themes.isEmpty, "Highlightr.availableThemes() is empty — CSS resources not found in bundle")
-        #expect(themes.contains("github-dark"), "Expected 'github-dark' in Highlightr themes; got \(themes.count) themes")
+        #expect(
+            themes.contains("github-dark"),
+            "Expected 'github-dark' in Highlightr themes; got \(themes.count) themes"
+        )
     }
 
     @Test("HTMLComposer.compose returns non-empty HTML with default prefs")
@@ -249,9 +253,8 @@ struct BundleResolutionTests {
 
 @Suite("Preferences Tests")
 struct PreferencesTests {
-
-    // Each test gets a fresh isolated UserDefaults suite so tests cannot
-    // contaminate each other or the app's real UserDefaults.
+    /// Each test gets a fresh isolated UserDefaults suite so tests cannot
+    /// contaminate each other or the app's real UserDefaults.
     private static func isolated() -> (Preferences, UserDefaults) {
         let suiteName = "test.\(UUID().uuidString)"
         let ud = UserDefaults(suiteName: suiteName)!
@@ -297,46 +300,46 @@ struct PreferencesTests {
         prefs.htmlStyleName = "Clearness Dark"
         #expect(prefs.renderRevision == base + 1)
 
-        prefs.htmlSyntaxHighlighting = !prefs.htmlSyntaxHighlighting
+        prefs.htmlSyntaxHighlighting.toggle()
         #expect(prefs.renderRevision == base + 2)
 
-        prefs.extensionTables = !prefs.extensionTables
+        prefs.extensionTables.toggle()
         #expect(prefs.renderRevision == base + 3)
 
-        prefs.extensionStrikethrough = !prefs.extensionStrikethrough
+        prefs.extensionStrikethrough.toggle()
         #expect(prefs.renderRevision == base + 4)
 
-        prefs.extensionAutolink = !prefs.extensionAutolink
+        prefs.extensionAutolink.toggle()
         #expect(prefs.renderRevision == base + 5)
 
-        prefs.htmlMathJax = !prefs.htmlMathJax
+        prefs.htmlMathJax.toggle()
         #expect(prefs.renderRevision == base + 6)
 
-        prefs.htmlMermaid = !prefs.htmlMermaid
+        prefs.htmlMermaid.toggle()
         #expect(prefs.renderRevision == base + 7)
 
-        prefs.htmlTaskList = !prefs.htmlTaskList
+        prefs.htmlTaskList.toggle()
         #expect(prefs.renderRevision == base + 8)
 
-        prefs.htmlHardWrap = !prefs.htmlHardWrap
+        prefs.htmlHardWrap.toggle()
         #expect(prefs.renderRevision == base + 9)
 
-        prefs.htmlRendersTOC = !prefs.htmlRendersTOC
+        prefs.htmlRendersTOC.toggle()
         #expect(prefs.renderRevision == base + 10)
 
-        prefs.htmlDetectFrontMatter = !prefs.htmlDetectFrontMatter
+        prefs.htmlDetectFrontMatter.toggle()
         #expect(prefs.renderRevision == base + 11)
 
-        prefs.extensionSmartyPants = !prefs.extensionSmartyPants
+        prefs.extensionSmartyPants.toggle()
         #expect(prefs.renderRevision == base + 12)
 
         prefs.htmlHighlightingThemeName = "github-dark"
         #expect(prefs.renderRevision == base + 13)
 
-        prefs.htmlLineNumbers = !prefs.htmlLineNumbers
+        prefs.htmlLineNumbers.toggle()
         #expect(prefs.renderRevision == base + 14)
 
-        prefs.htmlMathJaxInlineDollar = !prefs.htmlMathJaxInlineDollar
+        prefs.htmlMathJaxInlineDollar.toggle()
         #expect(prefs.renderRevision == base + 15)
     }
 
@@ -345,11 +348,11 @@ struct PreferencesTests {
         let (prefs, _) = Self.isolated()
         let base = prefs.renderRevision
 
-        prefs.editorFontSize = prefs.editorFontSize + 1
+        prefs.editorFontSize += 1
         prefs.editorStyleName = "github-dark"
-        prefs.editorScrollsPastEnd = !prefs.editorScrollsPastEnd
-        prefs.editorShowWordCount = !prefs.editorShowWordCount
-        prefs.editorConvertTabs = !prefs.editorConvertTabs
+        prefs.editorScrollsPastEnd.toggle()
+        prefs.editorShowWordCount.toggle()
+        prefs.editorConvertTabs.toggle()
         #expect(prefs.renderRevision == base)
     }
 }

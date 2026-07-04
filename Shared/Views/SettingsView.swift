@@ -5,31 +5,31 @@ public struct SettingsView: View {
 
     public var body: some View {
         #if os(macOS)
-        TabView {
-            Tab("General", systemImage: "gearshape") {
-                GeneralSettingsTab()
+            TabView {
+                Tab("General", systemImage: "gearshape") {
+                    GeneralSettingsTab()
+                }
+                Tab("Editor", systemImage: "pencil") {
+                    EditorSettingsTab()
+                }
+                Tab("Markdown", systemImage: "doc.text") {
+                    MarkdownSettingsTab()
+                }
+                Tab("Rendering", systemImage: "eye") {
+                    RenderingSettingsTab()
+                }
             }
-            Tab("Editor", systemImage: "pencil") {
-                EditorSettingsTab()
-            }
-            Tab("Markdown", systemImage: "doc.text") {
-                MarkdownSettingsTab()
-            }
-            Tab("Rendering", systemImage: "eye") {
-                RenderingSettingsTab()
-            }
-        }
-        .frame(width: 500)
+            .frame(width: 500)
         #else
-        NavigationStack {
-            Form {
-                NavigationLink("General") { GeneralSettingsTab() }
-                NavigationLink("Editor") { EditorSettingsTab() }
-                NavigationLink("Markdown") { MarkdownSettingsTab() }
-                NavigationLink("Rendering") { RenderingSettingsTab() }
+            NavigationStack {
+                Form {
+                    NavigationLink("General") { GeneralSettingsTab() }
+                    NavigationLink("Editor") { EditorSettingsTab() }
+                    NavigationLink("Markdown") { MarkdownSettingsTab() }
+                    NavigationLink("Rendering") { RenderingSettingsTab() }
+                }
+                .navigationTitle("Settings")
             }
-            .navigationTitle("Settings")
-        }
         #endif
     }
 }
@@ -49,9 +49,9 @@ struct GeneralSettingsTab: View {
         }
         .formStyle(.grouped)
         #if os(macOS)
-        .padding()
+            .padding()
         #else
-        .navigationTitle("General")
+            .navigationTitle("General")
         #endif
     }
 }
@@ -70,7 +70,7 @@ struct EditorSettingsTab: View {
                     Text("\(prefs.editorFontName), \(Int(prefs.editorFontSize))pt")
                         .foregroundStyle(.secondary)
                 }
-                Stepper("Font Size: \(Int(prefs.editorFontSize))", value: $prefs.editorFontSize, in: 8...48)
+                Stepper("Font Size: \(Int(prefs.editorFontSize))", value: $prefs.editorFontSize, in: 8 ... 48)
             }
 
             Section("Theme") {
@@ -84,19 +84,24 @@ struct EditorSettingsTab: View {
             Section("Layout") {
                 HStack {
                     Text("Horizontal Inset")
-                    Slider(value: $prefs.editorHorizontalInset, in: 0...50)
+                    Slider(value: $prefs.editorHorizontalInset, in: 0 ... 50)
                 }
                 HStack {
                     Text("Vertical Inset")
-                    Slider(value: $prefs.editorVerticalInset, in: 0...80)
+                    Slider(value: $prefs.editorVerticalInset, in: 0 ... 80)
                 }
                 HStack {
                     Text("Line Spacing")
-                    Slider(value: $prefs.editorLineSpacing, in: 0...20)
+                    Slider(value: $prefs.editorLineSpacing, in: 0 ... 20)
                 }
                 Toggle("Limit editor width", isOn: $prefs.editorWidthLimited)
                 if prefs.editorWidthLimited {
-                    Stepper("Max Width: \(Int(prefs.editorMaximumWidth))", value: $prefs.editorMaximumWidth, in: 400...2000, step: 50)
+                    Stepper(
+                        "Max Width: \(Int(prefs.editorMaximumWidth))",
+                        value: $prefs.editorMaximumWidth,
+                        in: 400 ... 2000,
+                        step: 50
+                    )
                 }
             }
 
@@ -109,15 +114,15 @@ struct EditorSettingsTab: View {
                 Toggle("Scroll past end", isOn: $prefs.editorScrollsPastEnd)
                 Toggle("Show word count", isOn: $prefs.editorShowWordCount)
                 #if os(macOS)
-                Toggle("Smart Home key", isOn: $prefs.editorSmartHome)
+                    Toggle("Smart Home key", isOn: $prefs.editorSmartHome)
                 #endif
             }
         }
         .formStyle(.grouped)
         #if os(macOS)
-        .padding()
+            .padding()
         #else
-        .navigationTitle("Editor")
+            .navigationTitle("Editor")
         #endif
     }
 }
@@ -149,9 +154,9 @@ struct MarkdownSettingsTab: View {
         }
         .formStyle(.grouped)
         #if os(macOS)
-        .padding()
+            .padding()
         #else
-        .navigationTitle("Markdown")
+            .navigationTitle("Markdown")
         #endif
     }
 }
@@ -196,9 +201,9 @@ struct RenderingSettingsTab: View {
         }
         .formStyle(.grouped)
         #if os(macOS)
-        .padding()
+            .padding()
         #else
-        .navigationTitle("Rendering")
+            .navigationTitle("Rendering")
         #endif
     }
 }

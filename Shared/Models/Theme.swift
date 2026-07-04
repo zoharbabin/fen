@@ -1,29 +1,31 @@
 import Foundation
 #if canImport(AppKit)
-import AppKit
-public typealias PlatformColor = NSColor
-public typealias PlatformFont = NSFont
+    import AppKit
+
+    public typealias PlatformColor = NSColor
+    public typealias PlatformFont = NSFont
 #else
-import UIKit
-public typealias PlatformColor = UIColor
-public typealias PlatformFont = UIFont
+    import UIKit
+
+    public typealias PlatformColor = UIColor
+    public typealias PlatformFont = UIFont
 #endif
 
 /// Represents a parsed editor theme from a `.style` file.
 /// Format: blocks of element name followed by key-value properties.
 public struct EditorTheme: Sendable {
+    public enum FontStyle: Sendable {
+        case regular
+        case bold
+        case italic
+        case boldItalic
+    }
+
     public struct Style: Sendable {
         public var foreground: PlatformColor?
         public var background: PlatformColor?
         public var fontStyle: FontStyle
         public var fontSize: CGFloat?
-
-        public enum FontStyle: Sendable {
-            case regular
-            case bold
-            case italic
-            case boldItalic
-        }
 
         public init(
             foreground: PlatformColor? = nil,
@@ -64,7 +66,8 @@ public struct EditorTheme: Sendable {
               let contents = try? FileManager.default.contentsOfDirectory(
                   at: url,
                   includingPropertiesForKeys: nil
-              ) else {
+              )
+        else {
             return []
         }
         return contents
@@ -82,6 +85,39 @@ public struct EditorTheme: Sendable {
 
     // MARK: - Parser
 
+    /// Accumulates foreground/background/font properties for the block
+    /// currently being parsed, between one element-name line and the next.
+    private struct PendingBlock {
+        var foreground: PlatformColor?
+        var background: PlatformColor?
+        var fontStyle: FontStyle = .regular
+        var fontSize: CGFloat?
+
+        mutating func apply(key: String, value: String) {
+            switch key {
+            case "foreground": foreground = PlatformColor(hex: value)
+            case "background": background = PlatformColor(hex: value)
+            case "font-style": fontStyle = Self.parseFontStyle(value)
+            case "font-size": fontSize = Self.parseFontSize(value)
+            default: break
+            }
+        }
+
+        private static func parseFontStyle(_ value: String) -> FontStyle {
+            switch value.lowercased() {
+            case "bold": .bold
+            case "italic": .italic
+            case "bold italic", "bold-italic": .boldItalic
+            default: .regular
+            }
+        }
+
+        private static func parseFontSize(_ value: String) -> CGFloat {
+            let numeric = value.replacingOccurrences(of: "px", with: "")
+            return CGFloat(Double(numeric) ?? 0)
+        }
+    }
+
     static func parse(_ content: String, name: String) -> EditorTheme {
         var elementStyles: [String: Style] = [:]
         var editorForeground: PlatformColor = .white
@@ -91,69 +127,49 @@ public struct EditorTheme: Sendable {
         var selectionBg: PlatformColor?
 
         var currentElement: String?
-        var currentFg: PlatformColor?
-        var currentBg: PlatformColor?
-        var currentFontStyle: Style.FontStyle = .regular
-        var currentFontSize: CGFloat?
+        var block = PendingBlock()
 
         func flushElement() {
             guard let element = currentElement else { return }
             switch element {
             case "editor":
-                if let fg = currentFg { editorForeground = fg }
-                if let bg = currentBg { editorBackground = bg }
+                if let fg = block.foreground { editorForeground = fg }
+                if let bg = block.background { editorBackground = bg }
             case "editor-selection":
-                selectionFg = currentFg
-                selectionBg = currentBg
+                selectionFg = block.foreground
+                selectionBg = block.background
             default:
                 elementStyles[element] = Style(
-                    foreground: currentFg,
-                    background: currentBg,
-                    fontStyle: currentFontStyle,
-                    fontSize: currentFontSize
+                    foreground: block.foreground,
+                    background: block.background,
+                    fontStyle: block.fontStyle,
+                    fontSize: block.fontSize
                 )
             }
-            currentFg = nil
-            currentBg = nil
-            currentFontStyle = .regular
-            currentFontSize = nil
+            block = PendingBlock()
         }
 
         let lines = content.components(separatedBy: .newlines)
         for line in lines {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
-            if trimmed.isEmpty { continue }
+            guard !trimmed.isEmpty else { continue }
 
-            if trimmed.contains(":") {
-                let parts = trimmed.split(separator: ":", maxSplits: 1)
-                guard parts.count == 2 else { continue }
-                let key = parts[0].trimmingCharacters(in: .whitespaces).lowercased()
-                let value = parts[1].trimmingCharacters(in: .whitespaces)
-
-                switch key {
-                case "foreground":
-                    currentFg = PlatformColor(hex: value)
-                case "background":
-                    currentBg = PlatformColor(hex: value)
-                case "caret":
-                    caretColor = PlatformColor(hex: value) ?? caretColor
-                case "font-style":
-                    switch value.lowercased() {
-                    case "bold": currentFontStyle = .bold
-                    case "italic": currentFontStyle = .italic
-                    case "bold italic", "bold-italic": currentFontStyle = .boldItalic
-                    default: currentFontStyle = .regular
-                    }
-                case "font-size":
-                    let numeric = value.replacingOccurrences(of: "px", with: "")
-                    currentFontSize = CGFloat(Double(numeric) ?? 0)
-                default:
-                    break
-                }
-            } else {
+            guard trimmed.contains(":") else {
                 // New element block
                 flushElement()
                 currentElement = trimmed
+                continue
+            }
+
+            let parts = trimmed.split(separator: ":", maxSplits: 1)
+            guard parts.count == 2 else { continue }
+            let key = parts[0].trimmingCharacters(in: .whitespaces).lowercased()
+            let value = parts[1].trimmingCharacters(in: .whitespaces)
+
+            if key == "caret" {
+                caretColor = PlatformColor(hex: value) ?? caretColor
+            } else {
+                block.apply(key: key, value: value)
             }
         }
         flushElement()
@@ -177,12 +193,13 @@ extension PlatformColor {
         let cleaned = hex.trimmingCharacters(in: .whitespaces)
             .replacingOccurrences(of: "#", with: "")
         guard cleaned.count == 6,
-              let rgb = UInt64(cleaned, radix: 16) else {
+              let rgb = UInt64(cleaned, radix: 16)
+        else {
             return nil
         }
-        let r = CGFloat((rgb >> 16) & 0xFF) / 255.0
-        let g = CGFloat((rgb >> 8) & 0xFF) / 255.0
-        let b = CGFloat(rgb & 0xFF) / 255.0
-        self.init(red: r, green: g, blue: b, alpha: 1.0)
+        let red = CGFloat((rgb >> 16) & 0xFF) / 255.0
+        let green = CGFloat((rgb >> 8) & 0xFF) / 255.0
+        let blue = CGFloat(rgb & 0xFF) / 255.0
+        self.init(red: red, green: green, blue: blue, alpha: 1.0)
     }
 }

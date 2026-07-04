@@ -25,12 +25,12 @@ ctx.saveGState()
 squircle.addClip()
 
 // Diagonal blue gradient (cyan top-left -> deep blue bottom-right), MacDown heritage.
-let top = NSColor(srgbRed: 0.32, green: 0.78, blue: 0.96, alpha: 1)      // cyan
-let bottom = NSColor(srgbRed: 0.12, green: 0.45, blue: 0.92, alpha: 1)   // blue
+let top = NSColor(srgbRed: 0.32, green: 0.78, blue: 0.96, alpha: 1) // cyan
+let bottom = NSColor(srgbRed: 0.12, green: 0.45, blue: 0.92, alpha: 1) // blue
 let gradient = NSGradient(starting: top, ending: bottom)!
 gradient.draw(in: rect, angle: -55)
 
-// Subtle top highlight for a bit of dimensionality.
+/// Subtle top highlight for a bit of dimensionality.
 let highlight = NSGradient(
     colors: [NSColor(white: 1, alpha: 0.22), NSColor(white: 1, alpha: 0.0)]
 )!
@@ -46,9 +46,11 @@ let swiftOrange = NSColor(srgbRed: 0.941, green: 0.318, blue: 0.220, alpha: 1) /
 // "M" drawn with a heavy rounded system font.
 let mFont = NSFont.systemFont(ofSize: markHeight * 1.30, weight: .heavy)
 let roundedM: NSFont = {
-    if let d = mFont.fontDescriptor.withDesign(.rounded) { return NSFont(descriptor: d, size: mFont.pointSize) ?? mFont }
+    if let d = mFont.fontDescriptor
+        .withDesign(.rounded) { return NSFont(descriptor: d, size: mFont.pointSize) ?? mFont }
     return mFont
 }()
+
 let mAttrs: [NSAttributedString.Key: Any] = [.font: roundedM, .foregroundColor: white]
 let mStr = NSAttributedString(string: "M", attributes: mAttrs)
 let mSize = mStr.size()
@@ -88,8 +90,10 @@ image.unlockFocus()
 // --- Write PNG
 guard let tiff = image.tiffRepresentation,
       let rep = NSBitmapImageRep(data: tiff),
-      let png = rep.representation(using: .png, properties: [:]) else {
+      let png = rep.representation(using: .png, properties: [:])
+else {
     fatalError("failed to encode PNG")
 }
+
 try! png.write(to: URL(fileURLWithPath: outPath))
 print("wrote \(outPath)")
