@@ -1,0 +1,101 @@
+name: MacDownUITesting
+options:
+  bundleIdPrefix: com.macdown
+  deploymentTarget:
+    macOS: "15.0"
+    iOS: "18.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    MARKETING_VERSION: "0.0.0-dev"
+    CURRENT_PROJECT_VERSION: "1"
+
+packages:
+  MacDown:
+    path: .
+
+targets:
+  MacDownMacOSApp:
+    type: application
+    platform: macOS
+    sources:
+      - path: macOS
+        excludes:
+          - "AppIcon.iconset"
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.macdown.MacDownSwift
+        PRODUCT_NAME: MacDownSwift
+        INFOPLIST_FILE: macOS/Info.plist
+        CODE_SIGN_ENTITLEMENTS: macOS/MacDown.entitlements
+        GENERATE_INFOPLIST_FILE: false
+        ENABLE_HARDENED_RUNTIME: true
+        CODE_SIGN_STYLE: Automatic
+    dependencies:
+      - package: MacDown
+        product: MacDownCore
+
+  MacDowniOSApp:
+    type: application
+    platform: iOS
+    sources:
+      - path: iOS
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.macdown.MacDownSwift-iOS
+        PRODUCT_NAME: MacDownSwift
+        INFOPLIST_FILE: iOS/Info.plist
+        GENERATE_INFOPLIST_FILE: false
+        CODE_SIGN_STYLE: Automatic
+    dependencies:
+      - package: MacDown
+        product: MacDownCore
+
+  MacDownMacOSUITests:
+    type: bundle.ui-testing
+    platform: macOS
+    sources:
+      - path: UITests/MacDownUITests
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.macdown.MacDownSwift.UITests
+        CODE_SIGN_STYLE: Automatic
+        GENERATE_INFOPLIST_FILE: true
+        TEST_TARGET_NAME: MacDownMacOSApp
+    dependencies:
+      - target: MacDownMacOSApp
+
+  MacDowniOSUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: UITests/MacDowniOSUITests
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.macdown.MacDownSwift-iOS.UITests
+        CODE_SIGN_STYLE: Automatic
+        GENERATE_INFOPLIST_FILE: true
+        TEST_TARGET_NAME: MacDowniOSApp
+    dependencies:
+      - target: MacDowniOSApp
+
+schemes:
+  MacDownMacOSApp:
+    build:
+      targets:
+        MacDownMacOSApp: all
+        MacDownMacOSUITests: [test]
+    test:
+      targets:
+        - MacDownMacOSUITests
+
+  MacDowniOSApp:
+    build:
+      targets:
+        MacDowniOSApp: all
+        MacDowniOSUITests: [test]
+    test:
+      targets:
+        - MacDowniOSUITests

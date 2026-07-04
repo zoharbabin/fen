@@ -46,7 +46,7 @@ import WebKit
                 // Save scroll position, reload, restore
                 let scrollFractionJS = """
                 document.documentElement.scrollTop / \
-                (document.documentElement.scrollHeight - document.documentElement.clientHeight)
+                Math.max(1, document.documentElement.scrollHeight - document.documentElement.clientHeight)
                 """
                 webView.evaluateJavaScript(scrollFractionJS) { result, _ in
                     context.coordinator.savedScrollFraction = (result as? CGFloat) ?? scrollFraction
@@ -81,11 +81,14 @@ import WebKit
                 // Restore scroll position after load
                 let fraction = savedScrollFraction
                 lastAppliedScrollFraction = fraction
-                let js = """
-                document.documentElement.scrollTop = \(fraction) *
-                    (document.documentElement.scrollHeight - document.documentElement.clientHeight);
+                webView.evaluateJavaScript(Self.scrollAssignmentJS(fraction: fraction))
+            }
+
+            private static func scrollAssignmentJS(fraction: CGFloat) -> String {
                 """
-                webView.evaluateJavaScript(js)
+                document.documentElement.scrollTop = \(fraction) *
+                    Math.max(1, document.documentElement.scrollHeight - document.documentElement.clientHeight);
+                """
             }
 
             @MainActor func applyScrollFraction(_ fraction: CGFloat, to webView: WKWebView) {
@@ -93,11 +96,7 @@ import WebKit
                 else { return }
                 lastAppliedScrollFraction = fraction
                 isApplyingExternalScroll = true
-                let js = """
-                document.documentElement.scrollTop = \(fraction) *
-                    (document.documentElement.scrollHeight - document.documentElement.clientHeight);
-                """
-                webView.evaluateJavaScript(js) { [weak self] _, _ in
+                webView.evaluateJavaScript(Self.scrollAssignmentJS(fraction: fraction)) { [weak self] _, _ in
                     self?.isApplyingExternalScroll = false
                 }
             }
@@ -192,7 +191,7 @@ import WebKit
                 lastAppliedScrollFraction = fraction
                 let js = """
                 document.documentElement.scrollTop = \(fraction) *
-                    (document.documentElement.scrollHeight - document.documentElement.clientHeight);
+                    Math.max(1, document.documentElement.scrollHeight - document.documentElement.clientHeight);
                 """
                 webView.evaluateJavaScript(js)
             }

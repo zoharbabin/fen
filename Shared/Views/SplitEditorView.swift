@@ -109,6 +109,8 @@ public struct SplitEditorView: View {
                 scheduleRender()
             }
         )
+        .accessibilityIdentifier("EditorTextView")
+        .accessibilityValue(scrollFractionLabel(scrollSync.editorScrollFraction))
         #if os(macOS)
         .frame(minWidth: 200)
         #endif
@@ -127,9 +129,28 @@ public struct SplitEditorView: View {
                 }
             }
         )
+        // WKWebView is a native NSView; macOS only surfaces AXValue for
+        // roles like scroll areas or text fields, not the generic "Other"
+        // role a wrapped webview gets, so a `.accessibilityValue` here is
+        // silently dropped. Use a non-hit-testable overlay and expose the
+        // fraction as a label instead, which has no such role restriction.
+        .overlay(
+            Color.clear
+                .allowsHitTesting(false)
+                .accessibilityElement(children: .ignore)
+                .accessibilityIdentifier("PreviewWebView")
+                .accessibilityLabel(scrollFractionLabel(scrollSync.previewScrollFraction))
+        )
         #if os(macOS)
         .frame(minWidth: 200)
         #endif
+    }
+
+    /// Exposes the current scroll position as an accessibility value so
+    /// assistive tech (and UI tests) can read sync state without relying on
+    /// pixel geometry.
+    private func scrollFractionLabel(_ fraction: CGFloat) -> String {
+        "\(Int((fraction * 100).rounded()))%"
     }
 
     // MARK: - Toolbar
