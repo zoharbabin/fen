@@ -14,4 +14,4 @@
 --trimwhitespace always
 --header strip
 --disable wrapMultilineStatementBraces
---exclude .build,Dependency,MacDown,macdown-cmd,Tools,Pods
+--exclude .build,Dependency

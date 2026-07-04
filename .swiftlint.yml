@@ -7,9 +7,6 @@ included:
 excluded:
   - .build
   - Dependency
-  - MacDown
-  - macdown-cmd
-  - Tools
 
 opt_in_rules:
   - array_init
