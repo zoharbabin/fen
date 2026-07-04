@@ -1,4 +1,4 @@
-PRODUCT   = MacDownSwift
+PRODUCT   = Fen
 DIST      = dist
 
 .PHONY: build build-debug test lint format clean install open run resolve
@@ -21,12 +21,12 @@ app:
 
 ## Install .app to /Applications (builds first)
 install: app
-	cp -R "$(DIST)/MacDown.app" /Applications/MacDown.app
-	@echo "Installed to /Applications/MacDown.app"
+	cp -R "$(DIST)/Fen.app" /Applications/Fen.app
+	@echo "Installed to /Applications/Fen.app"
 
 ## Open the built .app
 open: app
-	open "$(DIST)/MacDown.app"
+	open "$(DIST)/Fen.app"
 
 ## Lint with SwiftLint
 lint:

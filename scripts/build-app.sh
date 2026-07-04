@@ -7,12 +7,12 @@
 #
 # Signed + notarized release (needs an Apple Developer account):
 #     SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" \
-#     NOTARY_PROFILE="macdown-notary" \
+#     NOTARY_PROFILE="fen-notary" \
 #     ./scripts/build-app.sh
 #
 # Environment overrides:
-#     APP_NAME        App/display name           (default: MacDown)
-#     BUNDLE_ID       Bundle identifier          (default: com.mfbergmann.macdown)
+#     APP_NAME        App/display name           (default: Fen)
+#     BUNDLE_ID       Bundle identifier          (default: com.zoharbabin.fen)
 #     VERSION         Marketing version string   (default: git tag/short SHA)
 #     CONFIG          debug | release            (default: release)
 #     SIGN_IDENTITY   Developer ID identity      (default: ad-hoc, i.e. unsigned for distribution)
@@ -20,10 +20,10 @@
 #
 set -euo pipefail
 
-APP_NAME="${APP_NAME:-MacDown}"
-BUNDLE_ID="${BUNDLE_ID:-com.mfbergmann.macdown}"
+APP_NAME="${APP_NAME:-Fen}"
+BUNDLE_ID="${BUNDLE_ID:-com.zoharbabin.fen}"
 CONFIG="${CONFIG:-release}"
-PRODUCT="MacDownSwift"            # SwiftPM executable product (see Package.swift)
+PRODUCT="Fen"                     # SwiftPM executable product (see Package.swift)
 MIN_MACOS="15.0"
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -84,7 +84,7 @@ set_key CFBundleShortVersionString "$VERSION"
 set_key CFBundleVersion "$BUILD_NUM"
 set_key CFBundleInfoDictionaryVersion "6.0"
 set_key LSMinimumSystemVersion "$MIN_MACOS"
-set_key NSHumanReadableCopyright "MacDown © 2014 Tzu-ping Chung. Swift rewrite by Michael F Bergmann. MIT License."
+set_key NSHumanReadableCopyright "Fen — based on MacDown © 2014 Tzu-ping Chung. MIT License."
 
 # PkgInfo
 printf 'APPL????' > "$CONTENTS/PkgInfo"
@@ -103,7 +103,7 @@ fi
 if [ -n "${SIGN_IDENTITY:-}" ]; then
     echo "==> Signing with: $SIGN_IDENTITY"
     codesign --force --deep --options runtime --timestamp \
-        --entitlements "$ROOT/macOS/MacDown.entitlements" \
+        --entitlements "$ROOT/macOS/Fen.entitlements" \
         --sign "$SIGN_IDENTITY" "$APP"
     codesign --verify --strict --verbose=2 "$APP"
 else

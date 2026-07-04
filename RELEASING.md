@@ -1,7 +1,7 @@
-# Releasing MacDown
+# Releasing Fen
 
-This explains how to publish a signed, notarized `MacDown.app` to the GitHub
-[Releases](https://github.com/mfbergmann/macdown-swift/releases) page. It's
+This explains how to publish a signed, notarized `Fen.app` to the GitHub
+[Releases](https://github.com/zoharbabin/fen/releases) page. It's
 written to be followed even if you don't do this every day.
 
 There are two ways to release:
@@ -34,7 +34,7 @@ The 10-character code in parentheses is your **Team ID**.
 ### 2. Create an app-specific password (for notarization)
 
 1. Go to <https://appleid.apple.com> → **Sign-In and Security** → **App-Specific Passwords**.
-2. Create one named e.g. `macdown-notary` and copy the generated password.
+2. Create one named e.g. `fen-notary` and copy the generated password.
 
 ---
 
@@ -70,7 +70,7 @@ git push origin v0.1.0
 ```
 
 The **Release** workflow runs automatically: it tests, builds, signs, notarizes,
-staples, zips, and creates a GitHub Release with `MacDown.app.zip` attached.
+staples, zips, and creates a GitHub Release with `Fen.app.zip` attached.
 
 > If you skip the secrets, the workflow still runs and produces an **unsigned**
 > build — fine for testing, but users will see a Gatekeeper warning.
@@ -85,20 +85,20 @@ build. To also notarize (required before others can run it without warnings):
 
 ```sh
 # 1. Store notary credentials once (creates a keychain profile)
-xcrun notarytool store-credentials macdown-notary \
+xcrun notarytool store-credentials fen-notary \
   --apple-id "you@example.com" \
   --team-id "ABCDE12345" \
   --password "your-app-specific-password"
 
 # 2. Build, sign, and notarize
 SIGN_IDENTITY="Developer ID Application: Your Name (ABCDE12345)" \
-NOTARY_PROFILE="macdown-notary" \
+NOTARY_PROFILE="fen-notary" \
 ./scripts/build-app.sh
 
 # 3. Zip and upload to a GitHub release
 cd dist
-ditto -c -k --keepParent "MacDown.app" "MacDown.app.zip"
-gh release create v0.1.0 MacDown.app.zip --generate-notes
+ditto -c -k --keepParent "Fen.app" "Fen.app.zip"
+gh release create v0.1.0 Fen.app.zip --generate-notes
 ```
 
 ---
@@ -111,7 +111,7 @@ The build number is the commit count. Without a tag, the version is `0.0.0-dev`.
 ## Verifying a build
 
 ```sh
-codesign --verify --deep --strict --verbose=2 dist/MacDown.app
-spctl --assess --type execute --verbose dist/MacDown.app   # should say "accepted"
-xcrun stapler validate dist/MacDown.app                    # notarization ticket
+codesign --verify --deep --strict --verbose=2 dist/Fen.app
+spctl --assess --type execute --verbose dist/Fen.app   # should say "accepted"
+xcrun stapler validate dist/Fen.app                    # notarization ticket
 ```

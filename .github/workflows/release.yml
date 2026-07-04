@@ -1,6 +1,6 @@
 name: Release
 
-# Builds the macOS app and attaches MacDown.app.zip to a GitHub Release.
+# Builds the macOS app and attaches Fen.app.zip to a GitHub Release.
 # Trigger by pushing a version tag, e.g.:  git tag v0.1.0 && git push origin v0.1.0
 # You can also run it manually from the Actions tab (Run workflow).
 #
@@ -73,7 +73,7 @@ jobs:
       - name: Store notary credentials
         if: ${{ env.APPLE_ID != '' && env.APPLE_APP_PASSWORD != '' && env.APPLE_TEAM_ID != '' }}
         run: |
-          xcrun notarytool store-credentials macdown-notary \
+          xcrun notarytool store-credentials fen-notary \
             --apple-id "$APPLE_ID" \
             --password "$APPLE_APP_PASSWORD" \
             --team-id "$APPLE_TEAM_ID"
@@ -81,7 +81,7 @@ jobs:
       - name: Build app
         env:
           SIGN_IDENTITY: ${{ env.MACOS_SIGN_IDENTITY }}
-          NOTARY_PROFILE: ${{ env.APPLE_ID != '' && 'macdown-notary' || '' }}
+          NOTARY_PROFILE: ${{ env.APPLE_ID != '' && 'fen-notary' || '' }}
         run: ./scripts/build-app.sh
 
       - name: Verify bundle structure
@@ -91,7 +91,7 @@ jobs:
         # their key assets.
         run: |
           set -euo pipefail
-          APP="dist/MacDown.app"
+          APP="dist/Fen.app"
           RES="$APP/Contents/Resources"
           fail() { echo "FAIL: $1" >&2; exit 1; }
 
@@ -104,31 +104,31 @@ jobs:
           [ -f "$RES/Highlightr_Highlightr.bundle/github-dark.min.css" ] \
             || fail "github-dark.min.css missing from Highlightr bundle"
 
-          [ -d "$RES/MacDown_MacDownCore.bundle" ] \
-            || fail "MacDown_MacDownCore.bundle missing from Contents/Resources/"
-          [ -f "$RES/MacDown_MacDownCore.bundle/Info.plist" ] \
-            || fail "MacDown_MacDownCore.bundle/Info.plist missing (macOS 26 requires it)"
-          [ -d "$RES/MacDown_MacDownCore.bundle/Styles" ] \
-            || fail "Styles/ directory missing from MacDownCore bundle"
-          [ -f "$RES/MacDown_MacDownCore.bundle/Styles/GitHub2.css" ] \
-            || fail "Styles/GitHub2.css missing from MacDownCore bundle"
-          [ -d "$RES/MacDown_MacDownCore.bundle/Themes" ] \
-            || fail "Themes/ directory missing from MacDownCore bundle"
-          [ -d "$RES/MacDown_MacDownCore.bundle/Templates" ] \
-            || fail "Templates/ directory missing from MacDownCore bundle"
+          [ -d "$RES/Fen_FenCore.bundle" ] \
+            || fail "Fen_FenCore.bundle missing from Contents/Resources/"
+          [ -f "$RES/Fen_FenCore.bundle/Info.plist" ] \
+            || fail "Fen_FenCore.bundle/Info.plist missing (macOS 26 requires it)"
+          [ -d "$RES/Fen_FenCore.bundle/Styles" ] \
+            || fail "Styles/ directory missing from FenCore bundle"
+          [ -f "$RES/Fen_FenCore.bundle/Styles/GitHub2.css" ] \
+            || fail "Styles/GitHub2.css missing from FenCore bundle"
+          [ -d "$RES/Fen_FenCore.bundle/Themes" ] \
+            || fail "Themes/ directory missing from FenCore bundle"
+          [ -d "$RES/Fen_FenCore.bundle/Templates" ] \
+            || fail "Templates/ directory missing from FenCore bundle"
 
           echo "Bundle structure OK"
 
       - name: Package zip
         run: |
           cd dist
-          ditto -c -k --keepParent "MacDown.app" "MacDown.app.zip"
+          ditto -c -k --keepParent "Fen.app" "Fen.app.zip"
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: MacDown-app
-          path: dist/MacDown.app.zip
+          name: Fen-app
+          path: dist/Fen.app.zip
 
       # Only publish from CI when signing secrets are configured, so an
       # unsigned CI build never gets attached to a public release. Until then,
@@ -137,5 +137,5 @@ jobs:
         if: ${{ startsWith(github.ref, 'refs/tags/') && env.MACOS_SIGN_IDENTITY != '' }}
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/MacDown.app.zip
+          files: dist/Fen.app.zip
           generate_release_notes: true

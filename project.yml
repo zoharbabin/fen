@@ -1,6 +1,6 @@
-name: MacDownUITesting
+name: FenUITesting
 options:
-  bundleIdPrefix: com.macdown
+  bundleIdPrefix: com.zoharbabin
   deploymentTarget:
     macOS: "15.0"
     iOS: "18.0"
@@ -13,11 +13,11 @@ settings:
     CURRENT_PROJECT_VERSION: "1"
 
 packages:
-  MacDown:
+  Fen:
     path: .
 
 targets:
-  MacDownMacOSApp:
+  FenMacOSApp:
     type: application
     platform: macOS
     sources:
@@ -26,76 +26,76 @@ targets:
           - "AppIcon.iconset"
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.macdown.MacDownSwift
-        PRODUCT_NAME: MacDownSwift
+        PRODUCT_BUNDLE_IDENTIFIER: com.zoharbabin.fen
+        PRODUCT_NAME: Fen
         INFOPLIST_FILE: macOS/Info.plist
-        CODE_SIGN_ENTITLEMENTS: macOS/MacDown.entitlements
+        CODE_SIGN_ENTITLEMENTS: macOS/Fen.entitlements
         GENERATE_INFOPLIST_FILE: false
         ENABLE_HARDENED_RUNTIME: true
         CODE_SIGN_STYLE: Automatic
     dependencies:
-      - package: MacDown
-        product: MacDownCore
+      - package: Fen
+        product: FenCore
 
-  MacDowniOSApp:
+  FeniOSApp:
     type: application
     platform: iOS
     sources:
       - path: iOS
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.macdown.MacDownSwift-iOS
-        PRODUCT_NAME: MacDownSwift
+        PRODUCT_BUNDLE_IDENTIFIER: com.zoharbabin.fen-ios
+        PRODUCT_NAME: Fen
         INFOPLIST_FILE: iOS/Info.plist
         GENERATE_INFOPLIST_FILE: false
         CODE_SIGN_STYLE: Automatic
     dependencies:
-      - package: MacDown
-        product: MacDownCore
+      - package: Fen
+        product: FenCore
 
-  MacDownMacOSUITests:
+  FenMacOSUITests:
     type: bundle.ui-testing
     platform: macOS
     sources:
-      - path: UITests/MacDownUITests
+      - path: UITests/FenUITests
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.macdown.MacDownSwift.UITests
+        PRODUCT_BUNDLE_IDENTIFIER: com.zoharbabin.fen.UITests
         CODE_SIGN_STYLE: Automatic
         GENERATE_INFOPLIST_FILE: true
-        TEST_TARGET_NAME: MacDownMacOSApp
+        TEST_TARGET_NAME: FenMacOSApp
     dependencies:
-      - target: MacDownMacOSApp
+      - target: FenMacOSApp
 
-  MacDowniOSUITests:
+  FeniOSUITests:
     type: bundle.ui-testing
     platform: iOS
     sources:
-      - path: UITests/MacDowniOSUITests
+      - path: UITests/FeniOSUITests
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.macdown.MacDownSwift-iOS.UITests
+        PRODUCT_BUNDLE_IDENTIFIER: com.zoharbabin.fen-ios.UITests
         CODE_SIGN_STYLE: Automatic
         GENERATE_INFOPLIST_FILE: true
-        TEST_TARGET_NAME: MacDowniOSApp
+        TEST_TARGET_NAME: FeniOSApp
     dependencies:
-      - target: MacDowniOSApp
+      - target: FeniOSApp
 
 schemes:
-  MacDownMacOSApp:
+  FenMacOSApp:
     build:
       targets:
-        MacDownMacOSApp: all
-        MacDownMacOSUITests: [test]
+        FenMacOSApp: all
+        FenMacOSUITests: [test]
     test:
       targets:
-        - MacDownMacOSUITests
+        - FenMacOSUITests
 
-  MacDowniOSApp:
+  FeniOSApp:
     build:
       targets:
-        MacDowniOSApp: all
-        MacDowniOSUITests: [test]
+        FeniOSApp: all
+        FeniOSUITests: [test]
     test:
       targets:
-        - MacDowniOSUITests
+        - FeniOSUITests

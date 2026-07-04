@@ -2,23 +2,23 @@
 import PackageDescription
 
 let package = Package(
-    name: "MacDown",
+    name: "Fen",
     platforms: [
         .macOS(.v15),
         .iOS(.v18),
     ],
     products: [
         .library(
-            name: "MacDownCore",
-            targets: ["MacDownCore"]
+            name: "FenCore",
+            targets: ["FenCore"]
         ),
         .executable(
-            name: "MacDownSwift",
-            targets: ["MacDownMacOS"]
+            name: "Fen",
+            targets: ["FenMacOS"]
         ),
         .executable(
-            name: "MacDowniOS",
-            targets: ["MacDownIOS"]
+            name: "FeniOS",
+            targets: ["FenIOS"]
         ),
     ],
     dependencies: [
@@ -29,7 +29,7 @@ let package = Package(
     ],
     targets: [
         .target(
-            name: "MacDownCore",
+            name: "FenCore",
             dependencies: [
                 .product(name: "cmark-gfm", package: "swift-cmark"),
                 .product(name: "cmark-gfm-extensions", package: "swift-cmark"),
@@ -46,19 +46,19 @@ let package = Package(
             ]
         ),
         .executableTarget(
-            name: "MacDownMacOS",
-            dependencies: ["MacDownCore"],
+            name: "FenMacOS",
+            dependencies: ["FenCore"],
             path: "macOS"
         ),
         .executableTarget(
-            name: "MacDownIOS",
-            dependencies: ["MacDownCore"],
+            name: "FenIOS",
+            dependencies: ["FenCore"],
             path: "iOS"
         ),
         .testTarget(
-            name: "MacDownTests",
-            dependencies: ["MacDownCore"],
-            path: "Tests/MacDownSwiftTests"
+            name: "FenTests",
+            dependencies: ["FenCore"],
+            path: "Tests/FenTests"
         ),
     ]
 )

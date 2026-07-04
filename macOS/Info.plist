@@ -56,13 +56,13 @@
 		</dict>
 	</array>
 	<key>CFBundleIdentifier</key>
-	<string>com.macdown.MacDownSwift</string>
+	<string>com.zoharbabin.fen</string>
 	<key>CFBundleName</key>
-	<string>MacDownSwift</string>
+	<string>Fen</string>
 	<key>CFBundleDisplayName</key>
-	<string>MacDownSwift</string>
+	<string>Fen</string>
 	<key>CFBundleExecutable</key>
-	<string>MacDownSwift</string>
+	<string>Fen</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>NSPrincipalClass</key>
