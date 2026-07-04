@@ -202,3 +202,8 @@ MacDown/Resources/Prism/*
 *.app
 *.dmg
 *.app.zip
+
+#####
+# xcodegen-generated UI testing project (regenerate with `xcodegen generate`)
+#
+/MacDownUITesting.xcodeproj/
