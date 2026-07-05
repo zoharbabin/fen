@@ -1,15 +1,19 @@
 #!/usr/bin/env swift
 //
-// make-icon.swift — render the MacDown (Swift) app icon to a 1024×1024 PNG.
+// make-icon.swift — render the Fen app icon to a 1024×1024 PNG.
 //
-// Concept: the classic Markdown "M↓" mark on a refreshed blue squircle, with
-// the down-arrow in Swift's signature orange — "MacDown, in Swift."
+// Concept: a bold rounded "F" on a wetland gradient (deep teal to green,
+// evoking still water and reeds), with a single amber reed blade curving
+// beside it — a fen is a self-sustaining wetland that keeps growing,
+// which is the idea behind the app: notes that grow into more. Kept to
+// one thick blade (rather than several thin ones) so the mark still
+// reads clearly at 16–32px Dock/Finder sizes.
 //
 // Usage:  swift scripts/make-icon.swift [output.png]
 //
 import AppKit
 
-let outPath = CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : "/tmp/macdown-icon.png"
+let outPath = CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : "/tmp/fen-icon.png"
 let S: CGFloat = 1024
 
 let image = NSImage(size: NSSize(width: S, height: S))
@@ -24,66 +28,60 @@ let squircle = NSBezierPath(roundedRect: rect, xRadius: radius, yRadius: radius)
 ctx.saveGState()
 squircle.addClip()
 
-// Diagonal blue gradient (cyan top-left -> deep blue bottom-right), MacDown heritage.
-let top = NSColor(srgbRed: 0.32, green: 0.78, blue: 0.96, alpha: 1) // cyan
-let bottom = NSColor(srgbRed: 0.12, green: 0.45, blue: 0.92, alpha: 1) // blue
+// Diagonal wetland gradient (deep teal top-left -> mossy green bottom-right).
+let top = NSColor(srgbRed: 0.09, green: 0.42, blue: 0.46, alpha: 1) // deep teal
+let bottom = NSColor(srgbRed: 0.11, green: 0.30, blue: 0.20, alpha: 1) // deep moss green
 let gradient = NSGradient(starting: top, ending: bottom)!
 gradient.draw(in: rect, angle: -55)
 
-/// Subtle top highlight for a bit of dimensionality.
+/// Subtle top highlight for a bit of dimensionality, like light on still water.
 let highlight = NSGradient(
-    colors: [NSColor(white: 1, alpha: 0.22), NSColor(white: 1, alpha: 0.0)]
+    colors: [NSColor(white: 1, alpha: 0.18), NSColor(white: 1, alpha: 0.0)]
 )!
 highlight.draw(in: CGRect(x: rect.minX, y: rect.midY, width: rect.width, height: rect.height / 2), angle: -90)
 ctx.restoreGState()
 
-// --- Mark geometry: "M" on the left, "↓" on the right, vertically centered.
-let markHeight = rect.height * 0.40
+// --- Mark geometry: bold "F" on the left, three reed blades rising beside it.
+let markHeight = rect.height * 0.42
 let markCenterY = rect.midY
-let white = NSColor.white
-let swiftOrange = NSColor(srgbRed: 0.941, green: 0.318, blue: 0.220, alpha: 1) // #F05138
+let white = NSColor(srgbRed: 0.96, green: 0.98, blue: 0.96, alpha: 1)
+let reedAmber = NSColor(srgbRed: 0.91, green: 0.71, blue: 0.25, alpha: 1) // sunlit amber
 
-// "M" drawn with a heavy rounded system font.
-let mFont = NSFont.systemFont(ofSize: markHeight * 1.30, weight: .heavy)
-let roundedM: NSFont = {
-    if let d = mFont.fontDescriptor
-        .withDesign(.rounded) { return NSFont(descriptor: d, size: mFont.pointSize) ?? mFont }
-    return mFont
+// "F" drawn with a heavy rounded system font.
+let fFont = NSFont.systemFont(ofSize: markHeight * 1.30, weight: .heavy)
+let roundedF: NSFont = {
+    if let d = fFont.fontDescriptor
+        .withDesign(.rounded) { return NSFont(descriptor: d, size: fFont.pointSize) ?? fFont }
+    return fFont
 }()
 
-let mAttrs: [NSAttributedString.Key: Any] = [.font: roundedM, .foregroundColor: white]
-let mStr = NSAttributedString(string: "M", attributes: mAttrs)
-let mSize = mStr.size()
-let mX = rect.minX + rect.width * 0.165
-let mRect = CGRect(x: mX, y: markCenterY - mSize.height / 2, width: mSize.width, height: mSize.height)
-mStr.draw(in: mRect)
+let fAttrs: [NSAttributedString.Key: Any] = [.font: roundedF, .foregroundColor: white]
+let fStr = NSAttributedString(string: "F", attributes: fAttrs)
+let fSize = fStr.size()
+let fX = rect.minX + rect.width * 0.20
+let fRect = CGRect(x: fX, y: markCenterY - fSize.height / 2, width: fSize.width, height: fSize.height)
+fStr.draw(in: fRect)
 
-// Down arrow (Swift orange): vertical stem + chevron head, rounded caps.
-// Raised slightly so it optically centers with the capital "M".
-let arrowCenterX = mX + mSize.width + rect.width * 0.185
-let arrowCenterY = markCenterY + markHeight * 0.07
-let stemTop = arrowCenterY + markHeight / 2
-let stemBottom = arrowCenterY - markHeight / 2
-let lineWidth = markHeight * 0.20
+// A single bold reed blade curving beside the "F" — thick enough to
+// still read at Dock/Finder sizes.
+let reedBaseX = fX + fSize.width + rect.width * 0.19
+let reedBaseY = markCenterY - markHeight * 0.50
+let reedHeight = markHeight * 1.12
+let reedLean: CGFloat = 0.10
+let tipX = reedBaseX + reedHeight * reedLean
+let controlX = reedBaseX + reedHeight * reedLean * 0.4
 
-swiftOrange.setStroke()
-let stem = NSBezierPath()
-stem.lineWidth = lineWidth
-stem.lineCapStyle = .round
-stem.lineJoinStyle = .round
-stem.move(to: CGPoint(x: arrowCenterX, y: stemTop))
-stem.line(to: CGPoint(x: arrowCenterX, y: stemBottom))
-stem.stroke()
-
-let headSpan = markHeight * 0.42
-let head = NSBezierPath()
-head.lineWidth = lineWidth
-head.lineCapStyle = .round
-head.lineJoinStyle = .round
-head.move(to: CGPoint(x: arrowCenterX - headSpan, y: stemBottom + headSpan))
-head.line(to: CGPoint(x: arrowCenterX, y: stemBottom))
-head.line(to: CGPoint(x: arrowCenterX + headSpan, y: stemBottom + headSpan))
-head.stroke()
+reedAmber.setStroke()
+let blade = NSBezierPath()
+blade.lineWidth = rect.width * 0.052
+blade.lineCapStyle = .round
+blade.move(to: CGPoint(x: reedBaseX, y: reedBaseY))
+blade.curve(
+    to: CGPoint(x: tipX, y: reedBaseY + reedHeight),
+    controlPoint1: CGPoint(x: controlX, y: reedBaseY + reedHeight * 0.55),
+    controlPoint2: CGPoint(x: tipX, y: reedBaseY + reedHeight * 0.85)
+)
+blade.stroke()
 
 image.unlockFocus()
 

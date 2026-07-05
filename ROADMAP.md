@@ -6,7 +6,7 @@ knowledge base instead of a pile of loose files. We take inspiration from
 Typora, iA Writer, Bear, Obsidian, and the original MacDown, but we stay
 minimal: speed and clarity over feature sprawl.
 
-Status legend: `[ ]` planned · `[~]` partial/started
+Status legend: `[ ]` planned · `[~]` partial/started · `[x]` done
 
 ---
 
@@ -65,7 +65,7 @@ being isolated files and start being a connected knowledge base.
 ---
 
 ## 5. App polish
-- [ ] **Icon refinement** — a Fen mark that fits the brand
+- [x] **Icon refinement** — a Fen mark that fits the brand
 - [ ] About panel with credits (Tzu-ping Chung, Mou) and bundled third-party licenses
 - [ ] First-run sample document / light onboarding
 - [ ] Settings screen polish and grouping pass
