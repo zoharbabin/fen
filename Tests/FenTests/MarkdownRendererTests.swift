@@ -1,6 +1,6 @@
+@testable import FenCore
 import Foundation
 import Highlightr
-@testable import FenCore
 import Testing
 
 @Suite("MarkdownRenderer Tests")

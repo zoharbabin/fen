@@ -16,7 +16,7 @@ final class PreviewSchemeHandler: NSObject, WKURLSchemeHandler {
     var html: String = ""
     var baseDirectory: URL?
 
-    func webView(_ webView: WKWebView, start task: WKURLSchemeTask) {
+    func webView(_: WKWebView, start task: WKURLSchemeTask) {
         guard let url = task.request.url else {
             task.didFailWithError(URLError(.badURL))
             return

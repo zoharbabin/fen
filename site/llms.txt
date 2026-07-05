@@ -1,0 +1,25 @@
+# Fen
+
+> A native Swift/SwiftUI Markdown editor for macOS and iOS — fast, minimal, open source, and Apple Silicon native. Grew out of a full rewrite of MacDown. Growing into a connected knowledge base: multi-file workspaces, backlinks, and local search are on the roadmap.
+
+Fen is built and maintained by Zohar Babin (https://zoharbabin.com/), CSO at Kaltura, Inc. and a long-time open-source builder. Fen itself is not affiliated with Kaltura — it's an independent open-source project.
+
+## What Fen is
+
+- A rewrite of the original MacDown (Objective-C, by Tzu-ping Chung) in pure Swift and SwiftUI, sharing a cross-platform core (`FenCore`) between the macOS and iOS apps.
+- Live Markdown preview with editor/preview scroll sync, syntax highlighting, MathJax, and Mermaid diagram rendering.
+- GitHub-Flavored Markdown via Apple's swift-cmark (tables, task lists, strikethrough, autolinks, footnotes).
+- Free, MIT-licensed, no telemetry, no account required.
+- Signed and notarized by Apple — installs without Gatekeeper warnings.
+
+## Links
+
+- Website: https://zoharbabin.com/fen/
+- Source & releases: https://github.com/zoharbabin/fen
+- Roadmap: https://github.com/zoharbabin/fen/blob/master/ROADMAP.md
+- Contributing: https://github.com/zoharbabin/fen/blob/master/CONTRIBUTING.md
+- License: https://github.com/zoharbabin/fen/blob/master/LICENSE.md
+
+## Where Fen is headed
+
+Near-term: PDF/HTML export, a formatting toolbar, and default-`.md`-editor system integration. Longer-term ("the knowledge suite"): multi-file workspaces, `[[wiki-link]]` backlinks, local full-text search, a lightweight tagging/ontology layer, and a graph view — turning isolated Markdown files into a connected, searchable knowledge base.

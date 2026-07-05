@@ -25,8 +25,13 @@ final class ScrollSyncUITests: XCTestCase {
     /// SwiftUI wrapper elements (an `NSScrollView` for the editor, a `Group`
     /// for the WKWebView-backed preview), not on the native `TextView`/
     /// `WebView` roles — so look those up, then descend for interaction.
-    private func editorContainer() -> XCUIElement { app.scrollViews["EditorTextView"] }
-    private func previewContainer() -> XCUIElement { app.otherElements["PreviewWebView"] }
+    private func editorContainer() -> XCUIElement {
+        app.scrollViews["EditorTextView"]
+    }
+
+    private func previewContainer() -> XCUIElement {
+        app.otherElements["PreviewWebView"]
+    }
 
     /// Types enough headings to make both panes scrollable, without relying
     /// on any prior scroll gesture to "warm up" the WKWebView preview. Typed
@@ -36,7 +41,7 @@ final class ScrollSyncUITests: XCTestCase {
         let editorScrollView = editorContainer()
         XCTAssertTrue(editorScrollView.waitForExistence(timeout: 5))
         editorScrollView.textViews.firstMatch.click()
-        let document = (1...40)
+        let document = (1 ... 40)
             .map { "## Heading \($0)\n\nSome body text for section \($0).\n\n" }
             .joined()
         app.typeText(document)
@@ -50,7 +55,7 @@ final class ScrollSyncUITests: XCTestCase {
     /// as a label there instead; fall back to that when `.value` is empty.
     private func scrollPercent(of element: XCUIElement) -> Int? {
         if let value = element.value as? String,
-            let percent = Int(value.replacingOccurrences(of: "%", with: "")) {
+           let percent = Int(value.replacingOccurrences(of: "%", with: "")) {
             return percent
         }
         return Int(element.label.replacingOccurrences(of: "%", with: ""))
@@ -72,7 +77,7 @@ final class ScrollSyncUITests: XCTestCase {
         return scrollPercent(of: element)
     }
 
-    func testEditorScrollSyncsPreviewWithoutPriorGesture() throws {
+    func testEditorScrollSyncsPreviewWithoutPriorGesture() {
         typeLongDocument()
 
         let editor = editorContainer()
@@ -92,7 +97,7 @@ final class ScrollSyncUITests: XCTestCase {
         )
     }
 
-    func testPreviewScrollSyncsEditorWithoutPriorGesture() throws {
+    func testPreviewScrollSyncsEditorWithoutPriorGesture() {
         typeLongDocument()
 
         let preview = previewContainer()

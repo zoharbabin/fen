@@ -1,13 +1,10 @@
 # Releasing Fen
 
-This explains how to publish a signed, notarized `Fen.app` to the GitHub
-[Releases](https://github.com/zoharbabin/fen/releases) page. It's
-written to be followed even if you don't do this every day.
+This walks you through publishing a signed, notarized `Fen.app` to the GitHub [Releases](https://github.com/zoharbabin/fen/releases) page — even if you don't do this every day.
 
 There are two ways to release:
 
-1. **Automatic (recommended):** push a version tag and GitHub Actions builds,
-   signs, notarizes, and uploads the app for you.
+1. **Automatic (recommended):** push a version tag and GitHub Actions builds, signs, notarizes, and uploads the app for you.
 2. **Manual:** run the build script on your own Mac.
 
 ---
@@ -28,8 +25,7 @@ Find its exact name (you'll need it):
 security find-identity -v -p codesigning
 ```
 
-Look for a line like `Developer ID Application: Your Name (ABCDE12345)`.
-The 10-character code in parentheses is your **Team ID**.
+Look for a line like `Developer ID Application: Your Name (ABCDE12345)`. The 10-character code in parentheses is your **Team ID**.
 
 ### 2. Create an app-specific password (for notarization)
 
@@ -42,8 +38,7 @@ The 10-character code in parentheses is your **Team ID**.
 
 ### Add repository secrets (one time)
 
-In GitHub: **Settings → Secrets and variables → Actions → New repository secret**.
-Add all six:
+In GitHub: **Settings → Secrets and variables → Actions → New repository secret**. Add all six:
 
 | Secret | Value |
 |--------|-------|
@@ -54,9 +49,7 @@ Add all six:
 | `APPLE_APP_PASSWORD` | the app-specific password from step 2 |
 | `APPLE_TEAM_ID` | the 10-character Team ID |
 
-To produce `MACOS_CERTIFICATE`: in **Keychain Access**, find your *Developer ID
-Application* certificate, right-click → **Export…**, save as a `.p12` with a
-password, then convert it to base64 text:
+To produce `MACOS_CERTIFICATE`: in **Keychain Access**, find your *Developer ID Application* certificate, right-click → **Export…**, save as a `.p12` with a password, then convert it to base64 text:
 
 ```sh
 base64 -i Certificates.p12 | pbcopy   # now paste into the secret
@@ -69,19 +62,15 @@ git tag v0.1.0
 git push origin v0.1.0
 ```
 
-The **Release** workflow runs automatically: it tests, builds, signs, notarizes,
-staples, zips, and creates a GitHub Release with `Fen.app.zip` attached.
+The **Release** workflow runs automatically: it tests, builds, signs, notarizes, staples, zips, and creates a GitHub Release with `Fen.app.zip` attached.
 
-> If you skip the secrets, the workflow still runs and produces an **unsigned**
-> build — fine for testing, but users will see a Gatekeeper warning.
+> Skip the secrets and the workflow still runs, but it produces an **unsigned** build — fine for testing, though people will see a Gatekeeper warning.
 
 ---
 
 ## Option B — Build & release manually on your Mac
 
-`./scripts/build-app.sh` **auto-detects** your "Developer ID Application"
-certificate and signs with it — no `SIGN_IDENTITY` needed for a signed local
-build. To also notarize (required before others can run it without warnings):
+`./scripts/build-app.sh` **auto-detects** your "Developer ID Application" certificate and signs with it — no `SIGN_IDENTITY` needed for a signed local build. To also notarize (required before others can run it without warnings):
 
 ```sh
 # 1. Store notary credentials once (creates a keychain profile)
@@ -105,8 +94,7 @@ gh release create v0.1.0 Fen.app.zip --generate-notes
 
 ## Versioning
 
-The marketing version comes from the git tag (e.g. tag `v0.1.0` → version `0.1.0`).
-The build number is the commit count. Without a tag, the version is `0.0.0-dev`.
+The marketing version comes from the git tag (e.g. tag `v0.1.0` → version `0.1.0`). The build number is the commit count. Without a tag, the version is `0.0.0-dev`.
 
 ## Verifying a build
 

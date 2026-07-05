@@ -1,10 +1,6 @@
 # Fen — Roadmap
 
-**North star:** be the app people reach for to write and *think* in
-Markdown on macOS — clean, fast, and native, that grows into a connected
-knowledge base instead of a pile of loose files. We take inspiration from
-Typora, iA Writer, Bear, Obsidian, and the original MacDown, but we stay
-minimal: speed and clarity over feature sprawl.
+**North star:** be the app people reach for to write and *think* in Markdown on macOS — clean, fast, and native, that grows into a connected knowledge base instead of a pile of loose files. We take inspiration from Typora, iA Writer, Bear, Obsidian, and the original MacDown, but we stay minimal: speed and clarity over feature sprawl.
 
 Status legend: `[ ]` planned · `[~]` partial/started · `[x]` done
 
@@ -52,8 +48,7 @@ Status legend: `[ ]` planned · `[~]` partial/started · `[x]` done
 
 ## 4. Knowledge suite (Fen's long game)
 
-This is what sets Fen apart from a single-file editor: your notes stop
-being isolated files and start being a connected knowledge base.
+This is what sets Fen apart from a single-file editor: your notes stop living as isolated files and become a connected knowledge base.
 
 - [ ] **Multi-file workspace** — open a folder of Markdown files as one project, not one document at a time
 - [ ] **Backlinks & wiki-links** — `[[note-name]]` linking between files, with a backlinks panel
@@ -73,10 +68,10 @@ being isolated files and start being a connected knowledge base.
 ---
 
 ## 6. Distribution & ops
-- [ ] Add GitHub Actions signing secrets so CI cuts signed+notarized releases on tag push (see `RELEASING.md`)
+- [x] GitHub Actions signing secrets — CI cuts signed and notarized releases on every tag push (see `RELEASING.md`)
 - [ ] In-app update check (e.g. Sparkle) for the non-App-Store build
-- [ ] (Deferred) Mac App Store: requires a sandboxed second build flavor — revisit later
-- [ ] Homebrew Cask once releases are automated
+- [ ] (Deferred) Mac App Store — needs a sandboxed second build flavor, revisit later
+- [ ] Homebrew Cask
 
 ---
 

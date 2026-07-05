@@ -1,6 +1,6 @@
 import AppKit
-import Foundation
 @testable import FenCore
+import Foundation
 import Testing
 import WebKit
 
@@ -25,7 +25,8 @@ struct PreviewSchemeHandlerVerifyTest {
         opts.detectFrontMatter = true
         let rendered = renderer.render(markdown, options: opts)
 
-        let prefs = Preferences(defaults: UserDefaults(suiteName: "preview.scheme.verify.\(UUID().uuidString)")!)
+        let prefs =
+            try Preferences(defaults: #require(UserDefaults(suiteName: "preview.scheme.verify.\(UUID().uuidString)")))
         let html = HTMLComposer().compose(title: rendered.title, body: rendered.html, preferences: prefs)
 
         let handler = PreviewSchemeHandler()

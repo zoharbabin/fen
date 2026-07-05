@@ -112,7 +112,7 @@ public struct SplitEditorView: View {
         .accessibilityIdentifier("EditorTextView")
         .accessibilityValue(scrollFractionLabel(scrollSync.editorScrollFraction))
         #if os(macOS)
-        .frame(minWidth: 200)
+            .frame(minWidth: 200)
         #endif
     }
 
