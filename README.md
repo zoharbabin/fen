@@ -68,10 +68,9 @@ coding style and pull request guidelines.
 
 ## License
 
-Released under the **MIT License**, the same as the original MacDown. The original
-copyright — `Copyright (c) 2014 Tzu-ping Chung` — is preserved in
-`LICENSE/macdown.txt`, alongside full license texts for all third-party
-components in the `LICENSE/` directory.
+Released under the **MIT License** ([LICENSE.md](LICENSE.md)), the same as the original MacDown. The original
+copyright — `Copyright (c) 2014 Tzu-ping Chung` — is preserved, alongside full
+license texts for all third-party components, in the `LICENSE/` directory.
 
 The following editor themes and CSS files are extracted from [Mou](http://mouapp.com), courtesy of Chen Luo:
 

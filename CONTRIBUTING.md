@@ -1,7 +1,8 @@
 # Contributing to Fen
 
 Thanks for considering a contribution. Fen is a small, focused project —
-issues, bug reports, and pull requests are all welcome.
+issues, bug reports, and pull requests are all welcome. Please read our
+[Code of Conduct](CODE_OF_CONDUCT.md) before participating.
 
 ## Getting started
 
