@@ -238,6 +238,28 @@ struct BundleResolutionTests {
         )
     }
 
+    @Test("Mermaid uses the dark theme when the preview style is a dark theme")
+    func mermaidDarkTheme() {
+        let renderer = MarkdownRenderer()
+        let rendered = renderer.render("# Hello")
+        let prefs = Preferences()
+        prefs.htmlMermaid = true
+        prefs.htmlStyleName = "GitHub2 Dark"
+        let html = HTMLComposer().compose(title: nil, body: rendered.html, preferences: prefs)
+        #expect(html.contains("__fenMermaidTheme = \"dark\""))
+    }
+
+    @Test("Mermaid uses the default theme when the preview style is a light theme")
+    func mermaidLightTheme() {
+        let renderer = MarkdownRenderer()
+        let rendered = renderer.render("# Hello")
+        let prefs = Preferences()
+        prefs.htmlMermaid = true
+        prefs.htmlStyleName = "GitHub2"
+        let html = HTMLComposer().compose(title: nil, body: rendered.html, preferences: prefs)
+        #expect(html.contains("__fenMermaidTheme = \"default\""))
+    }
+
     @Test("HTMLComposer.compose returns non-empty HTML with default prefs")
     func htmlComposerCompose() {
         // This exercises the full HTMLComposer resource-loading path (loadStyleCSS,

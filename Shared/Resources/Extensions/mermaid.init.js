@@ -3,31 +3,30 @@
 (function () {
 
   mermaid.initialize({
-    startOnLoad:false,
-    flowchart:{
+    startOnLoad: false,
+    theme: window.__fenMermaidTheme || "default",
+    flowchart: {
       htmlLabels: false,
       useMaxWidth: true
     }
   });
 
-  var init = function() {
+  var init = async function() {
     var domAll = document.querySelectorAll(".language-mermaid");
     for (var i = 0; i < domAll.length; i++) {
-    var dom = domAll[i];
-    var graphSource = dom.innerText || dom.textContent;
- 
-    dom = dom.parentElement;
-    if (dom.tagName === "PRE") {
+      var dom = domAll[i];
+      var graphSource = dom.innerText || dom.textContent;
+
       dom = dom.parentElement;
-    }
- 
-    var insertSvg = function(svgCode, bindFunctions){
-      this.innerHTML = svgCode;
-    };
-    var graph = mermaid.render('graphDiv' + i, graphSource, insertSvg.bind(dom))
+
+      var result = await mermaid.render("graphDiv" + i, graphSource);
+      dom.innerHTML = result.svg;
+      if (result.bindFunctions) {
+        result.bindFunctions(dom);
+      }
     }
   };
- 
+
   if (typeof window.addEventListener != "undefined") {
     window.addEventListener("load", init, false);
   } else {

@@ -77,7 +77,10 @@ public struct HTMLComposer: Sendable {
     private func mermaidTags(preferences: Preferences) -> [String] {
         guard preferences.htmlMermaid else { return [] }
 
-        return [
+        let mermaidTheme = preferences.htmlStyleName.contains("Dark") ? "dark" : "default"
+        let themeScript = inlineScript("window.__fenMermaidTheme = \"\(mermaidTheme)\";")
+
+        return [themeScript] + [
             loadExtensionFile(named: "mermaid.min", ext: "js"),
             loadExtensionFile(named: "mermaid.init", ext: "js"),
         ]

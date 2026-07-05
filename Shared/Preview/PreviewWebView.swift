@@ -1,6 +1,54 @@
 import SwiftUI
 import WebKit
 
+/// Serves the composed preview HTML and resolves relative asset references
+/// (images, etc.) against the Markdown document's directory on disk.
+///
+/// `WKWebView.loadHTMLString(_:baseURL:)` sets the document's base URL for
+/// resolving relative links, but does *not* grant the web view read access
+/// to that directory, so local images referenced with a relative path never
+/// load. Serving through a custom URL scheme sidesteps that restriction
+/// without writing any files to disk.
+final class PreviewSchemeHandler: NSObject, WKURLSchemeHandler {
+    static let scheme = "fen-preview"
+    static let previewURL = URL(string: "\(scheme)://local/index.html")!
+
+    var html: String = ""
+    var baseDirectory: URL?
+
+    func webView(_ webView: WKWebView, start task: WKURLSchemeTask) {
+        guard let url = task.request.url else {
+            task.didFailWithError(URLError(.badURL))
+            return
+        }
+
+        if url.path == "/index.html" {
+            let data = Data(html.utf8)
+            let response = URLResponse(
+                url: url, mimeType: "text/html", expectedContentLength: data.count, textEncodingName: "utf-8"
+            )
+            task.didReceive(response)
+            task.didReceive(data)
+            task.didFinish()
+            return
+        }
+
+        guard let baseDirectory,
+              let fileURL = URL(string: String(url.path.dropFirst()), relativeTo: baseDirectory)?.standardizedFileURL,
+              fileURL.path.hasPrefix(baseDirectory.standardizedFileURL.path),
+              let data = try? Data(contentsOf: fileURL) else {
+            task.didFailWithError(URLError(.fileDoesNotExist))
+            return
+        }
+        let response = URLResponse(url: url, mimeType: nil, expectedContentLength: data.count, textEncodingName: nil)
+        task.didReceive(response)
+        task.didReceive(data)
+        task.didFinish()
+    }
+
+    func webView(_: WKWebView, stop _: WKURLSchemeTask) {}
+}
+
 #if os(macOS)
 
     /// WKWebView-based preview for macOS.
@@ -17,6 +65,7 @@ import WebKit
         func makeNSView(context: Context) -> WKWebView {
             let config = WKWebViewConfiguration()
             config.preferences.isElementFullscreenEnabled = false
+            config.setURLSchemeHandler(context.coordinator.schemeHandler, forURLScheme: PreviewSchemeHandler.scheme)
 
             let webView = WKWebView(frame: .zero, configuration: config)
             webView.navigationDelegate = context.coordinator
@@ -34,7 +83,7 @@ import WebKit
                 name: "scrollHandler"
             )
 
-            webView.loadHTMLString(html, baseURL: baseURL)
+            context.coordinator.load(html: html, baseURL: baseURL, into: webView)
             return webView
         }
 
@@ -50,7 +99,7 @@ import WebKit
                 """
                 webView.evaluateJavaScript(scrollFractionJS) { result, _ in
                     context.coordinator.savedScrollFraction = (result as? CGFloat) ?? scrollFraction
-                    webView.loadHTMLString(html, baseURL: baseURL)
+                    context.coordinator.load(html: html, baseURL: baseURL, into: webView)
                 }
             } else {
                 context.coordinator.applyScrollFraction(scrollFraction, to: webView)
@@ -70,11 +119,18 @@ import WebKit
             weak var webView: WKWebView?
             var lastHTML: String = ""
             var savedScrollFraction: CGFloat = 0
+            let schemeHandler = PreviewSchemeHandler()
             private var isApplyingExternalScroll = false
             private var lastAppliedScrollFraction: CGFloat?
 
             init(_ parent: PreviewWebView) {
                 self.parent = parent
+            }
+
+            func load(html: String, baseURL: URL?, into webView: WKWebView) {
+                schemeHandler.html = html
+                schemeHandler.baseDirectory = baseURL?.deletingLastPathComponent()
+                webView.load(URLRequest(url: PreviewSchemeHandler.previewURL))
             }
 
             func webView(_ webView: WKWebView, didFinish _: WKNavigation!) {
@@ -146,13 +202,14 @@ import WebKit
 
         func makeUIView(context: Context) -> WKWebView {
             let config = WKWebViewConfiguration()
+            config.setURLSchemeHandler(context.coordinator.schemeHandler, forURLScheme: PreviewSchemeHandler.scheme)
 
             let webView = WKWebView(frame: .zero, configuration: config)
             webView.navigationDelegate = context.coordinator
             webView.scrollView.delegate = context.coordinator
             context.coordinator.webView = webView
 
-            webView.loadHTMLString(html, baseURL: baseURL)
+            context.coordinator.load(html: html, baseURL: baseURL, into: webView)
             context.coordinator.lastHTML = html
             return webView
         }
@@ -167,7 +224,7 @@ import WebKit
                 """
                 webView.evaluateJavaScript(scrollFractionJS) { result, _ in
                     context.coordinator.savedScrollFraction = (result as? CGFloat) ?? scrollFraction
-                    webView.loadHTMLString(html, baseURL: baseURL)
+                    context.coordinator.load(html: html, baseURL: baseURL, into: webView)
                 }
             } else {
                 context.coordinator.applyScrollFraction(scrollFraction, to: webView.scrollView)
@@ -179,11 +236,18 @@ import WebKit
             weak var webView: WKWebView?
             var lastHTML: String = ""
             var savedScrollFraction: CGFloat = 0
+            let schemeHandler = PreviewSchemeHandler()
             private var isApplyingExternalScroll = false
             private var lastAppliedScrollFraction: CGFloat?
 
             init(_ parent: PreviewWebView) {
                 self.parent = parent
+            }
+
+            func load(html: String, baseURL: URL?, into webView: WKWebView) {
+                schemeHandler.html = html
+                schemeHandler.baseDirectory = baseURL?.deletingLastPathComponent()
+                webView.load(URLRequest(url: PreviewSchemeHandler.previewURL))
             }
 
             func webView(_ webView: WKWebView, didFinish _: WKNavigation!) {
