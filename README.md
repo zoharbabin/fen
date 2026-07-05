@@ -1,24 +1,36 @@
-# MacDown (Swift)
+# Fen
 
-A modern, native **Swift / SwiftUI rewrite** of [MacDown](https://github.com/MacDownApp/macdown), the open-source Markdown editor for macOS.
+A native **Swift / SwiftUI** Markdown editor for macOS and iOS — fast,
+minimal, and built for Apple Silicon. Fen grew out of a full rewrite of
+[MacDown](https://github.com/MacDownApp/macdown), the beloved open-source
+Markdown editor for macOS.
 
-> **Credit where it's due.** MacDown was created by **[Tzu-ping Chung](https://github.com/uranusjr)** and contributors, who in turn took inspiration from [Chen Luo](https://twitter.com/chenluois)'s [Mou](http://mouapp.com). This project is an independent, affectionate rewrite — the original hasn't been updated in years, and Apple is winding down support for Intel-only apps. All original copyrights and the MIT License are preserved. This is *their* idea, rebuilt for the next decade of the Mac.
+> **Credit where it's due.** MacDown was created by **[Tzu-ping Chung](https://github.com/uranusjr)** and contributors, who in turn took inspiration from [Chen Luo](https://twitter.com/chenluois)'s [Mou](http://mouapp.com). Fen is an independent, affectionate rewrite — the original hasn't been updated in years, and Apple is winding down support for Intel-only apps. All original copyrights and the MIT License are preserved. This is *their* idea, rebuilt for the next decade of the Mac, growing into something new.
 
-## Why a rewrite?
+## Why Fen?
 
-The original MacDown is Objective-C built on Hoedown, CocoaPods, and an AppKit codebase that predates Apple Silicon. This version is:
+A fen is a wetland that feeds itself — nutrient-rich, self-sustaining,
+always growing. That's the idea: a place where your notes aren't just
+stored, they grow into something more connected and useful over time.
 
-- **Pure Swift + SwiftUI**, cross-platform core (macOS and iOS share `MacDownCore`)
+The original MacDown is Objective-C built on Hoedown, CocoaPods, and an
+AppKit codebase that predates Apple Silicon. Fen is:
+
+- **Pure Swift + SwiftUI**, cross-platform core (macOS and iOS share `FenCore`)
 - **Apple Silicon native**, no Intel-era dependencies
 - **Built with Swift Package Manager** — no CocoaPods, no submodules
 - **GitHub-Flavored Markdown** via Apple's [`swift-cmark`](https://github.com/apple/swift-cmark) (tables, task lists, strikethrough, autolinks, footnotes)
-- Live preview with editor↔preview scroll sync, Prism syntax highlighting, MathJax, and Mermaid
+- Live preview with editor↔preview scroll sync, syntax highlighting, MathJax, and Mermaid
 
-It is a deliberately *modern* take rather than a 1:1 port — some legacy features (plug-ins, Homebrew subprocess integration, the older preference surface) are intentionally dropped.
+It's a deliberately *modern* take rather than a 1:1 port — some legacy
+features (plug-ins, Homebrew subprocess integration, the older preference
+surface) are intentionally dropped. And it's just getting started: see
+[ROADMAP.md](ROADMAP.md) for where Fen is headed, including turning your
+notes into a connected, searchable knowledge base.
 
 ## Install
 
-Download the latest `MacDown.app.zip` from the [Releases page](https://github.com/mfbergmann/macdown-swift/releases), unzip, and drag **MacDown.app** to your Applications folder.
+Download the latest `Fen.app.zip` from the [Releases page](https://github.com/zoharbabin/fen/releases), unzip, and drag **Fen.app** to your Applications folder.
 
 Released builds are signed with an Apple Developer ID and notarized by Apple, so they open without Gatekeeper warnings.
 
@@ -27,14 +39,14 @@ Released builds are signed with an Apple Developer ID and notarized by Apple, so
 Requirements: macOS 15+ and a recent Xcode / Swift 6 toolchain.
 
 ```sh
-git clone https://github.com/mfbergmann/macdown-swift.git
-cd macdown-swift
+git clone https://github.com/zoharbabin/fen.git
+cd fen
 
 swift build          # build the package
 swift test           # run the test suite
-swift run MacDownSwift   # launch the macOS app
+swift run Fen        # launch the macOS app
 
-./scripts/build-app.sh   # produce dist/MacDown.app
+./scripts/build-app.sh   # produce dist/Fen.app
 ```
 
 See [RELEASING.md](RELEASING.md) for signing, notarization, and cutting a release.
@@ -42,12 +54,17 @@ See [RELEASING.md](RELEASING.md) for signing, notarization, and cutting a releas
 ## Project layout
 
 ```
-Shared/        MacDownCore — cross-platform model, rendering, editor, preview
+Shared/        FenCore — cross-platform model, rendering, editor, preview
 macOS/         macOS app target (DocumentGroup, menus, Settings)
 iOS/           iOS app target
 Tests/         Swift Testing test suite
 scripts/       build-app.sh — assembles the .app bundle
 ```
+
+## Contributing
+
+Fen is open to contributions — see [CONTRIBUTING.md](CONTRIBUTING.md) for
+coding style and pull request guidelines.
 
 ## License
 

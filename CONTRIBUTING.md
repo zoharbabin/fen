@@ -1,111 +1,91 @@
-# Contributing to MacDown
+# Contributing to Fen
 
-## Coding Style
+Thanks for considering a contribution. Fen is a small, focused project —
+issues, bug reports, and pull requests are all welcome.
 
-All style rules are enforced under all circumstances except for external dependencies.
+## Getting started
 
-### Objective-C
+```sh
+git clone https://github.com/zoharbabin/fen.git
+cd fen
+swift build
+swift test
+```
 
-#### The 80-column Rule
+See [README.md](README.md) for project layout and
+[RELEASING.md](RELEASING.md) for how signed builds get cut.
 
-All code should obey the 80-column rule.
+## Before you open a pull request
 
-Exception: If a URL in a comment is too long, it can go over the limit. This happens a lot for Apple’s official documentation. Remember, however, that many websites offer alternative, shorter URL forms that are permanent. For example:
+Run these locally — they're the same checks CI runs:
 
-* The title slug in StackOverflow (and other StackExchange sites) URLs can be ommitted. The following two are equivalent:
+```sh
+swiftformat .
+swiftlint
+swift test
+```
 
-    `http://stackoverflow.com/questions/13155612/how-does-one-eliminate-objective-c-try-catch-blocks-like-this`
-    `http://stackoverflow.com/questions/13155612`
+`.swiftformat` and `.swiftlint.yml` at the repo root define the rules;
+don't fight them with inline disables unless there's a real reason, and
+leave a comment explaining it when you do.
 
-* The commit hash in GitHub commit page’s URL can be shortened. The followings are all equivalent:
+## Coding style
 
-    `https://github.com/uranusjr/macdown/commit/1612abb9dbd24113751958777a49cffc6767989c`
-    `https://github.com/uranusjr/macdown/commit/1612abb9dbd24`
-    `https://github.com/uranusjr/macdown/commit/1612abb`
+- **Swift 6, strict concurrency.** New code should compile clean under the
+  settings in `Package.swift` — no `@unchecked Sendable` unless there's no
+  reasonable alternative.
+- **SwiftUI-first.** Prefer declarative view composition over imperative
+  AppKit/UIKit calls; drop down to `NSViewRepresentable`/`UIViewRepresentable`
+  only where SwiftUI doesn't cover it (e.g. the `WKWebView` preview).
+  Keep such wrappers small.
+- **Shared code lives in `FenCore`.** If a piece of logic doesn't
+  genuinely need `AppKit` or `UIKit`, put it in `Shared/` so both platforms
+  get it for free.
+  - Keep the `FenMacOS` and `FeniOS` targets thin: platform-specific
+    wiring only, no business logic.
+- **No force-unwraps or `try!` in new code** outside of tests, unless the
+  invariant is truly guaranteed by the type system or an immediately
+  preceding check.
+- **Match existing naming and file organization.** One primary type per
+  file, file named after that type.
 
-#### Code Blocks
+## Tests
 
-* Braces go in separate lines. ([Allman style](http://en.wikipedia.org/wiki/Indent_style#Allman_style).)
-* If only one statement is contained inside the block, omit braces unless...
-    * This is part of an if-(else if-)else structure. All brace styles in the same structure should match (i.e. either non or all of them omit braces).
+- Use **Swift Testing** (`import Testing`, `@Test`), not XCTest, for new
+  unit tests in `Tests/FenTests`.
+- UI tests live in `UITests/` and run via the xcodegen-generated
+  `FenUITesting.xcodeproj` (regenerate with `xcodegen generate` after
+  editing `project.yml`).
+- New behavior should come with a test. Bug fixes should come with a
+  regression test that fails before the fix and passes after.
 
-#### Stetements Inside `if`, `while`, etc.
+## Commit messages
 
-* Prefer implicit boolean conversion when it makes sense.
-    * `if (str.length)` is better than `if (str.length != 0)` if you want to know whether a string is empty. 
-    * The same applies when checking for an object’s `nil`-ness.
-    * If what you want to compare against is *zero as a number*, not emptiness, such as for `NSRange` position, `NSPoint` coordinates, etc., *do* use the `== 0`/`!= 0` expression.
+Follow the [standard git convention](http://tbaggery.com/2008/04/19/a-note-about-git-commit-messages.html):
+a short, imperative summary line, a blank line, then any needed detail in
+the body. Explain *why*, not just *what* — the diff already shows what
+changed.
 
-* If statements need to span multiple lines, prefer putting logical operators at the *beginning* of the line.
+## Pull requests
 
-    Yes:
-    ```c
-    while (this_is_very_long
-           || this_is_also_very_long)
-    {
-        // ...
-    }
-    ```
+- Keep PRs focused — one logical change per PR is easier to review and
+  easier to revert if something's wrong.
+- Rebase onto `master` before opening the PR; keep history clean rather
+  than merging `master` in repeatedly.
+- Make sure `swift build`, `swift test`, `swiftformat`, and `swiftlint`
+  are all clean before requesting review.
 
-    No:
-    ```c
-    while (this_is_very_long ||
-           this_is_also_very_long)
-    {
-        // ...
-    }
-    ```
+## Reporting bugs
 
-* If code alignment is ambiguious, add extra indentation.
+Open a [GitHub issue](https://github.com/zoharbabin/fen/issues) with:
 
-    Yes:
-    ```c
-    if (this_is_very_long
-            || this_is_also_very_long)
-        foo++;
-    ```
+- What you expected vs. what happened
+- macOS/iOS version and Fen version (`Fen → About Fen`)
+- Steps to reproduce, and a sample `.md` file if the bug is content-specific
 
-    No:
-    ```c
-    if (this_is_very_long
-        || this_is_also_very_long)
-        foo++;
-    ```
+## Questions
 
-    The above is not enforced (but recommended) if braces exist. Useful if you have a hard time fitting the statement into the 80-column constraint.
-
-    Okay:
-    ```c
-    if (this_is_very_long
-        || this_is_very_very_truly_long)
-    {
-        foo++;
-        bar--;
-    }
-    ```
-
-#### Invisible Characters
-
-Always use *four spaces* instead of tabs for indentation. Trailing whitespaces should be removed. You can turn on the **Automatically trim trailing whitespace** option in Xcode to let it do the job for you.
-
-Try to ensure that there’s a trailing newline in the end of a file. This is not strictly enforced since there are no easy ways to do that (except checking manually), but I’d appriciate the effort.
-
-## Version Control
-
-MacDown uses Git for source control, and is hosted on GitHub.
-
-### Commit Messages
-
-[General rules](http://tbaggery.com/2008/04/19/a-note-about-git-commit-messages.html) apply. If you absolutely need to, the first line of the message *can* go as long as 72 (instead of 50) characters, but it must not exceed it.
-
-Xcode’s commit window does not do a good job indicating whether your commit message is well-formed. I seldom use it personally, but if you do, you can check whether the commit message is good after you push to GitHub—If you see the first line of your commit message getting truncated, it is too long.
-
-### Pull Requests
-
-Please rebase your branch to `master` when you submit the pull request. There can be some nagging bugs when Git tries to merge files that are not code, particularly `.xib` and project files. When in doubt, always consider splitting changes into smaller commits so that you won’t need to re-apply your changes when things break.
-
-Under certain circumstances I may wish you to perform further rebasing and/or squashing *after* you submit your pull request, or even perform them myself instead of merging your commits as-is. Don’t worry—you will always get full credits for your contribution.
-
-## More to Come
-
-This style guide is a work in progress. Please feel free to ask if you have any questions about it. I’ll add more rules if there’s ambiguity.
+Not sure where something belongs, or want to propose a bigger change
+before writing code? Open a
+[discussion](https://github.com/zoharbabin/fen/discussions) or an issue
+first — happy to talk it through.

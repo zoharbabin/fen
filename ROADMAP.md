@@ -1,9 +1,10 @@
-# MacDown (Swift) — Roadmap
+# Fen — Roadmap
 
-**North star:** be the *default* app people reach for to open and edit `.md`
-files on macOS — clean, fast, and native. We take inspiration from Typora,
-iA Writer, Bear, and the original MacDown, but we stay minimal: speed and
-clarity over feature sprawl.
+**North star:** be the app people reach for to write and *think* in
+Markdown on macOS — clean, fast, and native, that grows into a connected
+knowledge base instead of a pile of loose files. We take inspiration from
+Typora, iA Writer, Bear, Obsidian, and the original MacDown, but we stay
+minimal: speed and clarity over feature sprawl.
 
 Status legend: `[ ]` planned · `[~]` partial/started
 
@@ -23,7 +24,7 @@ Status legend: `[ ]` planned · `[~]` partial/started
 - [ ] Reuse/extend the existing `insertMarkdownFormatting` notification path; add the missing actions
 
 ### "Default `.md` editor" system integration
-- [ ] Verify/strengthen UTI + document-type registration so macOS offers MacDown as a handler and it can be **Set as Default** for `.md`/`.markdown`/`.mdown`/`.mkd`
+- [ ] Verify/strengthen UTI + document-type registration so macOS offers Fen as a handler and it can be **Set as Default** for `.md`/`.markdown`/`.mdown`/`.mkd`
 - [ ] A **document icon** for `.md` files in Finder
 - [ ] Restore last session / recent documents; sensible new-doc behavior
 - [ ] (Stretch) Quick Look preview extension for Markdown files
@@ -49,15 +50,29 @@ Status legend: `[ ]` planned · `[~]` partial/started
 
 ---
 
-## 4. App polish
-- [ ] **Icon refinement** (cleanup of the current M↓ / Swift-arrow mark)
+## 4. Knowledge suite (Fen's long game)
+
+This is what sets Fen apart from a single-file editor: your notes stop
+being isolated files and start being a connected knowledge base.
+
+- [ ] **Multi-file workspace** — open a folder of Markdown files as one project, not one document at a time
+- [ ] **Backlinks & wiki-links** — `[[note-name]]` linking between files, with a backlinks panel
+- [ ] **Local search & indexing** — fast full-text search across a workspace, built on an on-device index
+- [ ] **Ontology / tagging layer** — structured tags and note types that let you query your notes like a lightweight knowledge graph, not just grep
+- [ ] **Graph view** — visualize how notes connect
+- [ ] (Stretch) On-device AI assistance for summarizing, linking, and organizing notes — privacy-first, no server round-trip required
+
+---
+
+## 5. App polish
+- [ ] **Icon refinement** — a Fen mark that fits the brand
 - [ ] About panel with credits (Tzu-ping Chung, Mou) and bundled third-party licenses
 - [ ] First-run sample document / light onboarding
 - [ ] Settings screen polish and grouping pass
 
 ---
 
-## 5. Distribution & ops
+## 6. Distribution & ops
 - [ ] Add GitHub Actions signing secrets so CI cuts signed+notarized releases on tag push (see `RELEASING.md`)
 - [ ] In-app update check (e.g. Sparkle) for the non-App-Store build
 - [ ] (Deferred) Mac App Store: requires a sandboxed second build flavor — revisit later
@@ -65,7 +80,7 @@ Status legend: `[ ]` planned · `[~]` partial/started
 
 ---
 
-## 6. iOS / iPadKit
+## 7. iOS / iPadOS
 - [ ] iPad-class layout, document browser, keyboard shortcuts
 - [ ] Share-sheet import/export
 
