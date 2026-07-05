@@ -61,7 +61,7 @@ This is what sets Fen apart from a single-file editor: your notes stop living as
 
 ## 5. App polish
 - [x] **Icon refinement** — a Fen mark that fits the brand
-- [ ] About panel with credits (Tzu-ping Chung, Mou) and bundled third-party licenses
+- [x] About panel with credits (Tzu-ping Chung, Mou) and bundled third-party licenses
 - [ ] First-run sample document / light onboarding
 - [ ] Settings screen polish and grouping pass
 

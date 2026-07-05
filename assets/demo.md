@@ -171,7 +171,7 @@ ___
 [fen-site]: https://fen.md "Fen's homepage"
 [shortcut reference]: https://fen.md
 
-![Fen screenshot](screenshot.png "Fen")
+![Fen screenshot](./screenshot.png "Fen")
 
 ## Tables (GFM)
 

@@ -16,7 +16,7 @@ public final class MarkdownDocument: ReferenceFileDocument, @unchecked Sendable 
     var text: String
 
     /// The file URL this document was loaded from (set externally by the document group).
-    var fileURL: URL?
+    public var fileURL: URL?
 
     public static var readableContentTypes: [UTType] {
         [.markdown, .plainText]

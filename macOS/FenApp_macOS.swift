@@ -3,10 +3,14 @@ import SwiftUI
 
 @main
 struct FenApp: App {
+    @Environment(\.openWindow) private var openWindow
+
     var body: some Scene {
         DocumentGroup(newDocument: { MarkdownDocument() }, editor: { file in
             SplitEditorView(document: file.document)
                 .frame(minWidth: 600, minHeight: 400)
+                .onAppear { file.document.fileURL = file.fileURL }
+                .onChange(of: file.fileURL) { _, newValue in file.document.fileURL = newValue }
         })
         .defaultSize(width: 1000, height: 700)
         .commands {
@@ -17,11 +21,26 @@ struct FenApp: App {
             Settings {
                 SettingsView()
             }
+
+            Window("About Fen", id: "about") {
+                AboutView()
+            }
+            .windowResizability(.contentSize)
         #endif
     }
 
     @CommandsBuilder
     func macOSCommands() -> some Commands {
+        CommandGroup(replacing: .appInfo) {
+            Button("About Fen") {
+                openWindow(id: "about")
+            }
+        }
+
+        CommandGroup(replacing: .help) {
+            Link("Fen Help", destination: URL(string: "https://github.com/zoharbabin/fen#readme")!)
+        }
+
         findCommands()
 
         CommandGroup(after: .textFormatting) {

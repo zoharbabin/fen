@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 import WebKit
 
 /// Serves the composed preview HTML and resolves relative asset references
@@ -40,7 +41,13 @@ final class PreviewSchemeHandler: NSObject, WKURLSchemeHandler {
             task.didFailWithError(URLError(.fileDoesNotExist))
             return
         }
-        let response = URLResponse(url: url, mimeType: nil, expectedContentLength: data.count, textEncodingName: nil)
+        let mimeType = UTType(filenameExtension: fileURL.pathExtension)?.preferredMIMEType
+        let response = URLResponse(
+            url: url,
+            mimeType: mimeType,
+            expectedContentLength: data.count,
+            textEncodingName: nil
+        )
         task.didReceive(response)
         task.didReceive(data)
         task.didFinish()
