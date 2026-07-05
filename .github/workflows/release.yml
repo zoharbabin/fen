@@ -12,7 +12,7 @@ name: Release
 #   APPLE_ID                your Apple ID email
 #   APPLE_APP_PASSWORD      an app-specific password (appleid.apple.com)
 #   APPLE_TEAM_ID           your 10-character Team ID
-# (See RELEASING.md for step-by-step instructions.)
+# (See docs/RELEASING.md for step-by-step instructions.)
 
 on:
   push:
@@ -132,7 +132,7 @@ jobs:
 
       # Only publish from CI when signing secrets are configured, so an
       # unsigned CI build never gets attached to a public release. Until then,
-      # releases are cut locally from a notarized build (see RELEASING.md).
+      # releases are cut locally from a notarized build (see docs/RELEASING.md).
       - name: Publish release
         if: ${{ startsWith(github.ref, 'refs/tags/') && env.MACOS_SIGN_IDENTITY != '' }}
         uses: softprops/action-gh-release@v2

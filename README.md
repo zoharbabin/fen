@@ -16,7 +16,7 @@
 <p align="center">
   <a href="https://github.com/zoharbabin/fen/releases/latest">Download</a> ·
   <a href="https://zoharbabin.com/fen/">Website</a> ·
-  <a href="ROADMAP.md">Roadmap</a> ·
+  <a href="docs/ROADMAP.md">Roadmap</a> ·
   <a href="CONTRIBUTING.md">Contributing</a>
 </p>
 
@@ -24,7 +24,7 @@
   <img src="site/img/hero-screenshot-light.png" alt="Fen split-pane editor and live preview" width="820">
 </p>
 
-Fen edits Markdown on one side and renders it live on the other, with the two panes scrolling in sync as you type. It supports GitHub-Flavored Markdown, MathJax, and Mermaid diagrams. And it's built to grow: your notes become a connected, searchable knowledge base instead of a pile of loose files. See [ROADMAP.md](ROADMAP.md) for where that's headed.
+Fen edits Markdown on one side and renders it live on the other, with the two panes scrolling in sync as you type. It supports GitHub-Flavored Markdown, MathJax, and Mermaid diagrams. And it's built to grow: your notes become a connected, searchable knowledge base instead of a pile of loose files. See [ROADMAP.md](docs/ROADMAP.md) for where that's headed.
 
 ## Features
 
@@ -57,7 +57,7 @@ swift run Fen        # launch the macOS app
 ./scripts/build-app.sh   # produce dist/Fen.app
 ```
 
-See [RELEASING.md](RELEASING.md) for signing, notarization, and cutting a release.
+See [RELEASING.md](docs/RELEASING.md) for signing, notarization, and cutting a release.
 
 ## Project layout
 
@@ -69,9 +69,10 @@ Tests/         Swift Testing test suite
 UITests/       UI tests (xcodegen-generated project, see CONTRIBUTING.md)
 scripts/       build-app.sh — assembles the .app bundle
 site/          zoharbabin.com/fen landing page (GitHub Pages)
+docs/          architecture, roadmap, and release documentation
 ```
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for why things are shaped this way.
+See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for why things are shaped this way.
 
 ## Contributing
 

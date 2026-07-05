@@ -11,7 +11,7 @@ swift build
 swift test
 ```
 
-See [README.md](README.md) for project layout and [RELEASING.md](RELEASING.md) for how signed builds get cut.
+See [README.md](README.md) for project layout and [docs/RELEASING.md](docs/RELEASING.md) for how signed builds get cut.
 
 ## Before you open a pull request
 
