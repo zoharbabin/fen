@@ -60,16 +60,17 @@ public struct HTMLComposer: Sendable {
     private func mathJaxTags(preferences: Preferences) -> [String] {
         guard preferences.htmlMathJax else { return [] }
 
-        let mathjaxCDN = "https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.3/MathJax.js?config=TeX-AMS-MML_HTMLorMML"
-        var scripts = [externalScript(mathjaxCDN)]
+        var scripts: [String] = []
         if preferences.htmlMathJaxInlineDollar {
-            scripts.append("""
-            <script type="text/x-mathjax-config">
-            MathJax.Hub.Config({
-                tex2jax: { inlineMath: [['$','$'], ['\\\\(','\\\\)']] }
-            });
-            </script>
-            """)
+            // MathJax v3's config object must exist before its script tag loads.
+            scripts.append(inlineScript("""
+            window.MathJax = {
+                tex: { inlineMath: [['$', '$'], ['\\\\(', '\\\\)']] }
+            };
+            """))
+        }
+        if let mathJaxJS = loadExtensionFile(named: "mathjax-tex-svg", ext: "js") {
+            scripts.append(inlineScript(mathJaxJS))
         }
         return scripts
     }
@@ -200,10 +201,6 @@ public struct HTMLComposer: Sendable {
 
     private func inlineScript(_ js: String) -> String {
         "<script>\n\(js)\n</script>"
-    }
-
-    private func externalScript(_ url: String) -> String {
-        "<script src=\"\(url)\"></script>"
     }
 
     // MARK: - Available Styles

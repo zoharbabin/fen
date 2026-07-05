@@ -260,6 +260,19 @@ struct BundleResolutionTests {
         #expect(html.contains("__fenMermaidTheme = \"default\""))
     }
 
+    @Test("MathJax is vendored locally, not loaded from a CDN")
+    func mathJaxIsVendored() {
+        let renderer = MarkdownRenderer()
+        let rendered = renderer.render("Inline math: $x+y$")
+        let prefs = Preferences()
+        prefs.htmlMathJax = true
+        prefs.htmlMathJaxInlineDollar = true
+        let html = HTMLComposer().compose(title: nil, body: rendered.html, preferences: prefs)
+        #expect(!html.contains("cdnjs.cloudflare.com"), "MathJax must not load from a CDN — Fen is local-first")
+        #expect(html.contains("window.MathJax"), "Expected the v3 MathJax config object before the library script")
+        #expect(html.contains("MathJax"), "Expected the vendored MathJax bundle to be inlined")
+    }
+
     @Test("HTMLComposer.compose returns non-empty HTML with default prefs")
     func htmlComposerCompose() {
         // This exercises the full HTMLComposer resource-loading path (loadStyleCSS,
