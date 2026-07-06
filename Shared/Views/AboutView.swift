@@ -71,7 +71,7 @@ public struct AboutView: View {
                 Text(
                     "Fen grew out of a full rewrite of MacDown by Tzu-ping Chung — an independent rewrite, not a fork."
                 )
-                Text("Also builds on Highlightr, Prism, MathJax, and Mermaid, and Mou's editor themes.")
+                Text("Also builds on Highlightr, highlight.js, MathJax, and Mermaid, and Mou's editor themes.")
                 Text("© 2014 Tzu-ping Chung · © 2026 Zohar Babin")
             }
             .font(.caption)

@@ -40,19 +40,20 @@ public struct HTMLComposer: Sendable {
 
         var styles: [String] = []
         var scripts: [String] = []
-        if let prismCSS = loadPrismThemeCSS(named: preferences.htmlHighlightingThemeName) {
-            styles.append(inlineStyle(prismCSS))
+        if let themeCSS = loadHighlightThemeCSS(named: preferences.htmlHighlightingThemeName) {
+            styles.append(inlineStyle(themeCSS))
         }
-        if let prismJS = loadPrismCoreJS() {
-            scripts.append(inlineScript(prismJS))
+        if preferences.htmlLineNumbers, let lineNumCSS = loadHighlightLineNumbersCSS() {
+            styles.append(inlineStyle(lineNumCSS))
+        }
+        if let highlightJS = loadHighlightCoreJS() {
+            scripts.append(inlineScript(highlightJS))
         }
         if preferences.htmlLineNumbers {
-            if let lineNumCSS = loadPrismPluginCSS(named: "line-numbers") {
-                styles.append(inlineStyle(lineNumCSS))
-            }
-            if let lineNumJS = loadPrismPluginJS(named: "line-numbers") {
-                scripts.append(inlineScript(lineNumJS))
-            }
+            scripts.append(inlineScript("window.__fenLineNumbers = true;"))
+        }
+        if let initJS = loadHighlightInitJS() {
+            scripts.append(inlineScript(initJS))
         }
         return (styles, scripts)
     }
@@ -142,11 +143,14 @@ public struct HTMLComposer: Sendable {
         }
 
         if includeHighlighting, preferences.htmlSyntaxHighlighting {
-            if let prismCSS = loadPrismThemeCSS(named: preferences.htmlHighlightingThemeName) {
-                styleTags.append(inlineStyle(prismCSS))
+            if let themeCSS = loadHighlightThemeCSS(named: preferences.htmlHighlightingThemeName) {
+                styleTags.append(inlineStyle(themeCSS))
             }
-            if let prismJS = loadPrismCoreJS() {
-                scriptTags.append(inlineScript(prismJS))
+            if let highlightJS = loadHighlightCoreJS() {
+                scriptTags.append(inlineScript(highlightJS))
+            }
+            if let initJS = loadHighlightInitJS() {
+                scriptTags.append(inlineScript(initJS))
             }
         }
 
@@ -165,21 +169,20 @@ public struct HTMLComposer: Sendable {
         loadResourceFile(name: name, ext: "css", subdirectory: "Styles")
     }
 
-    private func loadPrismThemeCSS(named name: String) -> String? {
-        loadResourceFile(name: name, ext: "css", subdirectory: "Prism/themes")
+    private func loadHighlightThemeCSS(named name: String) -> String? {
+        loadResourceFile(name: name, ext: "css", subdirectory: "Highlight/themes")
     }
 
-    private func loadPrismCoreJS() -> String? {
-        loadResourceFile(name: "prism", ext: "js", subdirectory: "Prism")
+    private func loadHighlightCoreJS() -> String? {
+        loadResourceFile(name: "highlight.min", ext: "js", subdirectory: "Highlight")
     }
 
-    private func loadPrismPluginCSS(named name: String) -> String? {
-        loadResourceFile(name: "prism-\(name)", ext: "css", subdirectory: "Prism/plugins/\(name)")
+    private func loadHighlightInitJS() -> String? {
+        loadResourceFile(name: "highlight.init", ext: "js", subdirectory: "Highlight")
     }
 
-    private func loadPrismPluginJS(named name: String) -> String? {
-        let minified = loadResourceFile(name: "prism-\(name).min", ext: "js", subdirectory: "Prism/plugins/\(name)")
-        return minified ?? loadResourceFile(name: "prism-\(name)", ext: "js", subdirectory: "Prism/plugins/\(name)")
+    private func loadHighlightLineNumbersCSS() -> String? {
+        loadResourceFile(name: "line-numbers", ext: "css", subdirectory: "Highlight")
     }
 
     private func loadExtensionFile(named name: String, ext: String) -> String? {
@@ -207,6 +210,16 @@ public struct HTMLComposer: Sendable {
 
     public static func availablePreviewStyles() -> [String] {
         guard let url = coreBundle.url(forResource: "Styles", withExtension: nil),
+              let contents = try? FileManager.default.contentsOfDirectory(at: url, includingPropertiesForKeys: nil)
+        else { return [] }
+        return contents
+            .filter { $0.pathExtension == "css" }
+            .map { $0.deletingPathExtension().lastPathComponent }
+            .sorted()
+    }
+
+    public static func availableHighlightingThemes() -> [String] {
+        guard let url = coreBundle.url(forResource: "themes", withExtension: nil, subdirectory: "Highlight"),
               let contents = try? FileManager.default.contentsOfDirectory(at: url, includingPropertiesForKeys: nil)
         else { return [] }
         return contents

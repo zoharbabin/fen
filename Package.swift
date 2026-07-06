@@ -43,6 +43,7 @@ let package = Package(
                 .copy("Resources/Themes"),
                 .copy("Resources/Templates"),
                 .copy("Resources/Extensions"),
+                .copy("Resources/Highlight"),
             ]
         ),
         .executableTarget(

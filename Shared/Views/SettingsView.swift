@@ -186,7 +186,11 @@ struct RenderingSettingsTab: View {
             Section("Syntax Highlighting") {
                 Toggle("Enable syntax highlighting", isOn: $prefs.htmlSyntaxHighlighting)
                 if prefs.htmlSyntaxHighlighting {
-                    TextField("Highlighting theme", text: $prefs.htmlHighlightingThemeName)
+                    Picker("Highlighting theme", selection: $prefs.htmlHighlightingThemeName) {
+                        ForEach(HTMLComposer.availableHighlightingThemes(), id: \.self) { theme in
+                            Text(theme).tag(theme)
+                        }
+                    }
                     Toggle("Show line numbers", isOn: $prefs.htmlLineNumbers)
                 }
             }

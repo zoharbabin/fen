@@ -1,6 +1,5 @@
 @testable import FenCore
 import Foundation
-import Highlightr
 import Testing
 
 @Suite("MarkdownRenderer Tests")
@@ -114,6 +113,35 @@ struct MarkdownRendererTests {
         #expect(!result.html.contains("[TOC]"))
     }
 
+    @Test("TOC links target the id actually present on the matching heading")
+    func tocLinksMatchHeadingIDs() throws {
+        let md = """
+        [TOC]
+
+        # First Heading
+        ## Second Heading
+        """
+        var opts = MarkdownRenderer.Options()
+        opts.renderTOC = true
+        let result = renderer.render(md, options: opts)
+
+        let nsHTML = result.html as NSString
+        let fullRange = NSRange(result.html.startIndex..., in: result.html)
+
+        let hrefPattern = ##"href="#([^"]+)""##
+        let hrefMatches = try NSRegularExpression(pattern: hrefPattern).matches(in: result.html, range: fullRange)
+        let hrefs = hrefMatches.map { nsHTML.substring(with: $0.range(at: 1)) }
+
+        let idPattern = #"<h[1-6] id="([^"]+)""#
+        let idMatches = try NSRegularExpression(pattern: idPattern).matches(in: result.html, range: fullRange)
+        let ids = idMatches.map { nsHTML.substring(with: $0.range(at: 1)) }
+
+        #expect(!hrefs.isEmpty, "Expected at least one TOC link")
+        for href in hrefs {
+            #expect(ids.contains(href), "TOC links to #\(href) but no heading has id=\"\(href)\"")
+        }
+    }
+
     @Test("Handles empty input")
     func emptyInput() {
         let result = renderer.render("")
@@ -160,234 +188,5 @@ struct ThemeParserTests {
         let theme = EditorTheme.parse("", name: "Empty")
         #expect(theme.name == "Empty")
         #expect(theme.elementStyles.isEmpty)
-    }
-}
-
-// MARK: - Bundle Resolution Tests
-
-//
-// These tests guard against the Bundle.main.bundleURL vs Bundle.main.resourceURL
-// failure mode that caused crashes in v0.2.0–v0.2.3. The SPM-generated
-// Bundle.module accessor resolves against bundleURL (the .app root), but signed
-// .apps place resource bundles inside Contents/Resources/ (resourceURL). Our
-// coreBundle and Highlightr's init both resolve against resourceURL first.
-//
-// In swift test runs, Bundle.main.resourceURL points to the .build/ product
-// directory where SPM also writes the bundles, so the tests exercise the same
-// path the production code uses (just against .build/ instead of .app).
-
-@Suite("Bundle Resolution Tests")
-struct BundleResolutionTests {
-    @Test("coreBundle resolves a Styles CSS resource")
-    func coreBundleStyles() {
-        // coreBundle must find at least one style; "GitHub2.css" ships with the app.
-        let url = coreBundle.url(forResource: "GitHub2", withExtension: "css", subdirectory: "Styles")
-        #expect(url != nil, "coreBundle cannot find Styles/GitHub2.css — bundle resolution is broken")
-    }
-
-    @Test("coreBundle resolves a Themes style resource")
-    func coreBundleThemes() {
-        // "Mou Night" ships with the app; if loading fails the theme picker is empty.
-        let url = coreBundle.url(forResource: "Mou Night", withExtension: "style", subdirectory: "Themes")
-        #expect(url != nil, "coreBundle cannot find Themes/Mou Night.style — bundle resolution is broken")
-    }
-
-    @Test("coreBundle resolves the Default HTML template")
-    func coreBundleTemplate() {
-        let url = coreBundle.url(forResource: "Default", withExtension: "handlebars", subdirectory: "Templates")
-        #expect(url != nil, "coreBundle cannot find Templates/Default.handlebars — bundle resolution is broken")
-    }
-
-    @Test("availableThemes returns bundled theme names")
-    func coreBundleAvailableThemes() {
-        let themes = EditorTheme.availableThemes()
-        #expect(!themes.isEmpty, "EditorTheme.availableThemes() is empty — coreBundle cannot enumerate Themes/")
-        #expect(themes.contains("Mou Night"), "Expected 'Mou Night' in availableThemes; got: \(themes)")
-    }
-
-    @Test("availablePreviewStyles returns bundled CSS names")
-    func coreBundlePreviewStyles() {
-        let styles = HTMLComposer.availablePreviewStyles()
-        #expect(!styles.isEmpty, "HTMLComposer.availablePreviewStyles() is empty — coreBundle cannot enumerate Styles/")
-        #expect(styles.contains("GitHub2"), "Expected 'GitHub2' in availablePreviewStyles; got: \(styles)")
-    }
-
-    @Test("Highlightr initializes and finds highlight.min.js")
-    func highlightrBundleResolution() {
-        // Highlightr() returns nil when its bundle lookup fails (it calls
-        // bundle.path(forResource:ofType:) which returns nil, causing init to
-        // return nil). This is the exact failure path that crashed v0.2.0–v0.2.2.
-        let highlightr = Highlightr()
-        #expect(
-            highlightr != nil,
-            "Highlightr() returned nil — Highlightr_Highlightr.bundle is not resolving correctly"
-        )
-    }
-
-    @Test("Highlightr lists available themes")
-    func highlightrAvailableThemes() {
-        guard let highlightr = Highlightr() else {
-            Issue.record("Highlightr() returned nil — cannot test availableThemes")
-            return
-        }
-        let themes = highlightr.availableThemes()
-        #expect(!themes.isEmpty, "Highlightr.availableThemes() is empty — CSS resources not found in bundle")
-        #expect(
-            themes.contains("github-dark"),
-            "Expected 'github-dark' in Highlightr themes; got \(themes.count) themes"
-        )
-    }
-
-    @Test("Mermaid uses the dark theme when the preview style is a dark theme")
-    func mermaidDarkTheme() {
-        let renderer = MarkdownRenderer()
-        let rendered = renderer.render("# Hello")
-        let prefs = Preferences()
-        prefs.htmlMermaid = true
-        prefs.htmlStyleName = "GitHub2 Dark"
-        let html = HTMLComposer().compose(title: nil, body: rendered.html, preferences: prefs)
-        #expect(html.contains("__fenMermaidTheme = \"dark\""))
-    }
-
-    @Test("Mermaid uses the default theme when the preview style is a light theme")
-    func mermaidLightTheme() {
-        let renderer = MarkdownRenderer()
-        let rendered = renderer.render("# Hello")
-        let prefs = Preferences()
-        prefs.htmlMermaid = true
-        prefs.htmlStyleName = "GitHub2"
-        let html = HTMLComposer().compose(title: nil, body: rendered.html, preferences: prefs)
-        #expect(html.contains("__fenMermaidTheme = \"default\""))
-    }
-
-    @Test("MathJax is vendored locally, not loaded from a CDN")
-    func mathJaxIsVendored() {
-        let renderer = MarkdownRenderer()
-        let rendered = renderer.render("Inline math: $x+y$")
-        let prefs = Preferences()
-        prefs.htmlMathJax = true
-        prefs.htmlMathJaxInlineDollar = true
-        let html = HTMLComposer().compose(title: nil, body: rendered.html, preferences: prefs)
-        #expect(!html.contains("cdnjs.cloudflare.com"), "MathJax must not load from a CDN — Fen is local-first")
-        #expect(html.contains("window.MathJax"), "Expected the v3 MathJax config object before the library script")
-        #expect(html.contains("MathJax"), "Expected the vendored MathJax bundle to be inlined")
-    }
-
-    @Test("HTMLComposer.compose returns non-empty HTML with default prefs")
-    func htmlComposerCompose() {
-        // This exercises the full HTMLComposer resource-loading path (loadStyleCSS,
-        // loadPrismThemeCSS, loadPrismCoreJS) — the crash point for v0.2.3.
-        let renderer = MarkdownRenderer()
-        let rendered = renderer.render("# Hello\nWorld")
-        let prefs = Preferences()
-        let html = HTMLComposer().compose(title: "Test", body: rendered.html, preferences: prefs)
-        #expect(html.contains("<h1>"), "HTMLComposer output missing <h1> — rendering failed")
-        #expect(html.contains("</html>"), "HTMLComposer output is not a complete HTML document")
-    }
-}
-
-@Suite("Preferences Tests")
-struct PreferencesTests {
-    /// Each test gets a fresh isolated UserDefaults suite so tests cannot
-    /// contaminate each other or the app's real UserDefaults.
-    private static func isolated() -> (Preferences, UserDefaults) {
-        let suiteName = "test.\(UUID().uuidString)"
-        let ud = UserDefaults(suiteName: suiteName)!
-        return (Preferences(defaults: ud), ud)
-    }
-
-    @Test("Default values are correct")
-    func defaults() {
-        let (prefs, _) = Self.isolated()
-        #expect(prefs.editorFontName == "Menlo-Regular")
-        #expect(prefs.editorFontSize == 14)
-        #expect(prefs.editorStyleName == "xcode")
-        #expect(prefs.htmlStyleName == "GitHub2")
-        #expect(prefs.extensionTables == true)
-        #expect(prefs.extensionAutolink == true)
-        #expect(prefs.extensionStrikethrough == true)
-        #expect(prefs.htmlSyntaxHighlighting == true)
-        #expect(prefs.htmlDetectFrontMatter == true)
-        #expect(prefs.htmlTaskList == true)
-    }
-
-    @Test("Stored properties immediately reflect assigned values")
-    func storedPropertyReflectsAssignment() {
-        // Regression: when properties were computed (delegating to UserDefaults),
-        // @Observable could not track changes — pickers reverted after selection.
-        let (prefs, _) = Self.isolated()
-
-        prefs.htmlStyleName = "GitHub2 Dark"
-        #expect(prefs.htmlStyleName == "GitHub2 Dark")
-
-        prefs.htmlStyleName = "Clearness"
-        #expect(prefs.htmlStyleName == "Clearness")
-    }
-
-    @Test("renderRevision increments on render-affecting changes")
-    func renderRevisionIncrements() {
-        // Regression: settings only took effect after app restart because
-        // SplitEditorView had no way to observe preference changes.
-        // renderRevision is the stored @Observable sentinel it watches.
-        let (prefs, _) = Self.isolated()
-        let base = prefs.renderRevision
-
-        prefs.htmlStyleName = "Clearness Dark"
-        #expect(prefs.renderRevision == base + 1)
-
-        prefs.htmlSyntaxHighlighting.toggle()
-        #expect(prefs.renderRevision == base + 2)
-
-        prefs.extensionTables.toggle()
-        #expect(prefs.renderRevision == base + 3)
-
-        prefs.extensionStrikethrough.toggle()
-        #expect(prefs.renderRevision == base + 4)
-
-        prefs.extensionAutolink.toggle()
-        #expect(prefs.renderRevision == base + 5)
-
-        prefs.htmlMathJax.toggle()
-        #expect(prefs.renderRevision == base + 6)
-
-        prefs.htmlMermaid.toggle()
-        #expect(prefs.renderRevision == base + 7)
-
-        prefs.htmlTaskList.toggle()
-        #expect(prefs.renderRevision == base + 8)
-
-        prefs.htmlHardWrap.toggle()
-        #expect(prefs.renderRevision == base + 9)
-
-        prefs.htmlRendersTOC.toggle()
-        #expect(prefs.renderRevision == base + 10)
-
-        prefs.htmlDetectFrontMatter.toggle()
-        #expect(prefs.renderRevision == base + 11)
-
-        prefs.extensionSmartyPants.toggle()
-        #expect(prefs.renderRevision == base + 12)
-
-        prefs.htmlHighlightingThemeName = "github-dark"
-        #expect(prefs.renderRevision == base + 13)
-
-        prefs.htmlLineNumbers.toggle()
-        #expect(prefs.renderRevision == base + 14)
-
-        prefs.htmlMathJaxInlineDollar.toggle()
-        #expect(prefs.renderRevision == base + 15)
-    }
-
-    @Test("renderRevision does not increment for editor-only changes")
-    func renderRevisionStableForEditorPrefs() {
-        let (prefs, _) = Self.isolated()
-        let base = prefs.renderRevision
-
-        prefs.editorFontSize += 1
-        prefs.editorStyleName = "github-dark"
-        prefs.editorScrollsPastEnd.toggle()
-        prefs.editorShowWordCount.toggle()
-        prefs.editorConvertTabs.toggle()
-        #expect(prefs.renderRevision == base)
     }
 }

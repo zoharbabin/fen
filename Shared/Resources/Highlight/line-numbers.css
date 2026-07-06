@@ -1,0 +1,19 @@
+pre code.fen-line-numbers {
+  counter-reset: fen-line;
+  display: block;
+}
+pre code.fen-line-numbers .fen-line {
+  display: block;
+  position: relative;
+  counter-increment: fen-line;
+  padding-left: 3em;
+}
+pre code.fen-line-numbers .fen-line::before {
+  content: counter(fen-line);
+  position: absolute;
+  left: 0;
+  width: 2.5em;
+  text-align: right;
+  opacity: 0.5;
+  user-select: none;
+}

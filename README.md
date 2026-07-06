@@ -94,4 +94,4 @@ Fen grew out of a full rewrite of [MacDown](https://github.com/MacDownApp/macdow
 * Clearness / Clearness Dark
 * GitHub / GitHub2
 
-Fen also builds on [Highlightr](https://github.com/raspu/Highlightr), [Prism](https://prismjs.com), [MathJax](https://www.mathjax.org), and [Mermaid](https://mermaid.js.org).
+Fen also builds on [Highlightr](https://github.com/raspu/Highlightr), [highlight.js](https://highlightjs.org), [MathJax](https://www.mathjax.org), and [Mermaid](https://mermaid.js.org).

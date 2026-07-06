@@ -48,6 +48,12 @@ ol ul {
 li {
   margin-bottom: 10px;
 }
+li:has(> input[type="checkbox"]) {
+  list-style: none;
+}
+li > input[type="checkbox"] + p {
+  display: inline;
+}
 h1,
 h2,
 h3,

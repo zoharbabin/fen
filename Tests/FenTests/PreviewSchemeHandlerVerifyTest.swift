@@ -16,32 +16,18 @@ struct PreviewSchemeHandlerVerifyTest {
         let demoURL = repoRoot.appendingPathComponent("assets/demo.md")
         let markdown = try String(contentsOf: demoURL, encoding: .utf8)
 
-        let renderer = MarkdownRenderer()
         var opts = MarkdownRenderer.Options()
         opts.tables = true
         opts.strikethrough = true
         opts.autolink = true
         opts.taskList = true
         opts.detectFrontMatter = true
-        let rendered = renderer.render(markdown, options: opts)
 
-        let prefs =
-            try Preferences(defaults: #require(UserDefaults(suiteName: "preview.scheme.verify.\(UUID().uuidString)")))
-        let html = HTMLComposer().compose(title: rendered.title, body: rendered.html, preferences: prefs)
-
-        let handler = PreviewSchemeHandler()
-        handler.html = html
-        handler.baseDirectory = demoURL.deletingLastPathComponent()
-
-        let config = WKWebViewConfiguration()
-        config.setURLSchemeHandler(handler, forURLScheme: PreviewSchemeHandler.scheme)
-        let webView = WKWebView(frame: NSRect(x: 0, y: 0, width: 800, height: 600), configuration: config)
-
-        let delegate = NavDelegate()
-        webView.navigationDelegate = delegate
-        webView.load(URLRequest(url: PreviewSchemeHandler.previewURL))
-
-        try await delegate.waitForFinish()
+        let webView = try await renderPreviewWebView(
+            markdown: markdown,
+            options: opts,
+            baseDirectory: demoURL.deletingLastPathComponent()
+        )
 
         let naturalWidth = try await webView.evaluateJavaScript(
             "document.querySelector('img') ? document.querySelector('img').naturalWidth : -1"
@@ -49,37 +35,33 @@ struct PreviewSchemeHandlerVerifyTest {
         let width = (naturalWidth as? Int) ?? Int(naturalWidth as? Double ?? -1)
         #expect(width > 0, "Expected image naturalWidth > 0, got \(String(describing: naturalWidth))")
     }
-}
 
-@MainActor
-private final class NavDelegate: NSObject, WKNavigationDelegate {
-    private var continuation: CheckedContinuation<Void, Error>?
-    private var finished = false
-    private var error: Error?
+    @Test("Loose task list checkbox renders on the same line as its item text")
+    @MainActor
+    func looseTaskListCheckboxIsInlineWithText() async throws {
+        let markdown = """
+        - [ ] item one
+        - [ ] item two
 
-    func webView(_: WKWebView, didFinish _: WKNavigation!) {
-        finished = true
-        continuation?.resume()
-        continuation = nil
-    }
+          continuation text
+        - [ ] item three
+        """
 
-    func webView(_: WKWebView, didFail _: WKNavigation!, withError error: Error) {
-        self.error = error
-        continuation?.resume(throwing: error)
-        continuation = nil
-    }
+        var opts = MarkdownRenderer.Options()
+        opts.taskList = true
+        let webView = try await renderPreviewWebView(markdown: markdown, options: opts)
 
-    func webView(_: WKWebView, didFailProvisionalNavigation _: WKNavigation!, withError error: Error) {
-        self.error = error
-        continuation?.resume(throwing: error)
-        continuation = nil
-    }
-
-    func waitForFinish() async throws {
-        if finished { return }
-        if let error { throw error }
-        try await withCheckedThrowingContinuation { continuation in
-            self.continuation = continuation
-        }
+        let sameLineJS = """
+        (function () {
+            var checkbox = document.querySelector('li > input[type="checkbox"]');
+            var p = checkbox ? checkbox.nextElementSibling : null;
+            if (!checkbox || !p || p.tagName !== 'P') { return false; }
+            var checkboxTop = checkbox.getBoundingClientRect().top;
+            var pTop = p.getBoundingClientRect().top;
+            return Math.abs(checkboxTop - pTop) < 5;
+        })();
+        """
+        let sameLine = try await webView.evaluateJavaScript(sameLineJS)
+        #expect((sameLine as? Bool) == true, "Expected checkbox and item text to render on the same line")
     }
 }

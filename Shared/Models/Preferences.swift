@@ -193,7 +193,7 @@ public final class Preferences {
         }
     }
 
-    var htmlHighlightingThemeName: String = "prism" {
+    var htmlHighlightingThemeName: String = "github" {
         didSet { defaults.set(htmlHighlightingThemeName, forKey: "htmlHighlightingThemeName")
             renderRevision += 1
         }
@@ -305,7 +305,7 @@ public final class Preferences {
         htmlMathJaxInlineDollar = defaults.bool(forKey: "htmlMathJaxInlineDollar")
         htmlSyntaxHighlighting = defaults.object(forKey: "htmlSyntaxHighlighting") != nil
             ? defaults.bool(forKey: "htmlSyntaxHighlighting") : true
-        htmlHighlightingThemeName = defaults.string(forKey: "htmlHighlightingThemeName") ?? "prism"
+        htmlHighlightingThemeName = defaults.string(forKey: "htmlHighlightingThemeName") ?? "github"
         htmlLineNumbers = defaults.bool(forKey: "htmlLineNumbers")
         htmlMermaid = defaults.bool(forKey: "htmlMermaid")
         htmlRendersTOC = defaults.bool(forKey: "htmlRendersTOC")

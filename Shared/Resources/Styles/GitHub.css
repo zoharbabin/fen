@@ -62,6 +62,8 @@ hr{border:1px solid #ddd;}
 ul{margin:1em 0 1em 2em;}
 ol{margin:1em 0 1em 2em;}
 ul li,ol li{margin-top:.5em;margin-bottom:.5em;}
+li:has(> input[type="checkbox"]){list-style:none;}
+li > input[type="checkbox"] + p{display:inline;}
 ul ul,ul ol,ol ol,ol ul{margin-top:0;margin-bottom:0;}
 blockquote{margin:1em 0;border-left:5px solid #ddd;padding-left:.6em;color:#555;}
 dt{font-weight:bold;margin-left:1em;}

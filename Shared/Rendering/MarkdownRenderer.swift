@@ -104,7 +104,8 @@ public struct MarkdownRenderer: Sendable {
 
         // TOC replacement
         if options.renderTOC {
-            let toc = generateTOC(from: html)
+            let (headingsWithIDs, toc) = addHeadingIDsAndGenerateTOC(from: html)
+            html = headingsWithIDs
             html = replaceTOCMarker(in: html, with: toc)
         }
 
@@ -136,36 +137,59 @@ public struct MarkdownRenderer: Sendable {
 
     // MARK: - TOC Generation
 
-    private func generateTOC(from html: String) -> String {
-        // Extract headings from the HTML using simple regex
-        let pattern = #"<h([1-6])[^>]*(?:\s+id="([^"]*)")?[^>]*>(.*?)</h\1>"#
+    /// Assigns a unique `id` to every heading (deduping repeated slugs the way GitHub
+    /// does, with `-1`, `-2`, ... suffixes) and builds a TOC whose links target those
+    /// same ids, so `[TOC]` entries actually jump to their heading.
+    private func addHeadingIDsAndGenerateTOC(from html: String) -> (html: String, toc: String) {
+        let pattern = #"<h([1-6])>(.*?)</h\1>"#
         guard let regex = try? NSRegularExpression(pattern: pattern, options: [.dotMatchesLineSeparators]) else {
-            return ""
+            return (html, "")
         }
 
         let nsHTML = html as NSString
         let matches = regex.matches(in: html, range: NSRange(location: 0, length: nsHTML.length))
+        guard !matches.isEmpty else { return (html, "") }
 
-        guard !matches.isEmpty else { return "" }
-
+        var usedSlugs: [String: Int] = [:]
         var toc = "<ul>\n"
+        var updatedHTML = ""
+        var cursor = 0
+
         for match in matches {
+            updatedHTML += nsHTML.substring(with: NSRange(location: cursor, length: match.range.location - cursor))
+
             let level = nsHTML.substring(with: match.range(at: 1))
-            let content = nsHTML.substring(with: match.range(at: 3))
-            // Strip HTML tags from content for the link text
+            let content = nsHTML.substring(with: match.range(at: 2))
             let plainText = content.replacingOccurrences(
                 of: "<[^>]+>",
                 with: "",
                 options: .regularExpression
             )
-            let anchor = plainText.lowercased()
-                .replacingOccurrences(of: " ", with: "-")
-                .replacingOccurrences(of: "[^a-z0-9-]", with: "", options: .regularExpression)
+            let slug = uniqueSlug(for: plainText, usedSlugs: &usedSlugs)
 
-            toc += "<li class=\"toc-h\(level)\"><a href=\"#\(anchor)\">\(plainText)</a></li>\n"
+            updatedHTML += "<h\(level) id=\"\(slug)\">\(content)</h\(level)>"
+            toc += "<li class=\"toc-h\(level)\"><a href=\"#\(slug)\">\(plainText)</a></li>\n"
+
+            cursor = match.range.location + match.range.length
         }
+        updatedHTML += nsHTML.substring(with: NSRange(location: cursor, length: nsHTML.length - cursor))
         toc += "</ul>"
-        return toc
+
+        return (updatedHTML, toc)
+    }
+
+    private func uniqueSlug(for text: String, usedSlugs: inout [String: Int]) -> String {
+        let base = text.lowercased()
+            .replacingOccurrences(of: " ", with: "-")
+            .replacingOccurrences(of: "[^a-z0-9-]", with: "", options: .regularExpression)
+
+        guard let count = usedSlugs[base] else {
+            usedSlugs[base] = 0
+            return base
+        }
+        let next = count + 1
+        usedSlugs[base] = next
+        return "\(base)-\(next)"
     }
 
     private func replaceTOCMarker(in html: String, with toc: String) -> String {
