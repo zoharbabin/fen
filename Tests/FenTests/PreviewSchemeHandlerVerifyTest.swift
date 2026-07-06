@@ -64,4 +64,21 @@ struct PreviewSchemeHandlerVerifyTest {
         let sameLine = try await webView.evaluateJavaScript(sameLineJS)
         #expect((sameLine as? Bool) == true, "Expected checkbox and item text to render on the same line")
     }
+
+    @Test("Same-page anchors (TOC, footnote backrefs) never hand off to the OS")
+    func tocAnchorsStayInPreview() throws {
+        let anchor = try #require(URL(string: "\(PreviewSchemeHandler.scheme)://local/index.html#links-and-images"))
+        #expect(
+            !PreviewSchemeHandler.shouldOpenExternally(anchor),
+            "A fen-preview:// anchor jump must not be handed to NSWorkspace/UIApplication"
+        )
+    }
+
+    @Test("External links (http/https, mailto) hand off to the OS")
+    func externalLinksOpenExternally() throws {
+        let http = try #require(URL(string: "https://fen.md"))
+        let mail = try #require(URL(string: "mailto:hello@fen.md"))
+        #expect(PreviewSchemeHandler.shouldOpenExternally(http))
+        #expect(PreviewSchemeHandler.shouldOpenExternally(mail))
+    }
 }

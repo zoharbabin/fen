@@ -18,7 +18,11 @@ graph LR
 
 ## Editing to preview: the rendering pipeline
 
-Typing in the editor doesn't re-render on every keystroke. `SplitEditorView.scheduleRender()` cancels any in-flight render `Task`, waits 300ms (skipped if `preferences.markdownManualRender` is set), then runs the document through `MarkdownRenderer` and `HTMLComposer` before handing the result to the `WKWebView`-backed preview. `ScrollSync` mirrors scroll position between the two panes as a fraction (0.0–1.0), guarded by an `isUpdating` flag so each pane's update doesn't re-trigger the other.
+Typing in the editor doesn't re-render on every keystroke. `SplitEditorView.scheduleRender()` cancels any in-flight render `Task`, waits 300ms (skipped if `preferences.markdownManualRender` is set), then runs the document through `MarkdownRenderer` and `HTMLComposer` before handing the result to the `WKWebView`-backed preview. `ScrollSync` mirrors scroll position between the two panes as a fraction (0.0–1.0) of the *source* document, guarded by an `isUpdating` flag so each pane's update doesn't re-trigger the other.
+
+A plain-text source line and its rendered HTML rarely take up the same proportion of their pane — a fenced code block, an image, or a table can occupy very different vertical space in the editor than in the preview. `SplitEditorView` renders with `MarkdownRenderer.Options.sourcePositions = true`, which makes cmark-gfm emit `data-sourcepos` on every block element; `Shared/Resources/ScrollSync/scroll-sync.js` (vendored into the preview via `HTMLComposer`) reads those attributes to build a table mapping source-line fraction to rendered-pixel fraction, then interpolates between the two piecewise-linearly. That table is rebuilt whenever the viewport's dimensions or the document's scroll height change — not just once on load — so a window resize, a split-divider drag, or an async Mermaid/MathJax render growing the page doesn't leave later lookups predicting from a stale layout. The preview's `PreviewWebView` routes every scroll fraction through `window.__fenScrollSync.sourceFractionForRendered`/`renderedFractionForSource` before it reaches or leaves `ScrollSync`, so `ScrollSync` itself only ever deals in source-document fractions — the editor needs no translation, since its plain-text layout is already a reasonable proxy for source-line fraction.
+
+`PreviewWebView`'s macOS `Coordinator` applies an incoming scroll fraction by setting `document.documentElement.scrollTop` through `evaluateJavaScript`, which itself triggers a DOM `scroll` event — WebKit dispatches that event asynchronously, around the next frame, well after `evaluateJavaScript`'s own completion handler runs on the Swift side. A guard flag cleared from that completion handler races the real event and can clear before it fires, letting the assignment's own self-triggered scroll leak back through the `scroll` listener as a "user scroll," feeding a slightly-off fraction back into `ScrollSync` on every sync round-trip — this is what compounded into visible drift the deeper a document went, even after the anchor-table fix above. `scrollAssignmentJS` now sets a `window.__fenSuppressScrollEvent` flag alongside the `scrollTop` write and clears it after two nested `requestAnimationFrame` callbacks instead of from the Swift completion handler, tying the guard to the same frame timing WebKit uses to actually dispatch the event; `scrollObserverJS`'s listener checks that flag before forwarding anything. `Tests/FenTests/PreviewScrollRaceVerifyTest.swift` proves this against a real, attached `WKWebView` — a paced, synthetic UI-test scroll gesture waits for the app to go idle after each step, which is slow enough to hide this exact race, so this had to be caught with a test that lets the browser's real asynchronous event timing run.
 
 ```mermaid
 sequenceDiagram
@@ -39,11 +43,50 @@ sequenceDiagram
     Composer-->>Split: full HTML document
     Split->>Preview: renderedHTML
     Preview->>Preview: load via fen-preview://local/index.html
-    Editor->>Scroll: scroll fraction
-    Scroll->>Preview: scrollTo(fraction)
-    Preview->>Scroll: scroll fraction
+    Editor->>Scroll: source fraction
+    Scroll->>Preview: scrollTo(source fraction)
+    Preview->>Preview: renderedFractionForSource(fraction) via anchor table
+    Preview->>Scroll: source fraction
     Scroll->>Editor: scrollTo(fraction)
 ```
+
+## Anchor-table interpolation: the shared math
+
+Both anchor tables — `scroll-sync.js`'s `data-sourcepos`-derived one and `EditorScrollAnchors.swift`'s word-wrap-derived one — are sorted lists of `(source, rendered)` pairs, where both fields run 0→1 and increase monotonically. Between two documents that share content but differ in per-block density, the two axes drift apart: a block that's short in the source but tall once rendered (an image, a table, a big fenced code block) pulls the `rendered` value for every anchor after it further ahead of `source`. Mapping a fraction from one axis to the other means walking the table to find the two anchors it falls between, then interpolating linearly within that segment — never extrapolating past the first or last anchor.
+
+```mermaid
+graph LR
+    subgraph SourceAxis["source fraction (0 -> 1)"]
+        direction LR
+        S0["0.0"] --> S1["0.1"] --> S2["0.5"] --> S3["0.9"] --> S4["1.0"]
+    end
+    subgraph RenderedAxis["rendered fraction (0 -> 1)"]
+        direction LR
+        R0["0.0"] --> R1["0.4"] --> R2["0.55"] --> R3["0.95"] --> R4["1.0"]
+    end
+    S0 -.anchor.-> R0
+    S1 -. "big block here:<br/>0.1 of source = 0.4 of rendered" .-> R1
+    S2 -.anchor.-> R2
+    S3 -.anchor.-> R3
+    S4 -.anchor.-> R4
+```
+
+`interpolateEditorAnchor` (Swift) and `interpolate` (JS) both implement the same lookup, deliberately kept in lockstep — `Tests/FenTests/CrossLanguageInterpolationTest.swift` runs identical tables and probe values through both to prove they agree:
+
+```mermaid
+flowchart TD
+    Start["interpolate(table, from, to, value)"] --> LenCheck{"fewer than 2 anchors?"}
+    LenCheck -->|yes| Identity["return value unchanged<br/>(identity fallback — e.g. a document<br/>too short to sample, or no data-sourcepos)"]
+    LenCheck -->|no| BelowFirst{"value <= first anchor's `from`?"}
+    BelowFirst -->|yes| ClampLow["return first anchor's `to`<br/>(clamp, don't extrapolate)"]
+    BelowFirst -->|no| AboveLast{"value >= last anchor's `from`?"}
+    AboveLast -->|yes| ClampHigh["return last anchor's `to`<br/>(clamp, don't extrapolate)"]
+    AboveLast -->|no| Bracket["scan for the anchor pair<br/>(prev, curr) bracketing value"]
+    Bracket --> Progress["t = (value - prev.from) / (curr.from - prev.from)"]
+    Progress --> Lerp["return prev.to + t * (curr.to - prev.to)"]
+```
+
+Both implementations rebuild their table lazily rather than once: `computeEditorLineAnchors` is only re-run when the editor's text or laid-out height changes (`refreshAnchorsIfNeeded` in `MarkdownTextView.swift`/`MarkdownTextView_iOS.swift`), and `scroll-sync.js`'s `refreshAnchorsIfStale` re-checks the viewport and scroll-height dimensions on every lookup — see the "instead of predicting from a stale layout" note above for why a table cached forever caused visible drift after a reflow.
 
 ## Resource bundle resolution (`Shared/CoreBundle.swift`)
 

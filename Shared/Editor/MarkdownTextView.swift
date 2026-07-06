@@ -3,7 +3,7 @@ import SwiftUI
 
 /// Shared helper: pick a readable caret/insertion-point color for a background.
 @MainActor
-private func caretColor(for background: PlatformColor) -> PlatformColor {
+func caretColor(for background: PlatformColor) -> PlatformColor {
     var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
     #if os(macOS)
         (background.usingColorSpace(.deviceRGB) ?? background).getRed(&red, green: &green, blue: &blue, alpha: &alpha)
@@ -142,6 +142,9 @@ private func caretColor(for background: PlatformColor) -> PlatformColor {
             var themeName: String
             private var isApplyingExternalScroll = false
             private var lastAppliedScrollFraction: CGFloat?
+            private var anchors: [EditorLineAnchor] = []
+            private var anchorText: String?
+            private var anchorHeight: CGFloat = 0
 
             init(_ parent: MarkdownTextView) {
                 self.parent = parent
@@ -154,30 +157,56 @@ private func caretColor(for background: PlatformColor) -> PlatformColor {
                 parent.onTextChange?()
             }
 
+            /// Rebuilds the source-line ↔ pixel-fraction anchor table if the text or laid-out
+            /// height changed since the last build (word wrap makes a naive line-count fraction
+            /// diverge from where a line actually sits once laid out).
+            @MainActor
+            private func refreshAnchorsIfNeeded(text: String, totalHeight: CGFloat, visibleHeight: CGFloat) {
+                guard text != anchorText || totalHeight != anchorHeight else { return }
+                anchorText = text
+                anchorHeight = totalHeight
+                anchors = computeEditorLineAnchors(
+                    text: text, totalHeight: totalHeight, visibleHeight: visibleHeight
+                ) { [weak textView] charIndex in
+                    textView?.lineTop(forCharacterIndex: charIndex)
+                }
+            }
+
             @MainActor @objc func scrollViewDidScroll(_: Notification) {
                 guard !isApplyingExternalScroll,
-                      let scrollView = textView?.enclosingScrollView else { return }
+                      let textView, let scrollView = textView.enclosingScrollView else { return }
                 let contentView = scrollView.contentView
-                let documentView = scrollView.documentView!
                 let visibleHeight = contentView.bounds.height
-                let totalHeight = documentView.frame.height
+                let totalHeight = textView.contentHeightExcludingScrollPastEnd
                 guard totalHeight > visibleHeight else { return }
-                let scrollFraction = contentView.bounds.origin.y / (totalHeight - visibleHeight)
-                lastAppliedScrollFraction = scrollFraction
-                parent.onScroll?(scrollFraction)
+                refreshAnchorsIfNeeded(text: textView.string, totalHeight: totalHeight, visibleHeight: visibleHeight)
+                let pixelFraction = max(0, min(1, contentView.bounds.origin.y / (totalHeight - visibleHeight)))
+                let sourceFraction = interpolateEditorAnchor(
+                    anchors, from: \.rendered, to: \.source, value: pixelFraction
+                )
+                lastAppliedScrollFraction = sourceFraction
+                parent.onScroll?(sourceFraction)
             }
 
             @MainActor func applyScrollFraction(_ fraction: CGFloat, to scrollView: NSScrollView) {
                 guard lastAppliedScrollFraction == nil || abs(fraction - lastAppliedScrollFraction!) > 0.001
                 else { return }
                 let contentView = scrollView.contentView
-                guard let documentView = scrollView.documentView else { return }
+                guard let documentView = scrollView.documentView as? MarkdownNSTextView else { return }
                 let visibleHeight = contentView.bounds.height
-                let totalHeight = documentView.frame.height
+                // Uses real content height, not the scroll-past-end padded frame, so fraction 1.0
+                // lands on the document's actual last line instead of the blank padding below it.
+                let totalHeight = documentView.contentHeightExcludingScrollPastEnd
                 guard totalHeight > visibleHeight else { return }
+                refreshAnchorsIfNeeded(
+                    text: documentView.string,
+                    totalHeight: totalHeight,
+                    visibleHeight: visibleHeight
+                )
                 lastAppliedScrollFraction = fraction
                 isApplyingExternalScroll = true
-                let targetY = fraction * (totalHeight - visibleHeight)
+                let pixelFraction = interpolateEditorAnchor(anchors, from: \.source, to: \.rendered, value: fraction)
+                let targetY = pixelFraction * (totalHeight - visibleHeight)
                 contentView.scroll(to: NSPoint(x: contentView.bounds.origin.x, y: targetY))
                 scrollView.reflectScrolledClipView(contentView)
                 isApplyingExternalScroll = false
@@ -188,6 +217,31 @@ private func caretColor(for background: PlatformColor) -> PlatformColor {
     /// Custom NSTextView with scroll-past-end and editor features.
     class MarkdownNSTextView: NSTextView {
         var scrollsPastEnd = true
+
+        /// The document's real content height, excluding the blank padding
+        /// `setFrameSize` adds below the last line when `scrollsPastEnd` is
+        /// on. Scroll-fraction math must use this instead of `frame.height`,
+        /// or fraction 1.0 lands inside that padding instead of on the
+        /// actual last line.
+        var contentHeightExcludingScrollPastEnd: CGFloat {
+            guard let layoutManager, let textContainer else { return frame.height }
+            let usedRect = layoutManager.usedRect(for: textContainer)
+            return usedRect.height + 2 * textContainerInset.height
+        }
+
+        /// The laid-out y-position of the line fragment containing `index`, in the
+        /// same coordinate space as `contentHeightExcludingScrollPastEnd`. Returns
+        /// nil for an out-of-range index (e.g. the trailing empty line after a
+        /// final newline) so callers can skip that sample.
+        func lineTop(forCharacterIndex index: Int) -> CGFloat? {
+            guard let layoutManager, let textContainer else { return nil }
+            let length = (string as NSString).length
+            guard index >= 0, index < length else { return nil }
+            layoutManager.ensureLayout(for: textContainer)
+            let glyphIndex = layoutManager.glyphIndexForCharacter(at: index)
+            let rect = layoutManager.lineFragmentRect(forGlyphAt: glyphIndex, effectiveRange: nil)
+            return rect.origin.y + textContainerInset.height
+        }
 
         override func setFrameSize(_ newSize: NSSize) {
             var adjustedSize = newSize
@@ -201,145 +255,6 @@ private func caretColor(for background: PlatformColor) -> PlatformColor {
                 }
             }
             super.setFrameSize(adjustedSize)
-        }
-    }
-
-#else
-    import UIKit
-
-    /// UITextView-backed markdown editor for iOS with live syntax highlighting.
-    struct MarkdownTextView: UIViewRepresentable {
-        @Binding var text: String
-        var font: UIFont
-        var highlightThemeName: String
-        var lineSpacing: CGFloat
-        var horizontalInset: CGFloat
-        var verticalInset: CGFloat
-        var isEditable: Bool
-        var scrollsPastEnd: Bool
-        var scrollFraction: CGFloat = 0
-        var isScrollSyncEnabled: Bool = false
-        var onScroll: ((CGFloat) -> Void)?
-        var onTextChange: (() -> Void)?
-
-        func makeCoordinator() -> Coordinator {
-            Coordinator(self)
-        }
-
-        func makeUIView(context: Context) -> UITextView {
-            let textStorage = CodeAttributedString()
-            textStorage.language = "markdown"
-            textStorage.highlightr.setTheme(to: highlightThemeName)
-            textStorage.highlightr.theme.codeFont = font
-
-            let layoutManager = NSLayoutManager()
-            textStorage.addLayoutManager(layoutManager)
-
-            let textContainer = NSTextContainer(size: CGSize(width: 0, height: CGFloat.greatestFiniteMagnitude))
-            layoutManager.addTextContainer(textContainer)
-
-            let textView = UITextView(frame: .zero, textContainer: textContainer)
-            textView.isEditable = isEditable
-            textView.isSelectable = true
-            textView.font = font
-            textView.autocorrectionType = .no
-            textView.autocapitalizationType = .none
-            textView.smartQuotesType = .no
-            textView.smartDashesType = .no
-
-            let background = textStorage.highlightr.theme.themeBackgroundColor ?? .systemBackground
-            textView.backgroundColor = background
-            textView.tintColor = caretColor(for: background)
-
-            textView.textContainerInset = UIEdgeInsets(
-                top: verticalInset,
-                left: horizontalInset,
-                bottom: verticalInset,
-                right: horizontalInset
-            )
-
-            textView.text = text
-            textView.delegate = context.coordinator
-
-            if scrollsPastEnd {
-                textView.contentInset.bottom = 300
-            }
-            textView.keyboardDismissMode = .interactive
-
-            return textView
-        }
-
-        func updateUIView(_ textView: UITextView, context: Context) {
-            guard let textStorage = textView.textStorage as? CodeAttributedString else { return }
-
-            if context.coordinator.themeName != highlightThemeName {
-                textStorage.highlightr.setTheme(to: highlightThemeName)
-                textStorage.highlightr.theme.codeFont = font
-                context.coordinator.themeName = highlightThemeName
-                let background = textStorage.highlightr.theme.themeBackgroundColor ?? .systemBackground
-                textView.backgroundColor = background
-                textView.tintColor = caretColor(for: background)
-            }
-
-            if textView.text != text {
-                let selectedRange = textView.selectedRange
-                textView.text = text
-                textView.selectedRange = selectedRange
-            }
-
-            textView.font = font
-            textView.textContainerInset = UIEdgeInsets(
-                top: verticalInset,
-                left: horizontalInset,
-                bottom: verticalInset,
-                right: horizontalInset
-            )
-
-            context.coordinator.parent = self
-            if isScrollSyncEnabled {
-                context.coordinator.applyScrollFraction(scrollFraction, to: textView)
-            }
-        }
-
-        class Coordinator: NSObject, UITextViewDelegate {
-            var parent: MarkdownTextView
-            var themeName: String
-            private var isApplyingExternalScroll = false
-            private var lastAppliedScrollFraction: CGFloat?
-
-            init(_ parent: MarkdownTextView) {
-                self.parent = parent
-                themeName = parent.highlightThemeName
-            }
-
-            func textViewDidChange(_ textView: UITextView) {
-                parent.text = textView.text
-                parent.onTextChange?()
-            }
-
-            func scrollViewDidScroll(_ scrollView: UIScrollView) {
-                guard !isApplyingExternalScroll else { return }
-                let contentHeight = scrollView.contentSize.height
-                let visibleHeight = scrollView.bounds.height
-                guard contentHeight > visibleHeight else { return }
-                let offset = scrollView.contentOffset.y
-                let scrollFraction = max(0, min(1, offset / (contentHeight - visibleHeight)))
-                lastAppliedScrollFraction = scrollFraction
-                parent.onScroll?(scrollFraction)
-            }
-
-            func applyScrollFraction(_ fraction: CGFloat, to textView: UITextView) {
-                guard lastAppliedScrollFraction == nil || abs(fraction - lastAppliedScrollFraction!) > 0.001
-                else { return }
-                let contentHeight = textView.contentSize.height
-                let visibleHeight = textView.bounds.height
-                guard contentHeight > visibleHeight else { return }
-                lastAppliedScrollFraction = fraction
-                isApplyingExternalScroll = true
-                let targetY = fraction * (contentHeight - visibleHeight)
-                textView.setContentOffset(CGPoint(x: textView.contentOffset.x, y: targetY), animated: false)
-                isApplyingExternalScroll = false
-            }
         }
     }
 #endif

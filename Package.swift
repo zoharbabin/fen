@@ -44,6 +44,7 @@ let package = Package(
                 .copy("Resources/Templates"),
                 .copy("Resources/Extensions"),
                 .copy("Resources/Highlight"),
+                .copy("Resources/ScrollSync"),
             ]
         ),
         .executableTarget(

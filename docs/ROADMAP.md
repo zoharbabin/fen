@@ -47,7 +47,7 @@ This ordering reflects a priority pass grounded in what Markdown-editor users ac
 ## 3. Preview & theming polish
 - [ ] **Eliminate preview flicker/flash on typing and scroll** — this is MacDown's all-time top complaint by a wide margin: [#1104](https://github.com/MacDownApp/macdown/issues/1104) (91 👍, 77 comments) and its duplicate [#1057](https://github.com/MacDownApp/macdown/issues/1057) (23 👍) both describe the preview pane flashing/flickering while editing, and [#1256](https://github.com/MacDownApp/macdown/issues/1256) frames it as a genuine photosensitive-epilepsy accessibility risk, not just an annoyance. Fen's debounced re-render should already avoid a full-page reload per keystroke — add a regression test/manual check that confirms no visible flash before shipping preview changes.
 - [ ] Dark-mode preview that follows system appearance (and a manual toggle)
-- [ ] Tighten scroll-sync accuracy on long/uneven documents
+- [x] Tighten scroll-sync accuracy on long/uneven documents
 - [ ] Preview style picker polish; allow user custom CSS
 - [ ] Per-document front-matter driven options where sensible
 - [ ] Rendered preview font-size control — MacDown [#482](https://github.com/MacDownApp/macdown/issues/482) (14 👍)

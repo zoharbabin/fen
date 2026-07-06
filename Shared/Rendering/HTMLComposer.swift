@@ -6,10 +6,19 @@ public struct HTMLComposer: Sendable {
     public init() {}
 
     /// Compose a complete HTML document from rendered markdown body.
+    ///
+    /// `sourceLineCount` and `sourceLineOffset` feed `scroll-sync.js`'s anchor table, which maps
+    /// scroll fractions between the source Markdown and the rendered preview to correct for
+    /// uneven content density (e.g. a code block or image versus plain text). `sourceLineOffset`
+    /// is the number of lines stripped as front matter before rendering (0 if none) — cmark-gfm's
+    /// `data-sourcepos` is relative to the stripped text, but scroll fractions need to be relative
+    /// to the raw source the editor displays, so `scroll-sync.js` adds this back before dividing.
     public func compose(
         title: String?,
         body: String,
-        preferences: Preferences
+        preferences: Preferences,
+        sourceLineCount: Int = 0,
+        sourceLineOffset: Int = 0
     ) -> String {
         var styleTags: [String] = []
         var scriptTags: [String] = []
@@ -25,6 +34,7 @@ public struct HTMLComposer: Sendable {
         scriptTags += mathJaxTags(preferences: preferences)
         scriptTags += mermaidTags(preferences: preferences)
         scriptTags += taskListTags(preferences: preferences)
+        scriptTags += scrollSyncTags(sourceLineCount: sourceLineCount, sourceLineOffset: sourceLineOffset)
 
         return htmlDocument(
             title: title,
@@ -94,6 +104,18 @@ public struct HTMLComposer: Sendable {
         guard preferences.htmlTaskList,
               let taskJS = loadExtensionFile(named: "tasklist", ext: "js") else { return [] }
         return [inlineScript(taskJS)]
+    }
+
+    private func scrollSyncTags(sourceLineCount: Int, sourceLineOffset: Int) -> [String] {
+        guard let scrollSyncJS = loadResourceFile(name: "scroll-sync", ext: "js", subdirectory: "ScrollSync")
+        else { return [] }
+        return [
+            inlineScript(
+                "window.__fenTotalSourceLines = \(sourceLineCount); " +
+                    "window.__fenSourceLineOffset = \(sourceLineOffset);"
+            ),
+            inlineScript(scrollSyncJS),
+        ]
     }
 
     private func htmlDocument(

@@ -142,6 +142,36 @@ struct MarkdownRendererTests {
         }
     }
 
+    @Test("Emits data-sourcepos on block elements when enabled")
+    func sourcePositions() {
+        let md = "# Heading\n\nA paragraph."
+        var opts = MarkdownRenderer.Options()
+        opts.sourcePositions = true
+        let result = renderer.render(md, options: opts)
+        #expect(result.html.contains(#"<h1 data-sourcepos="1:1-1:9">"#))
+        #expect(result.html.contains(#"<p data-sourcepos="3:1-3:12">"#))
+    }
+
+    @Test("Omits data-sourcepos by default")
+    func noSourcePositionsByDefault() {
+        let result = renderer.render("# Heading")
+        #expect(!result.html.contains("data-sourcepos"))
+    }
+
+    @Test("TOC pass preserves data-sourcepos on the rewritten heading tag")
+    func tocPreservesSourcePositions() {
+        let md = """
+        [TOC]
+
+        # First Heading
+        """
+        var opts = MarkdownRenderer.Options()
+        opts.renderTOC = true
+        opts.sourcePositions = true
+        let result = renderer.render(md, options: opts)
+        #expect(result.html.contains(#"<h1 id="first-heading" data-sourcepos="3:1-3:15">"#))
+    }
+
     @Test("Handles empty input")
     func emptyInput() {
         let result = renderer.render("")

@@ -13,7 +13,7 @@
           .map(function (line) {
             return '<span class="fen-line">' + line + "</span>";
           })
-          .join("\n");
+          .join("");
         block.classList.add("fen-line-numbers");
       });
     }

@@ -15,6 +15,11 @@ public struct MarkdownRenderer: Sendable {
         public var smartPunctuation: Bool = false
         public var renderTOC: Bool = false
         public var detectFrontMatter: Bool = true
+        /// Emits `data-sourcepos="startLine:col-endLine:col"` on block elements, which
+        /// `Shared/Resources/ScrollSync/scroll-sync.js` uses to correct for uneven density
+        /// between the source Markdown and the rendered HTML. Off by default since it's
+        /// only useful to the live preview, not export.
+        public var sourcePositions: Bool = false
 
         public init() {}
 
@@ -36,10 +41,14 @@ public struct MarkdownRenderer: Sendable {
         public let html: String
         public let frontMatter: [String: Any]?
         public let title: String?
+        /// Number of lines stripped from the front of the source before parsing (0 if there was
+        /// no front matter). cmark-gfm's `data-sourcepos` line numbers are relative to the
+        /// stripped text, so scroll-sync must add this back to recover the raw-source line number.
+        public let frontMatterLineCount: Int
 
         /// frontMatter is [String: Any] which isn't Sendable, but we only
         /// produce it from controlled YAML parsing. Mark as safe.
-        static let empty = RenderResult(html: "", frontMatter: nil, title: nil)
+        static let empty = RenderResult(html: "", frontMatter: nil, title: nil, frontMatterLineCount: 0)
     }
 
     public init() {
@@ -52,19 +61,22 @@ public struct MarkdownRenderer: Sendable {
         var text = markdown
         var frontMatter: [String: Any]?
         var title: String?
+        var frontMatterLineCount = 0
 
         // Extract YAML front matter
         if options.detectFrontMatter {
-            let (stripped, yaml) = extractFrontMatter(from: text)
-            text = stripped
-            frontMatter = yaml
-            title = yaml?["title"] as? String
+            let extracted = extractFrontMatter(from: text)
+            text = extracted.stripped
+            frontMatter = extracted.yaml
+            title = extracted.yaml?["title"] as? String
+            frontMatterLineCount = extracted.lineCount
         }
 
         // Parse markdown to AST
         let cmarkOptions: Int32 = CMARK_OPT_FOOTNOTES
             | (options.hardBreaks ? CMARK_OPT_HARDBREAKS : 0)
             | (options.smartPunctuation ? CMARK_OPT_SMART : 0)
+            | (options.sourcePositions ? CMARK_OPT_SOURCEPOS : 0)
 
         guard let parser = cmark_parser_new(cmarkOptions) else {
             return .empty
@@ -109,16 +121,24 @@ public struct MarkdownRenderer: Sendable {
             html = replaceTOCMarker(in: html, with: toc)
         }
 
-        return RenderResult(html: html, frontMatter: frontMatter, title: title)
+        return RenderResult(
+            html: html, frontMatter: frontMatter, title: title, frontMatterLineCount: frontMatterLineCount
+        )
     }
 
     // MARK: - Front Matter
 
-    private func extractFrontMatter(from text: String) -> (stripped: String, yaml: [String: Any]?) {
-        guard text.hasPrefix("---") else { return (text, nil) }
+    private struct FrontMatterResult {
+        let stripped: String
+        let yaml: [String: Any]?
+        let lineCount: Int
+    }
+
+    private func extractFrontMatter(from text: String) -> FrontMatterResult {
+        guard text.hasPrefix("---") else { return FrontMatterResult(stripped: text, yaml: nil, lineCount: 0) }
 
         let lines = text.components(separatedBy: "\n")
-        guard lines.count > 2 else { return (text, nil) }
+        guard lines.count > 2 else { return FrontMatterResult(stripped: text, yaml: nil, lineCount: 0) }
 
         var endIndex: Int?
         for i in 1 ..< lines.count where lines[i].trimmingCharacters(in: .whitespaces) == "---" {
@@ -126,13 +146,13 @@ public struct MarkdownRenderer: Sendable {
             break
         }
 
-        guard let end = endIndex else { return (text, nil) }
+        guard let end = endIndex else { return FrontMatterResult(stripped: text, yaml: nil, lineCount: 0) }
 
         let yamlContent = lines[1 ..< end].joined(separator: "\n")
         let remaining = lines[(end + 1)...].joined(separator: "\n")
 
         let yaml = try? Yams.load(yaml: yamlContent) as? [String: Any]
-        return (remaining, yaml)
+        return FrontMatterResult(stripped: remaining, yaml: yaml, lineCount: end + 1)
     }
 
     // MARK: - TOC Generation
@@ -141,7 +161,9 @@ public struct MarkdownRenderer: Sendable {
     /// does, with `-1`, `-2`, ... suffixes) and builds a TOC whose links target those
     /// same ids, so `[TOC]` entries actually jump to their heading.
     private func addHeadingIDsAndGenerateTOC(from html: String) -> (html: String, toc: String) {
-        let pattern = #"<h([1-6])>(.*?)</h\1>"#
+        // Captures any existing attributes (e.g. data-sourcepos) separately from the
+        // content, so they survive being spliced back into the rewritten opening tag.
+        let pattern = #"<h([1-6])([^>]*)>(.*?)</h\1>"#
         guard let regex = try? NSRegularExpression(pattern: pattern, options: [.dotMatchesLineSeparators]) else {
             return (html, "")
         }
@@ -159,7 +181,8 @@ public struct MarkdownRenderer: Sendable {
             updatedHTML += nsHTML.substring(with: NSRange(location: cursor, length: match.range.location - cursor))
 
             let level = nsHTML.substring(with: match.range(at: 1))
-            let content = nsHTML.substring(with: match.range(at: 2))
+            let attributes = nsHTML.substring(with: match.range(at: 2))
+            let content = nsHTML.substring(with: match.range(at: 3))
             let plainText = content.replacingOccurrences(
                 of: "<[^>]+>",
                 with: "",
@@ -167,7 +190,7 @@ public struct MarkdownRenderer: Sendable {
             )
             let slug = uniqueSlug(for: plainText, usedSlugs: &usedSlugs)
 
-            updatedHTML += "<h\(level) id=\"\(slug)\">\(content)</h\(level)>"
+            updatedHTML += "<h\(level) id=\"\(slug)\"\(attributes)>\(content)</h\(level)>"
             toc += "<li class=\"toc-h\(level)\"><a href=\"#\(slug)\">\(plainText)</a></li>\n"
 
             cursor = match.range.location + match.range.length

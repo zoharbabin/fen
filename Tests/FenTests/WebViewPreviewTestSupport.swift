@@ -13,13 +13,20 @@ func renderPreviewWebView(
     markdown: String,
     options: MarkdownRenderer.Options = MarkdownRenderer.Options(),
     configurePreferences: (Preferences) -> Void = { _ in },
-    baseDirectory: URL? = nil
+    baseDirectory: URL? = nil,
+    sourceLineCount: Int = 0
 ) async throws -> WKWebView {
     let renderer = MarkdownRenderer()
     let rendered = renderer.render(markdown, options: options)
     let prefs = try Preferences(defaults: #require(UserDefaults(suiteName: "gfm.verify.\(UUID().uuidString)")))
     configurePreferences(prefs)
-    let html = HTMLComposer().compose(title: rendered.title, body: rendered.html, preferences: prefs)
+    let html = HTMLComposer().compose(
+        title: rendered.title,
+        body: rendered.html,
+        preferences: prefs,
+        sourceLineCount: sourceLineCount,
+        sourceLineOffset: rendered.frontMatterLineCount
+    )
 
     let handler = PreviewSchemeHandler()
     handler.html = html

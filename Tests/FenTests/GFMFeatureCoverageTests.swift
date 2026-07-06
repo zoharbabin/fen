@@ -85,35 +85,6 @@ struct GFMFeatureCoverageTests {
         #expect((uncheckedCount as? Int) == 1)
     }
 
-    @Test("Code blocks: fenced code with a language tag gets highlighted by highlight.js")
-    @MainActor
-    func codeBlocksWithHighlighting() async throws {
-        let md = "```swift\nlet x = 1\n```"
-        let webView = try await renderPreviewWebView(markdown: md) { prefs in
-            prefs.htmlSyntaxHighlighting = true
-        }
-        let highlighted = try await pollUntilTrue(webView, js: "!!document.querySelector('code.hljs')")
-        #expect(highlighted, "Expected highlight.js to add the 'hljs' class to the code block")
-        let hasKeywordSpan = try await webView.evaluateJavaScript(
-            "!!document.querySelector('code.hljs .hljs-keyword')"
-        )
-        #expect((hasKeywordSpan as? Bool) == true, "Expected a tokenized span (e.g. hljs-keyword) inside the block")
-    }
-
-    @Test("Code blocks: indented (non-fenced) code renders as <pre><code> without a language class")
-    @MainActor
-    func indentedCodeBlocks() async throws {
-        let md = "    plain indented code"
-        let webView = try await renderPreviewWebView(markdown: md)
-        let isPreCode = try await webView.evaluateJavaScript("""
-        (function () {
-            var code = document.querySelector('pre > code');
-            return !!code && code.textContent.trim() === 'plain indented code';
-        })();
-        """)
-        #expect((isPreCode as? Bool) == true)
-    }
-
     @Test("Horizontal rules: all three markers (---, ***, ___) render as <hr>")
     @MainActor
     func horizontalRules() async throws {
@@ -321,5 +292,70 @@ struct GFMFeatureCoverageTests {
             webView, js: "!!document.querySelector('mjx-container svg')", timeout: .seconds(10)
         )
         #expect(rendered, "Expected MathJax to render $x+y$ as an SVG inside an mjx-container")
+    }
+}
+
+/// Code-block-specific coverage, split from `GFMFeatureCoverageTests` to keep that
+/// suite under swiftlint's type body length limit.
+@Suite("Code blocks")
+struct CodeBlockCoverageTests {
+    @Test("Code blocks: fenced code with a language tag gets highlighted by highlight.js")
+    @MainActor
+    func codeBlocksWithHighlighting() async throws {
+        let md = "```swift\nlet x = 1\n```"
+        let webView = try await renderPreviewWebView(markdown: md) { prefs in
+            prefs.htmlSyntaxHighlighting = true
+        }
+        let highlighted = try await pollUntilTrue(webView, js: "!!document.querySelector('code.hljs')")
+        #expect(highlighted, "Expected highlight.js to add the 'hljs' class to the code block")
+        let hasKeywordSpan = try await webView.evaluateJavaScript(
+            "!!document.querySelector('code.hljs .hljs-keyword')"
+        )
+        #expect((hasKeywordSpan as? Bool) == true, "Expected a tokenized span (e.g. hljs-keyword) inside the block")
+    }
+
+    @Test("Code blocks: line numbers don't leave stray newline text nodes between lines")
+    @MainActor
+    func codeBlocksWithLineNumbers() async throws {
+        let md = "```swift\ntell application \"Fen\"\n    beep\nend tell\n```"
+        let webView = try await renderPreviewWebView(markdown: md) { prefs in
+            prefs.htmlSyntaxHighlighting = true
+            prefs.htmlLineNumbers = true
+        }
+        let rendered = try await pollUntilTrue(webView, js: "!!document.querySelector('code.fen-line-numbers')")
+        #expect(rendered, "Expected the highlighted block to get the fen-line-numbers class")
+        let lineCount = try await webView.evaluateJavaScript(
+            "document.querySelectorAll('code.fen-line-numbers .fen-line').length"
+        )
+        #expect(
+            (lineCount as? Int) == 3,
+            "Expected exactly 3 .fen-line spans, one per source line, got \(String(describing: lineCount))"
+        )
+
+        // A leftover "\n".join() between <span class="fen-line"> elements leaves a raw text
+        // node child on <code> itself; inside <pre> (white-space: pre) that renders as a
+        // second, empty line between every already-block-level span, doubling the spacing.
+        let hasStrayNewlineTextNode = try await webView.evaluateJavaScript("""
+        Array.from(document.querySelector('code.fen-line-numbers').childNodes)
+            .some(function (node) { return node.nodeType === Node.TEXT_NODE && node.textContent.includes('\\n'); });
+        """)
+        #expect(
+            (hasStrayNewlineTextNode as? Bool) == false,
+            "Found a stray newline text node between .fen-line spans, which doubles the visual line spacing"
+        )
+    }
+
+    @Test("Code blocks: indented (non-fenced) code renders as <pre><code> without a language class")
+    @MainActor
+    func indentedCodeBlocks() async throws {
+        let md = "    plain indented code"
+        let webView = try await renderPreviewWebView(markdown: md)
+        let isPreCode = try await webView.evaluateJavaScript("""
+        (function () {
+            var code = document.querySelector('pre > code');
+            return !!code && code.textContent.trim() === 'plain indented code';
+        })();
+        """)
+        #expect((isPreCode as? Bool) == true)
     }
 }

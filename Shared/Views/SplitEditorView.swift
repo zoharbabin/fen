@@ -195,12 +195,15 @@ public struct SplitEditorView: View {
     }
 
     private func renderMarkdown() {
-        let options = MarkdownRenderer.Options.from(preferences: preferences)
+        var options = MarkdownRenderer.Options.from(preferences: preferences)
+        options.sourcePositions = true
         let result = renderer.render(document.text, options: options)
         renderedHTML = composer.compose(
             title: result.title,
             body: result.html,
-            preferences: preferences
+            preferences: preferences,
+            sourceLineCount: document.text.components(separatedBy: .newlines).count,
+            sourceLineOffset: result.frontMatterLineCount
         )
     }
 
