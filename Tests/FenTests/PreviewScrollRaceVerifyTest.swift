@@ -56,9 +56,13 @@ struct PreviewScrollRaceVerifyTest {
             webView,
             js: "document.documentElement.scrollHeight > document.documentElement.clientHeight"
         )
-        // Let didFinish's own load-time scroll-restore round trip settle before the test's
-        // own assignment, so that unrelated round trip isn't what gets measured below.
-        try await Task.sleep(for: .milliseconds(300))
+        // Let didFinish's own load-time scroll-restore round trip actually finish before the
+        // test's own assignment — a fixed sleep here previously raced it under CI's slower/
+        // busier runner: if didFinish's restore-to-0 write landed after this test's own 0.8
+        // assignment, it silently stomped the scroll position back to 0. Polling on
+        // __fenSuppressScrollEvent's explicit `false` (only reached after scrollAssignmentJS's
+        // nested requestAnimationFrame pair fires) proves that write has actually committed.
+        _ = try await pollUntilTrue(webView, js: "window.__fenSuppressScrollEvent === false")
 
         return (webView, coordinator)
     }
