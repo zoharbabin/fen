@@ -30,17 +30,25 @@ public struct SplitEditorView: View {
 
     @State private var viewMode: ViewMode = .split
     @State private var editorOnRight = false
+    #if os(macOS)
+        @State private var hoveredLinkHref: String?
+    #endif
 
     public var body: some View {
-        ZStack {
-            switch viewMode {
-            case .split:
-                splitView
-            case .editorOnly:
-                editorView
-            case .previewOnly:
-                previewView
+        VStack(spacing: 0) {
+            ZStack {
+                switch viewMode {
+                case .split:
+                    splitView
+                case .editorOnly:
+                    editorView
+                case .previewOnly:
+                    previewView
+                }
             }
+            #if os(macOS)
+                linkStatusBar
+            #endif
         }
         .toolbar {
             toolbarContent
@@ -125,34 +133,59 @@ public struct SplitEditorView: View {
     // MARK: - Preview
 
     private var previewView: some View {
-        PreviewWebView(
-            html: renderedHTML,
-            baseURL: document.fileURL,
-            fontSize: preferences.fontSize,
-            scrollFraction: scrollSync.previewScrollFraction,
-            onScrollChange: { fraction in
-                if preferences.editorSyncScrolling {
-                    scrollSync.previewDidScroll(to: fraction)
-                }
-            },
-            onOpenInternalLink: { url in
-                openInternalLink(url)
-            }
-        )
-        // WKWebView is a native NSView; macOS only surfaces AXValue for
-        // roles like scroll areas or text fields, not the generic "Other"
-        // role a wrapped webview gets, so a `.accessibilityValue` here is
-        // silently dropped. Use a non-hit-testable overlay and expose the
-        // fraction as a label instead, which has no such role restriction.
-        .overlay(
-            Color.clear
-                .allowsHitTesting(false)
-                .accessibilityElement(children: .ignore)
-                .accessibilityIdentifier("PreviewWebView")
-                .accessibilityLabel(scrollFractionLabel(scrollSync.previewScrollFraction))
-        )
         #if os(macOS)
-        .frame(minWidth: 200)
+            PreviewWebView(
+                html: renderedHTML,
+                baseURL: document.fileURL,
+                fontSize: preferences.fontSize,
+                scrollFraction: scrollSync.previewScrollFraction,
+                onScrollChange: { fraction in
+                    if preferences.editorSyncScrolling {
+                        scrollSync.previewDidScroll(to: fraction)
+                    }
+                },
+                onOpenInternalLink: { url in
+                    openInternalLink(url)
+                },
+                onHoverLink: { href in
+                    hoveredLinkHref = href
+                }
+            )
+            // WKWebView is a native NSView; macOS only surfaces AXValue for
+            // roles like scroll areas or text fields, not the generic "Other"
+            // role a wrapped webview gets, so a `.accessibilityValue` here is
+            // silently dropped. Use a non-hit-testable overlay and expose the
+            // fraction as a label instead, which has no such role restriction.
+            .overlay(
+                Color.clear
+                    .allowsHitTesting(false)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityIdentifier("PreviewWebView")
+                    .accessibilityLabel(scrollFractionLabel(scrollSync.previewScrollFraction))
+            )
+            .frame(minWidth: 200)
+        #else
+            PreviewWebView(
+                html: renderedHTML,
+                baseURL: document.fileURL,
+                fontSize: preferences.fontSize,
+                scrollFraction: scrollSync.previewScrollFraction,
+                onScrollChange: { fraction in
+                    if preferences.editorSyncScrolling {
+                        scrollSync.previewDidScroll(to: fraction)
+                    }
+                },
+                onOpenInternalLink: { url in
+                    openInternalLink(url)
+                }
+            )
+            .overlay(
+                Color.clear
+                    .allowsHitTesting(false)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityIdentifier("PreviewWebView")
+                    .accessibilityLabel(scrollFractionLabel(scrollSync.previewScrollFraction))
+            )
         #endif
     }
 
@@ -162,6 +195,25 @@ public struct SplitEditorView: View {
     private func scrollFractionLabel(_ fraction: CGFloat) -> String {
         "\(Int((fraction * 100).rounded()))%"
     }
+
+    #if os(macOS)
+        /// Shows the URL/path of whatever link the pointer is currently over, mirroring the
+        /// hover status line browsers show — cleared (empty, not hidden, so the preview's
+        /// layout doesn't jump) once the pointer leaves the link.
+        private var linkStatusBar: some View {
+            Text(hoveredLinkHref ?? " ")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(.bar)
+                .accessibilityIdentifier("LinkStatusBar")
+                .accessibilityValue(hoveredLinkHref ?? "")
+        }
+    #endif
 
     /// Opens a clicked preview link that points at another local file, in a new window rather
     /// than navigating this document's preview pane. macOS's `DocumentGroup` supports opening

@@ -11,6 +11,7 @@ import WebKit
         var scrollFraction: CGFloat
         var onScrollChange: ((CGFloat) -> Void)?
         var onOpenInternalLink: ((URL) -> Void)?
+        var onHoverLink: ((String?) -> Void)?
 
         func makeCoordinator() -> Coordinator {
             Coordinator(self)
@@ -35,6 +36,17 @@ import WebKit
             webView.configuration.userContentController.add(
                 context.coordinator,
                 name: "scrollHandler"
+            )
+
+            let hoverScript = WKUserScript(
+                source: linkHoverObserverJS,
+                injectionTime: .atDocumentEnd,
+                forMainFrameOnly: true
+            )
+            webView.configuration.userContentController.addUserScript(hoverScript)
+            webView.configuration.userContentController.add(
+                context.coordinator,
+                name: "linkHoverHandler"
             )
 
             context.coordinator.load(html: html, baseURL: baseURL, into: webView)
@@ -178,6 +190,10 @@ import WebKit
                 _: WKUserContentController,
                 didReceive message: WKScriptMessage
             ) {
+                if message.name == "linkHoverHandler", let href = message.body as? String {
+                    parent.onHoverLink?(href.isEmpty ? nil : href)
+                    return
+                }
                 guard !scrollGuard.isApplyingExternalScroll, let fraction = message.body as? Double else { return }
                 scrollGuard.recordIncomingScroll(CGFloat(fraction))
                 parent.onScrollChange?(CGFloat(fraction))
