@@ -52,7 +52,7 @@ jobs:
           restore-keys: spm-${{ runner.os }}-
 
       - name: Run tests
-        run: swift test
+        run: swift test --no-parallel
 
       - name: Import signing certificate
         if: ${{ env.MACOS_CERTIFICATE != '' }}

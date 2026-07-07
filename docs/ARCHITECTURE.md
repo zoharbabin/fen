@@ -139,7 +139,9 @@ MathJax used to be the exception: earlier builds pulled `MathJax.js` from `cdnjs
 
 ## CI and releases
 
-`.github/workflows/ci.yml` runs `swift test` on every push and pull request against `master`. `.github/workflows/release.yml` runs on a `v*` tag push (or manual dispatch): it builds and tests, then signs and notarizes only if the signing secrets are present, verifies the resulting bundle structure (see [Resource bundle resolution](#resource-bundle-resolution-sharedcorebundleswift) above), zips it, and publishes it to a GitHub Release. See [RELEASING.md](RELEASING.md) for cutting a release by hand when secrets aren't configured in CI.
+`.github/workflows/ci.yml` runs `swift test --no-parallel` on every push and pull request against `master`. `.github/workflows/release.yml` runs on a `v*` tag push (or manual dispatch): it builds and tests the same way, then signs and notarizes only if the signing secrets are present, verifies the resulting bundle structure (see [Resource bundle resolution](#resource-bundle-resolution-sharedcorebundleswift) above), zips it, and publishes it to a GitHub Release. See [RELEASING.md](RELEASING.md) for cutting a release by hand when secrets aren't configured in CI.
+
+Both workflows pass `--no-parallel`: several suites (`ZoomOutScrollPositionVerifyTest`, `PreviewReloadRaceVerifyTest`, `PreviewLinkHoverVerifyTest`, `FontSizeLiveUpdateVerifyTest`, and others) drive a real `WKWebView` and assert on `Task.sleep`-paced timing. Swift Testing's default parallel mode runs multiple `WKWebView` instances at once, and GitHub's macOS runner doesn't have the cores to keep their real-time JS evaluation from slipping — this reproduced as a different failing subset on 4 of 4 consecutive CI attempts on the same commit before serializing fixed it. Local `swift test` (parallel, faster) is fine for day-to-day work since a real machine has more headroom; rerun with `--no-parallel` to reproduce a CI-only failure locally.
 
 ```mermaid
 flowchart LR

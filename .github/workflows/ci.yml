@@ -42,4 +42,4 @@ jobs:
           swiftlint
 
       - name: Run tests
-        run: swift test
+        run: swift test --no-parallel
