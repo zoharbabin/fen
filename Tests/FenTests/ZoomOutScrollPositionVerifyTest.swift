@@ -47,18 +47,29 @@ struct ZoomOutScrollPositionVerifyTest {
         coordinator.lastHTML = normalHTML
         _ = try await pollUntilTrue(webView, js: "document.readyState === 'complete'")
 
+        // Wait for layout to actually make the page overflow before scrolling it -- on a
+        // slower CI runner, readyState can flip to 'complete' before scrollHeight reflects
+        // the laid-out content, and a fixed sleep isn't reliably long enough there.
+        _ = try await pollUntilTrue(
+            webView,
+            js: "document.documentElement.scrollHeight > document.documentElement.clientHeight"
+        )
+
         // Scroll roughly halfway down the (currently overflowing) page.
-        try await Task.sleep(for: .milliseconds(300))
         _ = try await webView.evaluateJavaScript("""
         document.documentElement.scrollTop = (document.documentElement.scrollHeight -
             document.documentElement.clientHeight) * 0.5;
         """)
-        try await Task.sleep(for: .milliseconds(100))
+        _ = try await pollUntilTrue(webView, js: "document.documentElement.scrollTop > 0")
         let midScrollTop = try await webView.evaluateJavaScript("document.documentElement.scrollTop") as? Double ?? 0
         #expect(midScrollTop > 0, "Expected the page to be scrollable and scrolled down before zooming out")
 
         /// Mirrors updateNSView's save-scroll/reload/restore round trip for a zoom-out step
-        /// whose new fontSize shrinks the page below the viewport height.
+        /// whose new fontSize shrinks the page below the viewport height. The caller polls
+        /// for the specific post-reload condition it cares about (collapsed height, restored
+        /// scrollTop) rather than sleeping a fixed duration that isn't reliably long enough
+        /// once `didFinish`'s async scroll-restore JS call is still in flight on a loaded CI
+        /// runner.
         func reloadTo(_ newHTML: String) async {
             let generation = coordinator.beginReload()
             let result = try? await webView.evaluateJavaScript(currentSourceFractionJS)
@@ -66,11 +77,14 @@ struct ZoomOutScrollPositionVerifyTest {
             coordinator.savedScrollFraction = (result as? CGFloat) ?? coordinator.savedScrollFraction
             coordinator.load(html: newHTML, baseURL: nil, into: webView)
             _ = try? await pollUntilTrue(webView, js: "document.readyState === 'complete'")
-            try? await Task.sleep(for: .milliseconds(100))
         }
 
         // Zoom out enough that the page stops overflowing its viewport.
         await reloadTo(html(fontSize: Preferences.minFontSize))
+        _ = try await pollUntilTrue(
+            webView,
+            js: "document.documentElement.scrollHeight - document.documentElement.clientHeight <= 0"
+        )
         let collapsedMaxScroll = try await webView.evaluateJavaScript("""
         document.documentElement.scrollHeight - document.documentElement.clientHeight;
         """) as? Double ?? -1
@@ -78,6 +92,7 @@ struct ZoomOutScrollPositionVerifyTest {
 
         // Zoom back in and confirm the position came back instead of staying at the top.
         await reloadTo(normalHTML)
+        _ = try await pollUntilTrue(webView, js: "document.documentElement.scrollTop > 10")
         let restoredScrollTop = try await webView.evaluateJavaScript(
             "document.documentElement.scrollTop"
         ) as? Double ?? -1
