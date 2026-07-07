@@ -12,7 +12,7 @@ concurrency:
 
 jobs:
   test:
-    name: swift test (macOS)
+    name: lint & swift test (macOS)
     runs-on: macos-15
 
     steps:
@@ -30,6 +30,16 @@ jobs:
           path: .build
           key: spm-${{ runner.os }}-${{ hashFiles('Package.resolved') }}
           restore-keys: spm-${{ runner.os }}-
+
+      - name: Check formatting
+        run: |
+          brew install swiftformat >/dev/null
+          swiftformat --lint .
+
+      - name: Lint
+        run: |
+          brew install swiftlint >/dev/null
+          swiftlint
 
       - name: Run tests
         run: swift test

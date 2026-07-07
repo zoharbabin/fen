@@ -122,6 +122,7 @@ public struct SplitEditorView: View {
         PreviewWebView(
             html: renderedHTML,
             baseURL: document.fileURL,
+            fontSize: preferences.fontSize,
             scrollFraction: scrollSync.previewScrollFraction,
             onScrollChange: { fraction in
                 if preferences.editorSyncScrolling {
@@ -215,7 +216,7 @@ public struct SplitEditorView: View {
     }
 
     private var editorFont: PlatformFont {
-        PlatformFont(name: preferences.editorFontName, size: preferences.editorFontSize)
-            ?? PlatformFont.monospacedSystemFont(ofSize: preferences.editorFontSize, weight: .regular)
+        PlatformFont(name: preferences.editorFontName, size: preferences.fontSize)
+            ?? PlatformFont.monospacedSystemFont(ofSize: preferences.fontSize, weight: .regular)
     }
 }

@@ -27,12 +27,18 @@ public struct HTMLComposer: Sendable {
             styleTags.append(inlineStyle(css))
         }
 
+        styleTags.append(inlineStyle(fontScaleCSS(preferences: preferences)))
+
         let highlighting = syntaxHighlightingTags(preferences: preferences)
         styleTags += highlighting.styles
         scriptTags += highlighting.scripts
 
         scriptTags += mathJaxTags(preferences: preferences)
-        scriptTags += mermaidTags(preferences: preferences)
+
+        let mermaid = mermaidTags(preferences: preferences)
+        styleTags += mermaid.styles
+        scriptTags += mermaid.scripts
+
         scriptTags += taskListTags(preferences: preferences)
         scriptTags += scrollSyncTags(sourceLineCount: sourceLineCount, sourceLineOffset: sourceLineOffset)
 
@@ -43,6 +49,33 @@ public struct HTMLComposer: Sendable {
             scriptTags: scriptTags,
             includeViewportMeta: true
         )
+    }
+
+    /// Scales all text-bearing content by the ratio of the user's font size to the default,
+    /// using WebKit's `zoom` (this preview only ever runs inside `WKWebView`) rather than
+    /// rewriting every theme's hardcoded px values. `zoom` cascades to descendants, so images
+    /// and Mermaid's rendered SVGs get an inverse `zoom` to cancel it out and stay at their
+    /// natural size, per the requirement that only text should scale.
+    ///
+    /// The ratios live in CSS custom properties rather than literal `zoom:` values so
+    /// `PreviewWebView` can change them later with a plain `style.setProperty` call -- no
+    /// recompose, no reload. `ScrollSyncJS.swift`'s `fontScaleAssignmentJS` sets an inline
+    /// style on `documentElement`, which overrides this `:root` rule's value without
+    /// touching the page's HTML or navigating, so a zoom step never resets scroll to 0.
+    private func fontScaleCSS(preferences: Preferences) -> String {
+        let (scale, inverseScale) = Self.fontScaleRatios(fontSize: preferences.fontSize)
+        return """
+        :root { --fen-font-scale: \(scale); --fen-font-inverse-scale: \(inverseScale); }
+        body { zoom: var(--fen-font-scale); }
+        img, svg { zoom: var(--fen-font-inverse-scale); }
+        """
+    }
+
+    /// The single source of truth for the text/inverse-image scale ratios, shared between the
+    /// value baked into composed HTML and the value `PreviewWebView` writes live on a zoom step,
+    /// so the two can never drift apart.
+    static func fontScaleRatios(fontSize: CGFloat) -> (scale: CGFloat, inverseScale: CGFloat) {
+        (fontSize / Preferences.defaultFontSize, Preferences.defaultFontSize / fontSize)
     }
 
     private func syntaxHighlightingTags(preferences: Preferences) -> (styles: [String], scripts: [String]) {
@@ -86,18 +119,25 @@ public struct HTMLComposer: Sendable {
         return scripts
     }
 
-    private func mermaidTags(preferences: Preferences) -> [String] {
-        guard preferences.htmlMermaid else { return [] }
+    private func mermaidTags(preferences: Preferences) -> (styles: [String], scripts: [String]) {
+        guard preferences.htmlMermaid else { return ([], []) }
 
         let mermaidTheme = preferences.htmlStyleName.contains("Dark") ? "dark" : "default"
         let themeScript = inlineScript("window.__fenMermaidTheme = \"\(mermaidTheme)\";")
 
-        return [themeScript] + [
+        let styles = [loadExtensionFile(named: "mermaid-zoom", ext: "css")]
+            .compactMap(\.self)
+            .map { inlineStyle($0) }
+
+        let scripts = [themeScript] + [
             loadExtensionFile(named: "mermaid.min", ext: "js"),
+            loadExtensionFile(named: "mermaid-zoom", ext: "js"),
             loadExtensionFile(named: "mermaid.init", ext: "js"),
         ]
         .compactMap(\.self)
         .map { inlineScript($0) }
+
+        return (styles, scripts)
     }
 
     private func taskListTags(preferences: Preferences) -> [String] {

@@ -16,7 +16,7 @@ struct PreferencesTests {
     func defaults() {
         let (prefs, _) = Self.isolated()
         #expect(prefs.editorFontName == "Menlo-Regular")
-        #expect(prefs.editorFontSize == 14)
+        #expect(prefs.fontSize == 14)
         #expect(prefs.editorStyleName == "xcode")
         #expect(prefs.htmlStyleName == "GitHub2")
         #expect(prefs.extensionTables == true)
@@ -94,16 +94,36 @@ struct PreferencesTests {
         #expect(prefs.renderRevision == base + 15)
     }
 
-    @Test("renderRevision does not increment for editor-only changes")
+    @Test("renderRevision does not increment for editor-only changes or fontSize")
     func renderRevisionStableForEditorPrefs() {
         let (prefs, _) = Self.isolated()
         let base = prefs.renderRevision
 
-        prefs.editorFontSize += 1
         prefs.editorStyleName = "github-dark"
         prefs.editorScrollsPastEnd.toggle()
         prefs.editorShowWordCount.toggle()
         prefs.editorConvertTabs.toggle()
+        // fontSize is applied to the preview live via a CSS custom property (see
+        // PreviewWebView.applyFontSize), not by recomposing/reloading, so it must not
+        // bump renderRevision -- that would cause the exact reload-flash this avoids.
+        prefs.fontSize += 1
         #expect(prefs.renderRevision == base)
+    }
+
+    @Test("increaseFontSize/decreaseFontSize/resetFontSize clamp and reset correctly")
+    func fontSizeZoomControls() {
+        let (prefs, _) = Self.isolated()
+
+        prefs.fontSize = Preferences.maxFontSize
+        prefs.increaseFontSize()
+        #expect(prefs.fontSize == Preferences.maxFontSize)
+
+        prefs.fontSize = Preferences.minFontSize
+        prefs.decreaseFontSize()
+        #expect(prefs.fontSize == Preferences.minFontSize)
+
+        prefs.fontSize = 30
+        prefs.resetFontSize()
+        #expect(prefs.fontSize == Preferences.defaultFontSize)
     }
 }

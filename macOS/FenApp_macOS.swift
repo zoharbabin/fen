@@ -42,7 +42,44 @@ struct FenApp: App {
         }
 
         findCommands()
+        formattingCommands()
 
+        CommandGroup(after: .sidebar) {
+            Section {
+                Button("Toggle Preview") {
+                    NotificationCenter.default.post(name: .togglePreview, object: nil)
+                }
+                .keyboardShortcut("r", modifiers: [.command, .shift])
+
+                Button("Toggle Editor") {
+                    NotificationCenter.default.post(name: .toggleEditor, object: nil)
+                }
+                .keyboardShortcut("e", modifiers: [.command, .shift])
+            }
+        }
+
+        CommandGroup(after: .toolbar) {
+            Section {
+                Button("Zoom In") {
+                    Preferences.shared.increaseFontSize()
+                }
+                .keyboardShortcut("+", modifiers: .command)
+
+                Button("Zoom Out") {
+                    Preferences.shared.decreaseFontSize()
+                }
+                .keyboardShortcut("-", modifiers: .command)
+
+                Button("Actual Size") {
+                    Preferences.shared.resetFontSize()
+                }
+                .keyboardShortcut("0", modifiers: .command)
+            }
+        }
+    }
+
+    @CommandsBuilder
+    func formattingCommands() -> some Commands {
         CommandGroup(after: .textFormatting) {
             Section {
                 Button("Bold") {
@@ -76,20 +113,6 @@ struct FenApp: App {
                     NotificationCenter.default.post(name: .insertMarkdownFormatting, object: "h3")
                 }
                 .keyboardShortcut("3", modifiers: .command)
-            }
-        }
-
-        CommandGroup(after: .sidebar) {
-            Section {
-                Button("Toggle Preview") {
-                    NotificationCenter.default.post(name: .togglePreview, object: nil)
-                }
-                .keyboardShortcut("r", modifiers: [.command, .shift])
-
-                Button("Toggle Editor") {
-                    NotificationCenter.default.post(name: .toggleEditor, object: nil)
-                }
-                .keyboardShortcut("e", modifiers: [.command, .shift])
             }
         }
     }

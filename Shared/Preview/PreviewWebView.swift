@@ -1,68 +1,5 @@
 import SwiftUI
-import UniformTypeIdentifiers
 import WebKit
-
-/// Serves the composed preview HTML and resolves relative asset references
-/// (images, etc.) against the Markdown document's directory on disk.
-///
-/// `WKWebView.loadHTMLString(_:baseURL:)` sets the document's base URL for
-/// resolving relative links, but does *not* grant the web view read access
-/// to that directory, so local images referenced with a relative path never
-/// load. Serving through a custom URL scheme sidesteps that restriction
-/// without writing any files to disk.
-final class PreviewSchemeHandler: NSObject, WKURLSchemeHandler {
-    static let scheme = "fen-preview"
-    static let previewURL = URL(string: "\(scheme)://local/index.html")!
-
-    var html: String = ""
-    var baseDirectory: URL?
-
-    func webView(_: WKWebView, start task: WKURLSchemeTask) {
-        guard let url = task.request.url else {
-            task.didFailWithError(URLError(.badURL))
-            return
-        }
-
-        if url.path == "/index.html" {
-            let data = Data(html.utf8)
-            let response = URLResponse(
-                url: url, mimeType: "text/html", expectedContentLength: data.count, textEncodingName: "utf-8"
-            )
-            task.didReceive(response)
-            task.didReceive(data)
-            task.didFinish()
-            return
-        }
-
-        guard let baseDirectory,
-              let fileURL = URL(string: String(url.path.dropFirst()), relativeTo: baseDirectory)?.standardizedFileURL,
-              fileURL.path.hasPrefix(baseDirectory.standardizedFileURL.path),
-              let data = try? Data(contentsOf: fileURL) else {
-            task.didFailWithError(URLError(.fileDoesNotExist))
-            return
-        }
-        let mimeType = UTType(filenameExtension: fileURL.pathExtension)?.preferredMIMEType
-        let response = URLResponse(
-            url: url,
-            mimeType: mimeType,
-            expectedContentLength: data.count,
-            textEncodingName: nil
-        )
-        task.didReceive(response)
-        task.didReceive(data)
-        task.didFinish()
-    }
-
-    func webView(_: WKWebView, stop _: WKURLSchemeTask) {}
-
-    /// A clicked link should only hand off to the OS when it targets something outside the
-    /// preview document itself — same-page anchors (TOC entries, footnote backrefs) stay on
-    /// `fen-preview://`, which has no registered app and would otherwise trigger an
-    /// "no application set to open this URL" alert.
-    static func shouldOpenExternally(_ url: URL) -> Bool {
-        url.scheme != scheme
-    }
-}
 
 #if os(macOS)
 
@@ -70,6 +7,7 @@ final class PreviewSchemeHandler: NSObject, WKURLSchemeHandler {
     struct PreviewWebView: NSViewRepresentable {
         let html: String
         let baseURL: URL?
+        var fontSize: CGFloat = Preferences.defaultFontSize
         var scrollFraction: CGFloat
         var onScrollChange: ((CGFloat) -> Void)?
 
@@ -100,6 +38,7 @@ final class PreviewSchemeHandler: NSObject, WKURLSchemeHandler {
 
             context.coordinator.load(html: html, baseURL: baseURL, into: webView)
             context.coordinator.lastHTML = html
+            context.coordinator.lastFontSize = fontSize
             return webView
         }
 
@@ -108,12 +47,22 @@ final class PreviewSchemeHandler: NSObject, WKURLSchemeHandler {
             // Only reload if HTML changed
             if context.coordinator.lastHTML != html {
                 context.coordinator.lastHTML = html
-                // Save scroll position, reload, restore
+                // Save scroll position, reload, restore. A rapid string of renders (e.g.
+                // holding Cmd+ to zoom) can start a second one of these round trips before
+                // this evaluateJavaScript call returns, so the generation token lets the
+                // reload below check it's still the most recently requested one before
+                // acting on a possibly-stale read.
+                let generation = context.coordinator.beginReload()
                 webView.evaluateJavaScript(currentSourceFractionJS) { result, _ in
+                    guard context.coordinator.isCurrentReload(generation) else { return }
                     context.coordinator.savedScrollFraction = (result as? CGFloat) ?? scrollFraction
+                    context.coordinator.lastFontSize = fontSize
                     context.coordinator.load(html: html, baseURL: baseURL, into: webView)
                 }
             } else {
+                if context.coordinator.lastFontSize != fontSize {
+                    context.coordinator.applyFontSize(fontSize, to: webView)
+                }
                 context.coordinator.applyScrollFraction(scrollFraction, to: webView)
             }
         }
@@ -122,9 +71,46 @@ final class PreviewSchemeHandler: NSObject, WKURLSchemeHandler {
             var parent: PreviewWebView
             weak var webView: WKWebView?
             var lastHTML: String = ""
+            var lastFontSize: CGFloat = Preferences.defaultFontSize
             var savedScrollFraction: CGFloat = 0
             let schemeHandler = PreviewSchemeHandler()
             private let scrollGuard = ExternalScrollGuard()
+            private var reloadGeneration = 0
+
+            /// Applies a font-size change live, without a page reload -- see
+            /// `fontScaleAssignmentJS`'s doc comment for why this avoids the "jump to top and
+            /// back" flash a full reload causes. Guarded like `applyScrollFraction`: unguarded,
+            /// the scrollTop write inside the script fires a real DOM scroll event that would
+            /// stomp ScrollSync's state.
+            @MainActor func applyFontSize(_ fontSize: CGFloat, to webView: WKWebView) {
+                lastFontSize = fontSize
+                let (scale, inverseScale) = HTMLComposer.fontScaleRatios(fontSize: fontSize)
+                let token = scrollGuard.beginExternalScroll()
+                webView.evaluateJavaScript(
+                    fontScaleAssignmentJS(
+                        scale: scale,
+                        inverseScale: inverseScale,
+                        fallbackFraction: savedScrollFraction,
+                        suppressScrollEvent: true
+                    )
+                ) { [weak self] result, _ in
+                    self?.savedScrollFraction = (result as? CGFloat) ?? self?.savedScrollFraction ?? 0
+                    self?.scrollGuard.endExternalScroll(token: token)
+                }
+            }
+
+            /// Call before starting a save-scroll/reload round trip; returns a token that
+            /// `isCurrentReload` can check once the async scroll-read comes back, so a
+            /// superseded reload (one a newer render request already replaced) never
+            /// overwrites `lastHTML`/scroll state with its stale, captured values.
+            func beginReload() -> Int {
+                reloadGeneration += 1
+                return reloadGeneration
+            }
+
+            func isCurrentReload(_ generation: Int) -> Bool {
+                generation == reloadGeneration
+            }
 
             init(_ parent: PreviewWebView) {
                 self.parent = parent
@@ -203,6 +189,7 @@ final class PreviewSchemeHandler: NSObject, WKURLSchemeHandler {
     struct PreviewWebView: UIViewRepresentable {
         let html: String
         let baseURL: URL?
+        var fontSize: CGFloat = Preferences.defaultFontSize
         var scrollFraction: CGFloat
         var onScrollChange: ((CGFloat) -> Void)?
 
@@ -221,6 +208,7 @@ final class PreviewSchemeHandler: NSObject, WKURLSchemeHandler {
 
             context.coordinator.load(html: html, baseURL: baseURL, into: webView)
             context.coordinator.lastHTML = html
+            context.coordinator.lastFontSize = fontSize
             return webView
         }
 
@@ -228,11 +216,19 @@ final class PreviewSchemeHandler: NSObject, WKURLSchemeHandler {
             context.coordinator.parent = self
             if context.coordinator.lastHTML != html {
                 context.coordinator.lastHTML = html
+                // See the macOS Coordinator's beginReload() doc comment: this guards the
+                // same save-scroll/reload race against a rapid string of renders.
+                let generation = context.coordinator.beginReload()
                 webView.evaluateJavaScript(currentSourceFractionJS) { result, _ in
+                    guard context.coordinator.isCurrentReload(generation) else { return }
                     context.coordinator.savedScrollFraction = (result as? CGFloat) ?? scrollFraction
+                    context.coordinator.lastFontSize = fontSize
                     context.coordinator.load(html: html, baseURL: baseURL, into: webView)
                 }
             } else {
+                if context.coordinator.lastFontSize != fontSize {
+                    context.coordinator.applyFontSize(fontSize, to: webView)
+                }
                 context.coordinator.applyScrollFraction(scrollFraction, to: webView.scrollView)
             }
         }
@@ -241,12 +237,44 @@ final class PreviewSchemeHandler: NSObject, WKURLSchemeHandler {
             var parent: PreviewWebView
             weak var webView: WKWebView?
             var lastHTML: String = ""
+            var lastFontSize: CGFloat = Preferences.defaultFontSize
             var savedScrollFraction: CGFloat = 0
             let schemeHandler = PreviewSchemeHandler()
             private let scrollGuard = ExternalScrollGuard()
+            private var reloadGeneration = 0
+
+            func beginReload() -> Int {
+                reloadGeneration += 1
+                return reloadGeneration
+            }
+
+            func isCurrentReload(_ generation: Int) -> Bool {
+                generation == reloadGeneration
+            }
 
             init(_ parent: PreviewWebView) {
                 self.parent = parent
+            }
+
+            /// Applies a font-size change live, without a page reload -- see the macOS
+            /// Coordinator's `applyFontSize` doc comment. No `__fenSuppressScrollEvent` guard
+            /// needed here: iOS reads scroll position from `UIScrollViewDelegate` callbacks
+            /// gated by `isApplyingExternalScroll`, not a DOM 'scroll' listener.
+            @MainActor func applyFontSize(_ fontSize: CGFloat, to webView: WKWebView) {
+                lastFontSize = fontSize
+                let (scale, inverseScale) = HTMLComposer.fontScaleRatios(fontSize: fontSize)
+                let token = scrollGuard.beginExternalScroll()
+                webView.evaluateJavaScript(
+                    fontScaleAssignmentJS(
+                        scale: scale,
+                        inverseScale: inverseScale,
+                        fallbackFraction: savedScrollFraction,
+                        suppressScrollEvent: false
+                    )
+                ) { [weak self] result, _ in
+                    self?.savedScrollFraction = (result as? CGFloat) ?? self?.savedScrollFraction ?? 0
+                    self?.scrollGuard.endExternalScroll(token: token)
+                }
             }
 
             func load(html: String, baseURL: URL?, into webView: WKWebView) {

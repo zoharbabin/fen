@@ -20,10 +20,38 @@
       dom = dom.parentElement;
 
       var result = await mermaid.render("graphDiv" + i, graphSource);
-      dom.innerHTML = result.svg;
+
+      var container = document.createElement("div");
+      container.className = "fen-mermaid-container";
+
+      var viewport = document.createElement("div");
+      viewport.className = "fen-mermaid-viewport";
+
+      var pan = document.createElement("div");
+      pan.className = "fen-mermaid-pan";
+      pan.innerHTML = result.svg;
+
+      var controls = document.createElement("div");
+      controls.className = "fen-mermaid-controls";
+      controls.innerHTML =
+        '<button type="button" class="fen-mermaid-zoom-out" title="Zoom out" aria-label="Zoom out">−</button>' +
+        '<button type="button" class="fen-mermaid-zoom-reset" title="Reset zoom" aria-label="Reset zoom">⛶</button>' +
+        '<button type="button" class="fen-mermaid-zoom-in" title="Zoom in" aria-label="Zoom in">+</button>';
+
+      viewport.appendChild(pan);
+      container.appendChild(controls);
+      container.appendChild(viewport);
+
+      dom.innerHTML = "";
+      dom.appendChild(container);
+
       if (result.bindFunctions) {
-        result.bindFunctions(dom);
+        result.bindFunctions(pan);
       }
+    }
+
+    if (typeof window.__fenSetupMermaidZoom === "function") {
+      window.__fenSetupMermaidZoom();
     }
   };
 

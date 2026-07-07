@@ -50,7 +50,7 @@ This ordering reflects a priority pass grounded in what Markdown-editor users ac
 - [x] Tighten scroll-sync accuracy on long/uneven documents
 - [ ] Preview style picker polish; allow user custom CSS
 - [ ] Per-document front-matter driven options where sensible
-- [ ] Rendered preview font-size control — MacDown [#482](https://github.com/MacDownApp/macdown/issues/482) (14 👍)
+- [x] Rendered preview font-size control — MacDown [#482](https://github.com/MacDownApp/macdown/issues/482) (14 👍)
 - [ ] Copy-code-to-clipboard button on rendered code blocks — a small, well-liked win in comparable apps (Joplin [#2383](https://github.com/laurent22/joplin/issues/2383), 49 👍)
 - [ ] Check GFM alert/callout syntax (`> [!NOTE]`, `> [!WARNING]`, etc.) renders correctly and is exercised in `assets/demo.md` — repeatedly requested as "admonitions" in Zettlr ([#4982](https://github.com/Zettlr/Zettlr/issues/4982), [#532](https://github.com/Zettlr/Zettlr/issues/532)) and MarkText ([#2115](https://github.com/marktext/marktext/issues/2115))
 

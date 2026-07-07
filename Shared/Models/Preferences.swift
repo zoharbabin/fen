@@ -81,8 +81,33 @@ public final class Preferences {
         didSet { defaults.set(editorFontName, forKey: "editorFontName") }
     }
 
-    var editorFontSize: CGFloat = 14 {
-        didSet { defaults.set(Double(editorFontSize), forKey: "editorFontSize") }
+    static let minFontSize: CGFloat = 8
+    static let maxFontSize: CGFloat = 48
+    static let defaultFontSize: CGFloat = 14
+
+    /// Universal font size, applied to both the editor and the rendered preview's text
+    /// (headings, paragraphs, code, tables, quotes) — not to images or diagrams.
+    ///
+    /// Deliberately does *not* bump `renderRevision`: `PreviewWebView` applies a font-size
+    /// change live via a CSS custom property instead of a full recompose/reload (see
+    /// `Shared/Preview/ScrollSyncJS.swift`'s `fontScaleAssignmentJS`), so a zoom step never
+    /// resets the preview's scroll position to the top.
+    var fontSize: CGFloat = defaultFontSize {
+        didSet {
+            defaults.set(Double(fontSize), forKey: "editorFontSize")
+        }
+    }
+
+    public func increaseFontSize() {
+        fontSize = min(Self.maxFontSize, fontSize + 1)
+    }
+
+    public func decreaseFontSize() {
+        fontSize = max(Self.minFontSize, fontSize - 1)
+    }
+
+    public func resetFontSize() {
+        fontSize = Self.defaultFontSize
     }
 
     var editorAutoIncrementNumberedLists: Bool = true {
@@ -262,8 +287,8 @@ public final class Preferences {
 
     private func loadEditorDefaults(from defaults: UserDefaults) {
         editorFontName = defaults.string(forKey: "editorFontName") ?? "Menlo-Regular"
-        let fontSize = defaults.double(forKey: "editorFontSize")
-        editorFontSize = fontSize > 0 ? fontSize : 14
+        let storedFontSize = defaults.double(forKey: "editorFontSize")
+        fontSize = storedFontSize > 0 ? storedFontSize : Self.defaultFontSize
         editorAutoIncrementNumberedLists = defaults.object(forKey: "editorAutoIncrementNumberedLists") != nil
             ? defaults.bool(forKey: "editorAutoIncrementNumberedLists") : true
         editorConvertTabs = defaults.object(forKey: "editorConvertTabs") != nil

@@ -67,10 +67,14 @@ struct EditorSettingsTab: View {
                 HStack {
                     Text("Font")
                     Spacer()
-                    Text("\(prefs.editorFontName), \(Int(prefs.editorFontSize))pt")
+                    Text("\(prefs.editorFontName), \(Int(prefs.fontSize))pt")
                         .foregroundStyle(.secondary)
                 }
-                Stepper("Font Size: \(Int(prefs.editorFontSize))", value: $prefs.editorFontSize, in: 8 ... 48)
+                Stepper(
+                    "Font Size: \(Int(prefs.fontSize)) (applies to editor and preview)",
+                    value: $prefs.fontSize,
+                    in: Preferences.minFontSize ... Preferences.maxFontSize
+                )
             }
 
             Section("Theme") {

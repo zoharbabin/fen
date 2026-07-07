@@ -48,7 +48,7 @@ func caretColor(for background: PlatformColor) -> PlatformColor {
             let textStorage = CodeAttributedString()
             textStorage.language = "markdown"
             textStorage.highlightr.setTheme(to: highlightThemeName)
-            textStorage.highlightr.theme.codeFont = font
+            textStorage.highlightr.theme.setCodeFont(font)
 
             let layoutManager = NSLayoutManager()
             textStorage.addLayoutManager(layoutManager)
@@ -105,16 +105,34 @@ func caretColor(for background: PlatformColor) -> PlatformColor {
             guard let textView = scrollView.documentView as? MarkdownNSTextView,
                   let textStorage = textView.textStorage as? CodeAttributedString else { return }
 
-            if textStorage.highlightr.theme.codeFont != font {
-                textStorage.highlightr.theme.codeFont = font
-            }
+            var needsFullRehighlight = false
+
             if context.coordinator.themeName != highlightThemeName {
                 textStorage.highlightr.setTheme(to: highlightThemeName)
-                textStorage.highlightr.theme.codeFont = font
+                textStorage.highlightr.theme.setCodeFont(font)
                 context.coordinator.themeName = highlightThemeName
                 let background = textStorage.highlightr.theme.themeBackgroundColor ?? .textBackgroundColor
                 textView.backgroundColor = background
                 textView.insertionPointColor = caretColor(for: background)
+                needsFullRehighlight = true
+            } else if textStorage.highlightr.theme.codeFont != font {
+                textStorage.highlightr.theme.setCodeFont(font)
+                needsFullRehighlight = true
+            }
+
+            if textView.font != font {
+                textView.font = font
+                needsFullRehighlight = true
+            }
+
+            if needsFullRehighlight {
+                // CodeAttributedString.processEditing() only re-highlights the edited
+                // paragraph on a text change; re-triggering `language`'s didSet forces
+                // a full re-highlight so already-typed text picks up the new font/theme.
+                // (Swift forbids `language = language`, so route through nil first.)
+                let language = textStorage.language
+                textStorage.language = nil
+                textStorage.language = language
             }
 
             // Update text only if it changed externally (not from user typing).

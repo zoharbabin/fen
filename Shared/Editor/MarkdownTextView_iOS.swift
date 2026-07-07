@@ -26,7 +26,7 @@
             let textStorage = CodeAttributedString()
             textStorage.language = "markdown"
             textStorage.highlightr.setTheme(to: highlightThemeName)
-            textStorage.highlightr.theme.codeFont = font
+            textStorage.highlightr.theme.setCodeFont(font)
 
             let layoutManager = NSLayoutManager()
             textStorage.addLayoutManager(layoutManager)
@@ -68,13 +68,19 @@
         func updateUIView(_ textView: UITextView, context: Context) {
             guard let textStorage = textView.textStorage as? CodeAttributedString else { return }
 
+            var needsFullRehighlight = false
+
             if context.coordinator.themeName != highlightThemeName {
                 textStorage.highlightr.setTheme(to: highlightThemeName)
-                textStorage.highlightr.theme.codeFont = font
+                textStorage.highlightr.theme.setCodeFont(font)
                 context.coordinator.themeName = highlightThemeName
                 let background = textStorage.highlightr.theme.themeBackgroundColor ?? .systemBackground
                 textView.backgroundColor = background
                 textView.tintColor = caretColor(for: background)
+                needsFullRehighlight = true
+            } else if textStorage.highlightr.theme.codeFont != font {
+                textStorage.highlightr.theme.setCodeFont(font)
+                needsFullRehighlight = true
             }
 
             if textView.text != text {
@@ -83,13 +89,26 @@
                 textView.selectedRange = selectedRange
             }
 
-            textView.font = font
+            if textView.font != font {
+                textView.font = font
+                needsFullRehighlight = true
+            }
             textView.textContainerInset = UIEdgeInsets(
                 top: verticalInset,
                 left: horizontalInset,
                 bottom: verticalInset,
                 right: horizontalInset
             )
+
+            if needsFullRehighlight {
+                // CodeAttributedString.processEditing() only re-highlights the edited
+                // paragraph on a text change; re-triggering `language`'s didSet forces
+                // a full re-highlight so already-typed text picks up the new font/theme.
+                // (Swift forbids `language = language`, so route through nil first.)
+                let language = textStorage.language
+                textStorage.language = nil
+                textStorage.language = language
+            }
 
             context.coordinator.parent = self
             if isScrollSyncEnabled {
