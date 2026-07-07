@@ -109,17 +109,21 @@ flowchart TD
 
 The live preview (`Shared/Preview/PreviewWebView.swift`) renders through `WKWebView`. The obvious approach — `loadHTMLString(_:baseURL:)` — sets the document's base URL for resolving relative links, but does **not** grant the web view read access to that directory. Relative-path images in a Markdown document (`![](./img.png)`) silently failed to load under that approach.
 
-Instead, `PreviewSchemeHandler` implements `WKURLSchemeHandler` for a custom `fen-preview://` scheme. The main document loads from `fen-preview://local/index.html`; every other request resolves against the document's directory on disk (`baseDirectory`), with a path check (`fileURL.path.hasPrefix(baseDirectory.standardizedFileURL.path)`) guarding against a request escaping outside that directory via `../` traversal. Keep that check load-bearing — it's the only thing standing between a crafted Markdown file and arbitrary local file reads.
+Instead, `PreviewSchemeHandler` implements `WKURLSchemeHandler` for a custom `fen-preview://` scheme. The main document loads from `fen-preview://local/index.html`; every other request resolves against the document's directory on disk (`baseDirectory`) through the shared `resolvedFileURL(for:baseDirectory:)` helper, which calls `resolvingSymlinksInPath()` on both the candidate file and `baseDirectory` before checking that the former's path starts with the latter's — resolving symlinks on both sides, not just collapsing `.`/`..` segments, closes the gap where a symlink planted inside `baseDirectory` could point outside it and pass a naive prefix check. Keep that check load-bearing — it's the only thing standing between a crafted Markdown file and arbitrary local file reads.
 
 ```mermaid
 flowchart TD
     Request["WKURLSchemeHandler request<br/>fen-preview://local/&lt;path&gt;"] --> IsIndex{"path == index.html?"}
     IsIndex -->|yes| ServeHTML["Serve the composed HTML in memory"]
-    IsIndex -->|no| Resolve["Resolve path against baseDirectory"]
-    Resolve --> Guard{"resolved path starts with<br/>baseDirectory.standardizedFileURL.path?"}
+    IsIndex -->|no| Resolve["Resolve path against baseDirectory,<br/>resolvingSymlinksInPath() on both sides"]
+    Resolve --> Guard{"resolved path starts with<br/>resolved baseDirectory path?"}
     Guard -->|yes| ServeFile["Serve the file from disk<br/>(e.g. relative image)"]
     Guard -->|no: ../ traversal, symlink, absolute path| Deny["Deny — no response"]
 ```
+
+The same `resolvedFileURL` guard backs `internalLinkTarget(for:)`, which a clicked preview link runs through first: a same-page anchor (`#section`) returns `nil` and stays on `fen-preview://local/index.html`, while a link that resolves to a *different* file on disk returns that file's URL. `PreviewWebView.Coordinator` cancels the in-place navigation for the latter and opens it as its own document instead — `openDocument(at:)` on macOS, `UIApplication.shared.open(_:)` on iOS — rather than letting `WKWebView` load that file's raw text as if it were HTML.
+
+A second `WKUserScript`/message-handler pair, alongside the scroll-position one described below, reports which link the pointer is over: `Shared/Preview/LinkHoverJS.swift`'s `linkHoverObserverJS` posts a hovered link's raw `href` through a `linkHoverHandler` channel, which `SplitEditorView` shows in a status bar under the preview (macOS only) and clears on mouseout.
 
 ## Highlightr fork (`Dependency/Highlightr`)
 

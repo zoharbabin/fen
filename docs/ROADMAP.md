@@ -31,7 +31,7 @@ This ordering reflects a priority pass grounded in what Markdown-editor users ac
 ---
 
 ## 2. Editing quality (fast, frictionless)
-- [ ] Find & Replace — confirm the native find bar works; add replace UX
+- [~] Find & Replace — the native find bar and its built-in replace UI are wired up (`macOS/FenApp_macOS.swift`'s `findCommands()`, `textView.usesFindBar` in `MarkdownTextView.swift`); no automated coverage yet, so give the replace flow a manual pass (Cmd+Option+F) before calling this done
 - [ ] Auto-continue lists + smart renumbering (prefs exist; wire them up)
 - [ ] Auto-pair brackets/quotes; wrap selection with pairs (pref exists)
 - [ ] Tab/indent handling, convert tabs→spaces (pref exists)
@@ -51,6 +51,8 @@ This ordering reflects a priority pass grounded in what Markdown-editor users ac
 - [ ] Preview style picker polish; allow user custom CSS
 - [ ] Per-document front-matter driven options where sensible
 - [x] Rendered preview font-size control — MacDown [#482](https://github.com/MacDownApp/macdown/issues/482) (14 👍)
+- [x] Clicking a relative-path link to another local Markdown file opens it in its own Fen window instead of navigating the preview in place
+- [x] Hovering a preview link shows its URL/path in a status bar under the preview, mirroring a browser's hover status line
 - [ ] Copy-code-to-clipboard button on rendered code blocks — a small, well-liked win in comparable apps (Joplin [#2383](https://github.com/laurent22/joplin/issues/2383), 49 👍)
 - [ ] Check GFM alert/callout syntax (`> [!NOTE]`, `> [!WARNING]`, etc.) renders correctly and is exercised in `assets/demo.md` — repeatedly requested as "admonitions" in Zettlr ([#4982](https://github.com/Zettlr/Zettlr/issues/4982), [#532](https://github.com/Zettlr/Zettlr/issues/532)) and MarkText ([#2115](https://github.com/marktext/marktext/issues/2115))
 

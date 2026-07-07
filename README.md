@@ -28,7 +28,7 @@ Fen edits Markdown on one side and renders it live on the other, with the two pa
 
 ## Features
 
-- **Live preview with scroll sync** — the preview pane tracks your cursor as you type
+- **Live preview with scroll sync** — the preview pane tracks your scroll position as you type
 - **GitHub-Flavored Markdown** via Apple's [`swift-cmark`](https://github.com/apple/swift-cmark) — tables, task lists, strikethrough, autolinks, footnotes
 - **Syntax highlighting** in code blocks, **MathJax** for equations, and **Mermaid** for diagrams
 - **Pure Swift + SwiftUI**, with a cross-platform core (macOS and iOS share `FenCore`) — no Objective-C, no CocoaPods

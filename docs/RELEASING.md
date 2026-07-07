@@ -38,6 +38,8 @@ Look for a line like `Developer ID Application: Your Name (ABCDE12345)`. The 10-
 
 ### Add repository secrets (one time)
 
+This repo already has all six secrets configured (`gh secret list` shows them), and every release since v0.2.0 has published automatically through this path — skip to [Cut a release](#cut-a-release) unless you're rotating credentials or setting up a fork.
+
 In GitHub: **Settings → Secrets and variables → Actions → New repository secret**. Add all six:
 
 | Secret | Value |
