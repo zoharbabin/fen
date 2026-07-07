@@ -171,6 +171,10 @@ ___
 [fen-site]: https://fen.md "Fen's homepage"
 [shortcut reference]: https://fen.md
 
+A relative-path link to another local Markdown file, like
+[the image format test doc](./image-formats-test.md), opens that file in its own Fen window
+instead of navigating this preview.
+
 ![Fen screenshot](./screenshot.png "Fen")
 
 ## Tables (GFM)

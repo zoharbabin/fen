@@ -34,9 +34,7 @@ final class PreviewSchemeHandler: NSObject, WKURLSchemeHandler {
             return
         }
 
-        guard let baseDirectory,
-              let fileURL = URL(string: String(url.path.dropFirst()), relativeTo: baseDirectory)?.standardizedFileURL,
-              fileURL.path.hasPrefix(baseDirectory.standardizedFileURL.path),
+        guard let fileURL = Self.resolvedFileURL(for: url, baseDirectory: baseDirectory),
               let data = try? Data(contentsOf: fileURL) else {
             task.didFailWithError(URLError(.fileDoesNotExist))
             return
@@ -61,5 +59,39 @@ final class PreviewSchemeHandler: NSObject, WKURLSchemeHandler {
     /// "no application set to open this URL" alert.
     static func shouldOpenExternally(_ url: URL) -> Bool {
         url.scheme != scheme
+    }
+
+    /// Resolves `url`'s path against `baseDirectory`, standardizing it and rejecting anything
+    /// that escapes `baseDirectory` — the one gate between a clicked/loaded link and the local
+    /// filesystem. Shared by `webView(_:start:)` (serving a relative asset) and
+    /// `internalLinkTarget(for:baseDirectory:)` (deciding whether a clicked link points at
+    /// another file on disk), so both paths enforce the exact same traversal guard.
+    ///
+    /// Resolves symlinks (`resolvingSymlinksInPath`) on both sides before the prefix check, not
+    /// just `standardizedFileURL` (which only collapses `.`/`..` segments): a symlink planted
+    /// inside `baseDirectory` but pointing outside it would otherwise pass the prefix check on
+    /// its un-resolved path and then read whatever it points at on disk.
+    private static func resolvedFileURL(for url: URL, baseDirectory: URL?) -> URL? {
+        guard let baseDirectory,
+              let candidate = URL(string: String(url.path.dropFirst()), relativeTo: baseDirectory) else {
+            return nil
+        }
+        let fileURL = candidate.resolvingSymlinksInPath()
+        let resolvedBase = baseDirectory.resolvingSymlinksInPath()
+        guard fileURL.path.hasPrefix(resolvedBase.path) else {
+            return nil
+        }
+        return fileURL
+    }
+
+    /// A clicked link that resolves to a *different* file on disk (as opposed to a same-page
+    /// anchor like a TOC entry or footnote backref, which keeps the existing `#fragment` on
+    /// `fen-preview://local/index.html`) should open in a new Fen window rather than navigate
+    /// this preview's `WKWebView` in place — the latter would load that file's raw text as if
+    /// it were HTML. Returns `nil` for anchors, external links, and anything that fails the
+    /// same traversal guard `webView(_:start:)` applies to asset loads.
+    func internalLinkTarget(for url: URL) -> URL? {
+        guard !Self.shouldOpenExternally(url), url.path != "/index.html" else { return nil }
+        return Self.resolvedFileURL(for: url, baseDirectory: baseDirectory)
     }
 }

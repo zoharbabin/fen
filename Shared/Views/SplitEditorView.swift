@@ -1,8 +1,14 @@
 import SwiftUI
+#if os(iOS)
+    import UIKit
+#endif
 
 /// The main split view containing the markdown editor and HTML preview side by side.
 public struct SplitEditorView: View {
     @Bindable var document: MarkdownDocument
+    #if os(macOS)
+        @Environment(\.openDocument) private var openDocument
+    #endif
 
     public init(document: MarkdownDocument) {
         self.document = document
@@ -128,6 +134,9 @@ public struct SplitEditorView: View {
                 if preferences.editorSyncScrolling {
                     scrollSync.previewDidScroll(to: fraction)
                 }
+            },
+            onOpenInternalLink: { url in
+                openInternalLink(url)
             }
         )
         // WKWebView is a native NSView; macOS only surfaces AXValue for
@@ -152,6 +161,21 @@ public struct SplitEditorView: View {
     /// pixel geometry.
     private func scrollFractionLabel(_ fraction: CGFloat) -> String {
         "\(Int((fraction * 100).rounded()))%"
+    }
+
+    /// Opens a clicked preview link that points at another local file, in a new window rather
+    /// than navigating this document's preview pane. macOS's `DocumentGroup` supports opening
+    /// an arbitrary file URL as its own window via `openDocument`; iOS has no equivalent
+    /// arbitrary-URL API for a `DocumentGroup`-based app, so the link hands off to the system
+    /// document viewer/editor instead, matching how an external link already behaves there.
+    private func openInternalLink(_ url: URL) {
+        #if os(macOS)
+            Task {
+                try? await openDocument(at: url)
+            }
+        #else
+            UIApplication.shared.open(url)
+        #endif
     }
 
     // MARK: - Toolbar

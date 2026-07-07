@@ -10,6 +10,7 @@ import WebKit
         var fontSize: CGFloat = Preferences.defaultFontSize
         var scrollFraction: CGFloat
         var onScrollChange: ((CGFloat) -> Void)?
+        var onOpenInternalLink: ((URL) -> Void)?
 
         func makeCoordinator() -> Coordinator {
             Coordinator(self)
@@ -158,18 +159,19 @@ import WebKit
                 decidePolicyFor navigationAction: WKNavigationAction,
                 preferences: WKWebpagePreferences
             ) async -> (WKNavigationActionPolicy, WKWebpagePreferences) {
-                if navigationAction.navigationType == .linkActivated,
-                   let url = navigationAction.request.url,
-                   PreviewSchemeHandler.shouldOpenExternally(url) {
-                    #if os(macOS)
-                        NSWorkspace.shared.open(url)
-                    #else
-                        await UIApplication.shared.open(url)
-                    #endif
-                    return (.cancel, preferences)
-                } else {
+                guard navigationAction.navigationType == .linkActivated,
+                      let url = navigationAction.request.url else {
                     return (.allow, preferences)
                 }
+                if PreviewSchemeHandler.shouldOpenExternally(url) {
+                    NSWorkspace.shared.open(url)
+                    return (.cancel, preferences)
+                }
+                if let target = schemeHandler.internalLinkTarget(for: url) {
+                    parent.onOpenInternalLink?(target)
+                    return (.cancel, preferences)
+                }
+                return (.allow, preferences)
             }
 
             func userContentController(
@@ -192,6 +194,7 @@ import WebKit
         var fontSize: CGFloat = Preferences.defaultFontSize
         var scrollFraction: CGFloat
         var onScrollChange: ((CGFloat) -> Void)?
+        var onOpenInternalLink: ((URL) -> Void)?
 
         func makeCoordinator() -> Coordinator {
             Coordinator(self)
@@ -309,14 +312,22 @@ import WebKit
                 decidePolicyFor navigationAction: WKNavigationAction,
                 decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
             ) {
-                if navigationAction.navigationType == .linkActivated,
-                   let url = navigationAction.request.url,
-                   PreviewSchemeHandler.shouldOpenExternally(url) {
+                guard navigationAction.navigationType == .linkActivated,
+                      let url = navigationAction.request.url else {
+                    decisionHandler(.allow)
+                    return
+                }
+                if PreviewSchemeHandler.shouldOpenExternally(url) {
                     UIApplication.shared.open(url)
                     decisionHandler(.cancel)
-                } else {
-                    decisionHandler(.allow)
+                    return
                 }
+                if let target = schemeHandler.internalLinkTarget(for: url) {
+                    parent.onOpenInternalLink?(target)
+                    decisionHandler(.cancel)
+                    return
+                }
+                decisionHandler(.allow)
             }
 
             func scrollViewDidScroll(_ scrollView: UIScrollView) {
