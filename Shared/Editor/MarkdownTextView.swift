@@ -160,6 +160,7 @@ func caretColor(for background: PlatformColor) -> PlatformColor {
             var themeName: String
             private var isApplyingExternalScroll = false
             private var lastAppliedScrollFraction: CGFloat?
+            private var lastAppliedTotalHeight: CGFloat?
             private var anchors: [EditorLineAnchor] = []
             private var anchorText: String?
             private var anchorHeight: CGFloat = 0
@@ -207,8 +208,6 @@ func caretColor(for background: PlatformColor) -> PlatformColor {
             }
 
             @MainActor func applyScrollFraction(_ fraction: CGFloat, to scrollView: NSScrollView) {
-                guard lastAppliedScrollFraction == nil || abs(fraction - lastAppliedScrollFraction!) > 0.001
-                else { return }
                 let contentView = scrollView.contentView
                 guard let documentView = scrollView.documentView as? MarkdownNSTextView else { return }
                 let visibleHeight = contentView.bounds.height
@@ -216,12 +215,22 @@ func caretColor(for background: PlatformColor) -> PlatformColor {
                 // lands on the document's actual last line instead of the blank padding below it.
                 let totalHeight = documentView.contentHeightExcludingScrollPastEnd
                 guard totalHeight > visibleHeight else { return }
+                // A font-size zoom changes totalHeight without changing fraction (zoom never
+                // touches ScrollSync), so the fraction-only check below would otherwise skip
+                // reapplying and leave the pixel offset stale relative to the layout that just
+                // changed underneath it -- re-checking totalHeight here is what keeps a zoom step
+                // from silently desyncing the editor from the preview.
+                guard lastAppliedScrollFraction == nil
+                    || abs(fraction - lastAppliedScrollFraction!) > 0.001
+                    || lastAppliedTotalHeight != totalHeight
+                else { return }
                 refreshAnchorsIfNeeded(
                     text: documentView.string,
                     totalHeight: totalHeight,
                     visibleHeight: visibleHeight
                 )
                 lastAppliedScrollFraction = fraction
+                lastAppliedTotalHeight = totalHeight
                 isApplyingExternalScroll = true
                 let pixelFraction = interpolateEditorAnchor(anchors, from: \.source, to: \.rendered, value: fraction)
                 let targetY = pixelFraction * (totalHeight - visibleHeight)

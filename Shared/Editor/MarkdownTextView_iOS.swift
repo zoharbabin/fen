@@ -121,6 +121,7 @@
             var themeName: String
             private var isApplyingExternalScroll = false
             private var lastAppliedScrollFraction: CGFloat?
+            private var lastAppliedContentHeight: CGFloat?
             private var anchors: [EditorLineAnchor] = []
             private var anchorText: String?
             private var anchorHeight: CGFloat = 0
@@ -174,13 +175,21 @@
             }
 
             func applyScrollFraction(_ fraction: CGFloat, to textView: UITextView) {
-                guard lastAppliedScrollFraction == nil || abs(fraction - lastAppliedScrollFraction!) > 0.001
-                else { return }
                 let contentHeight = textView.contentSize.height
                 let visibleHeight = textView.bounds.height
                 guard contentHeight > visibleHeight else { return }
+                // A font-size zoom changes contentHeight without changing fraction (zoom never
+                // touches ScrollSync), so a fraction-only check would otherwise skip reapplying
+                // and leave the pixel offset stale relative to the layout that just changed
+                // underneath it -- re-checking contentHeight here is what keeps a zoom step from
+                // silently desyncing the editor from the preview.
+                guard lastAppliedScrollFraction == nil
+                    || abs(fraction - lastAppliedScrollFraction!) > 0.001
+                    || lastAppliedContentHeight != contentHeight
+                else { return }
                 refreshAnchorsIfNeeded(textView: textView, totalHeight: contentHeight, visibleHeight: visibleHeight)
                 lastAppliedScrollFraction = fraction
+                lastAppliedContentHeight = contentHeight
                 isApplyingExternalScroll = true
                 let pixelFraction = interpolateEditorAnchor(anchors, from: \.source, to: \.rendered, value: fraction)
                 let targetY = pixelFraction * (contentHeight - visibleHeight)
