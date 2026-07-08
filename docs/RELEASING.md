@@ -68,6 +68,22 @@ The **Release** workflow runs automatically: it tests, builds, signs, notarizes,
 
 > Skip the secrets and the workflow still runs, but it produces an **unsigned** build — fine for testing, though people will see a Gatekeeper warning.
 
+### Write the release notes by hand
+
+The workflow's `generate_release_notes: true` is a fallback, not the real changelog. This repo pushes straight to `master` with no PRs, so GitHub has nothing to summarize from and publishes a bare `**Full Changelog**: vX...vY` line with no content — check for that and treat it as an unfinished release, not a done one:
+
+```sh
+gh release view v0.1.0 --json body -q .body
+```
+
+If it's just the compare link, write real notes and replace them:
+
+```sh
+gh release edit v0.1.0 --notes-file notes.md
+```
+
+Match the format every release since v0.2.4 has used — `## Fixed` / `## Changed` / `## Testing` / `## Docs` sections (only the ones that apply), each bullet leading with what a user or contributor would notice, followed by the *why*. End with the same `**Full Changelog**: vX...vY` link the workflow would have generated on its own. Read a recent release (e.g. `gh release view v0.2.10 --json body -q .body`) for the pattern before writing a new one.
+
 ---
 
 ## Option B — Build & release manually on your Mac

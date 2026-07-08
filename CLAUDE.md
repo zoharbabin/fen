@@ -28,7 +28,7 @@ Docs describe *current* behavior. Treat every doc edit as a chance to re-verify 
 - **Update the doc in the same change that changes the behavior it describes** — same PR, same commit where practical.
 - **Anchor to stable things** — file paths, function names, CLI flags — and link to the section that already covers a topic (README/ROADMAP/RELEASING/CONTRIBUTING) instead of restating it.
 - **Favor facts that stay true**: architecture, interfaces, commands. Version numbers, line counts, and commit counts drift the moment they're written, so leave them out.
-- **The changelog lives in [GitHub Releases](https://github.com/zoharbabin/fen/releases)** — release notes generate from commits at tag time (see docs/RELEASING.md). That's the one and only changelog.
+- **The changelog lives in [GitHub Releases](https://github.com/zoharbabin/fen/releases)** — that's the one and only changelog, and every release needs hand-written notes. `release.yml` sets `generate_release_notes: true` as a fallback, but this repo pushes straight to `master` with no PRs, so that fallback has nothing to summarize and produces a bare `**Full Changelog**: vX...vY` link with no content — a real gap, not a placeholder to accept. Before calling a release done, run `gh release view <tag> --json body -q .body` and confirm it's more than that one line; if it isn't, write proper notes and fix it with `gh release edit <tag> --notes-file`. See [docs/RELEASING.md#write-the-release-notes-by-hand](docs/RELEASING.md#write-the-release-notes-by-hand) for the required section format.
 
 ## Writing style
 
