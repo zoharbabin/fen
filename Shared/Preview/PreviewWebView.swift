@@ -276,7 +276,7 @@ import WebKit
             }
 
             /// Applies a font-size change live, without a page reload -- see the macOS
-            /// Coordinator's `applyFontSize` doc comment. No `__fenSuppressScrollEvent` guard
+            /// Coordinator's `applyFontSize` doc comment. No `__fenExpectedScrollTop` guard
             /// needed here: iOS reads scroll position from `UIScrollViewDelegate` callbacks
             /// gated by `isApplyingExternalScroll`, not a DOM 'scroll' listener.
             @MainActor func applyFontSize(_ fontSize: CGFloat, to webView: WKWebView) {

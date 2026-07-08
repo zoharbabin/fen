@@ -191,11 +191,24 @@ struct ScrollSyncVerifyTest {
             js: "document.documentElement.scrollHeight > document.documentElement.clientHeight"
         )
 
+        let widthBeforeResize = try #require(
+            try await webView.evaluateJavaScript("document.documentElement.clientWidth") as? Double
+        )
+
         // Narrowing the viewport rewraps the long paragraph, changing every later
         // heading's rendered position without firing any event scroll-sync used to listen
         // for.
         webView.setFrameSize(NSSize(width: webView.frame.width - 250, height: webView.frame.height))
-        try await Task.sleep(for: .milliseconds(300))
+        // setFrameSize's effect on the JS-visible viewport lands after WKWebView's own async
+        // layout pass, not synchronously with this call -- poll for document.documentElement's
+        // clientWidth to actually reflect the new frame instead of guessing how long that pass
+        // takes. refreshAnchorsIfStale (scroll-sync.js) rechecks layout dimensions synchronously
+        // on every call, so once the width has changed, the anchor table is guaranteed fresh by
+        // the time the next assertion below calls into it.
+        _ = try await pollUntilTrue {
+            let width = try await webView.evaluateJavaScript("document.documentElement.clientWidth") as? Double
+            return width != widthBeforeResize
+        }
 
         let anchorInfo = try await webView.evaluateJavaScript("""
         (function () {

@@ -56,14 +56,6 @@ struct PreviewScrollRaceVerifyTest {
             webView,
             js: "document.documentElement.scrollHeight > document.documentElement.clientHeight"
         )
-        // Let didFinish's own load-time scroll-restore round trip actually finish before the
-        // test's own assignment — a fixed sleep here previously raced it under CI's slower/
-        // busier runner: if didFinish's restore-to-0 write landed after this test's own 0.8
-        // assignment, it silently stomped the scroll position back to 0. Polling on
-        // __fenSuppressScrollEvent's explicit `false` (only reached after scrollAssignmentJS's
-        // nested requestAnimationFrame pair fires) proves that write has actually committed.
-        _ = try await pollUntilTrue(webView, js: "window.__fenSuppressScrollEvent === false")
-
         return (webView, coordinator)
     }
 
@@ -75,12 +67,16 @@ struct PreviewScrollRaceVerifyTest {
             receivedFractions.append(fraction)
         }
 
-        // WKWebView fires the resulting DOM 'scroll' event asynchronously, around the next
-        // frame — well after evaluateJavaScript's own completion handler runs. Waiting here
-        // gives that event time to actually fire, which is exactly what a paced XCUITest
-        // gesture's built-in "wait for idle" step also does, hiding this bug from it.
         coordinator.applyScrollFraction(0.8, to: webView)
-        try await Task.sleep(for: .milliseconds(400))
+        // scrollAssignmentJS arms window.__fenExpectedScrollTop with the exact pixel value it
+        // just wrote; scrollObserverJS's listener clears it back to null only once it has
+        // actually received and matched the resulting 'scroll' event -- so polling for that is
+        // tied to the real event firing, not a guess about frame timing. (An earlier version of
+        // this fix cleared a suppression flag from two nested requestAnimationFrame callbacks
+        // instead, which never run without a live display link -- including under `swift test`,
+        // which has no running NSApplication event loop -- so that version's poll always timed
+        // out and silently proceeded regardless, an undetected fixed-duration wait in disguise.)
+        _ = try await pollUntilTrue(webView, js: "window.__fenExpectedScrollTop === null")
 
         #expect(
             receivedFractions.isEmpty,

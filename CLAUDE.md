@@ -55,6 +55,10 @@ Build and review every change to the strictest reasonable bar — enterprise and
 4. **Run UI tests yourself for anything touching `SplitEditorView`, the editor, or the preview** — `UITests/` exercises real window/document interaction and isn't wired into `ci.yml` yet. Mention in the PR description that you ran them.
 5. **Close the loop.** Reference the issue in the PR, and flip ROADMAP.md's checkbox in the same PR when the change finishes a tracked item.
 
+## Never use a fixed-duration sleep as a synchronization mechanism
+
+This applies in tests and in app code alike. See [CONTRIBUTING.md](CONTRIBUTING.md#tests) for the rule, the shared `pollUntilTrue` helper, the absence-proving technique, and the one carved-out exception (a cancelable UI debounce, which is waiting out an interval on purpose, not guessing how long something else takes).
+
 ## Verify end-to-end, not just unit-level
 
 A unit test on `MarkdownRenderer`'s HTML string output can pass while the feature is still visibly broken — CSS layout, JS-driven DOM changes, and WebKit rendering quirks live below what a string-content assertion can see. Every capability you build or fix needs a test that exercises it the way a real user would, plus a manual look at the running app before you call it done:

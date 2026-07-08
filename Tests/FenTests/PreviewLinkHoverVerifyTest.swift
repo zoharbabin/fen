@@ -65,7 +65,9 @@ struct PreviewLinkHoverVerifyTest {
             new MouseEvent('mouseover', { bubbles: true, relatedTarget: document.getElementById('not-a-link') })
         );
         """)
-        try await Task.sleep(for: .milliseconds(300))
+        // linkHoverObserverJS posts through an async WKScriptMessageHandler channel, so poll
+        // for the message actually arriving rather than sleeping a fixed duration.
+        _ = try await pollUntilTrue { !hovered.isEmpty }
 
         #expect(hovered == ["./target.md"], "Expected the hovered link's raw href, got \(hovered)")
 
@@ -74,7 +76,7 @@ struct PreviewLinkHoverVerifyTest {
             new MouseEvent('mouseout', { bubbles: true, relatedTarget: document.getElementById('not-a-link') })
         );
         """)
-        try await Task.sleep(for: .milliseconds(300))
+        _ = try await pollUntilTrue { hovered.count > 1 }
 
         #expect(hovered == ["./target.md", nil], "Expected mouseout to clear the hover, got \(hovered)")
     }
@@ -92,8 +94,20 @@ struct PreviewLinkHoverVerifyTest {
             new MouseEvent('mouseover', { bubbles: true })
         );
         """)
-        try await Task.sleep(for: .milliseconds(300))
 
-        #expect(hovered.isEmpty, "Expected hovering plain text never to call onHoverLink, got \(hovered)")
+        // Asserting an absence can't be done by polling for a condition to become true, and a
+        // fixed sleep can't prove the message channel was ever given a chance to deliver
+        // anything. Instead, dispatch a second, real hover on an actual link and poll for
+        // *its* message to arrive -- WKScriptMessageHandler delivers messages for one webView
+        // in the order they were posted, so once this arrives, any message the first
+        // (non-link) dispatch might have incorrectly posted would already be in `hovered`.
+        _ = try await webView.evaluateJavaScript("""
+        document.getElementById('target-link').dispatchEvent(
+            new MouseEvent('mouseover', { bubbles: true })
+        );
+        """)
+        _ = try await pollUntilTrue { !hovered.isEmpty }
+
+        #expect(hovered == ["./target.md"], "Expected hovering plain text never to call onHoverLink, got \(hovered)")
     }
 }

@@ -53,9 +53,25 @@ func pollUntilTrue(
     js: String,
     timeout: Duration = .seconds(5)
 ) async throws -> Bool {
+    try await pollUntilTrue(timeout: timeout) {
+        try await webView.evaluateJavaScript(js) as? Bool ?? false
+    }
+}
+
+/// Polls an arbitrary async `condition` until it's true or `timeout` elapses, sleeping briefly
+/// between checks. Use this (not a fixed-duration sleep) for state that isn't observable through
+/// `webView`'s JS context — e.g. a `WKNavigationDelegate` callback count — since WebKit delivers
+/// navigation-delegate callbacks and in-page JS state over separate channels that can land out of
+/// order: `document.readyState === 'complete'` has been observed true before `didFinish` reached
+/// a Swift-side delegate, so polling JS state alone isn't a valid proxy for native delegate state.
+@MainActor
+func pollUntilTrue(
+    timeout: Duration = .seconds(5),
+    _ condition: () async throws -> Bool
+) async throws -> Bool {
     let deadline = ContinuousClock.now + timeout
     while ContinuousClock.now < deadline {
-        if let result = try await webView.evaluateJavaScript(js) as? Bool, result {
+        if try await condition() {
             return true
         }
         try await Task.sleep(for: .milliseconds(100))

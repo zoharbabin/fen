@@ -44,25 +44,34 @@ struct PreviewReloadRaceVerifyTest {
         /// literal in place of the source-fraction the real currentSourceFractionJS would
         /// read, since this fixture's page isn't scrollable) with the older request's write
         /// delayed after its already-completed read so the completion order is deterministic.
-        func startReload(targetHTML: String, readFraction: CGFloat, writeDelayMS: UInt64) {
+        /// `writeDelayMS`'s sleep is the race-simulation mechanism itself, not a
+        /// wait-for-UI-to-settle workaround: it's what makes "the older request's write lands
+        /// after the newer one's" reproducible instead of racing on real timing noise, so it
+        /// stays. Returns the `Task` so the caller can await actual completion instead of
+        /// guessing how long both reloads take to settle.
+        func startReload(targetHTML: String, readFraction: CGFloat, writeDelayMS: UInt64) -> Task<Void, Never> {
             let generation = coordinator.beginReload()
-            webView.evaluateJavaScript("\(readFraction);") { result, _ in
-                Task { @MainActor in
-                    if writeDelayMS > 0 {
-                        try? await Task.sleep(for: .milliseconds(writeDelayMS))
+            return Task { @MainActor in
+                let result = await withCheckedContinuation { (continuation: CheckedContinuation<CGFloat?, Never>) in
+                    webView.evaluateJavaScript("\(readFraction);") { result, _ in
+                        continuation.resume(returning: result as? CGFloat)
                     }
-                    guard coordinator.isCurrentReload(generation) else { return }
-                    coordinator.savedScrollFraction = (result as? CGFloat) ?? readFraction
-                    coordinator.load(html: targetHTML, baseURL: nil, into: webView)
                 }
+                if writeDelayMS > 0 {
+                    try? await Task.sleep(for: .milliseconds(writeDelayMS))
+                }
+                guard coordinator.isCurrentReload(generation) else { return }
+                coordinator.savedScrollFraction = result ?? readFraction
+                coordinator.load(html: targetHTML, baseURL: nil, into: webView)
             }
         }
 
         // Older (stale) request starts first, but its write lands after the newer one's.
-        startReload(targetHTML: htmlA, readFraction: 0.2, writeDelayMS: 250)
-        startReload(targetHTML: htmlB, readFraction: 0.9, writeDelayMS: 0)
-
-        try await Task.sleep(for: .milliseconds(500))
+        let staleReload = startReload(targetHTML: htmlA, readFraction: 0.2, writeDelayMS: 250)
+        let freshReload = startReload(targetHTML: htmlB, readFraction: 0.9, writeDelayMS: 0)
+        await staleReload.value
+        await freshReload.value
+        _ = try await pollUntilTrue(webView, js: "document.body.dataset.page === 'B'")
 
         let page = try await webView.evaluateJavaScript("document.body.dataset.page")
         #expect(

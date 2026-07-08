@@ -71,10 +71,9 @@ func fontScaleAssignmentJS(
     fallbackFraction: CGFloat,
     suppressScrollEvent: Bool
 ) -> String {
-    let beginSuppress = suppressScrollEvent ? "window.__fenSuppressScrollEvent = true;" : ""
-    let endSuppress = suppressScrollEvent
-        ? "requestAnimationFrame(function () { requestAnimationFrame(function () { " +
-        "window.__fenSuppressScrollEvent = false; }); });"
+    let armExpectation = suppressScrollEvent
+        ? "if (Math.abs(document.documentElement.scrollTop - target) >= 1) { " +
+        "window.__fenExpectedScrollTop = target; }"
         : ""
     return """
     (function () {
@@ -86,15 +85,15 @@ func fontScaleAssignmentJS(
                 ? window.__fenScrollSync.sourceFractionForRendered(renderedFractionBefore)
                 : renderedFractionBefore;
         }
-        \(beginSuppress)
         document.documentElement.style.setProperty('--fen-font-scale', '\(scale)');
         document.documentElement.style.setProperty('--fen-font-inverse-scale', '\(inverseScale)');
         var renderedFraction = window.__fenScrollSync
             ? window.__fenScrollSync.renderedFractionForSource(sourceFraction)
             : sourceFraction;
-        document.documentElement.scrollTop = renderedFraction *
+        var target = renderedFraction *
             Math.max(1, document.documentElement.scrollHeight - document.documentElement.clientHeight);
-        \(endSuppress)
+        \(armExpectation)
+        document.documentElement.scrollTop = target;
         return sourceFraction;
     })();
     """
@@ -107,14 +106,22 @@ func fontScaleAssignmentJS(
     /// evaluateJavaScript's own completion callback. A Swift-side "is this external"
     /// flag cleared from that callback races the event and can clear too early, letting
     /// a self-triggered scroll leak back through as if the user had scrolled — the drift
-    /// compounds every time this happens. window.__fenSuppressScrollEvent is set alongside
-    /// every programmatic assignment (see scrollAssignmentJS) and cleared only once the
-    /// browser has actually dispatched (or skipped) the resulting scroll event, so this
-    /// listener's guard is synchronized with the real event timing instead of a guess.
+    /// compounds every time this happens. Rather than guessing when that event has fired
+    /// (a `requestAnimationFrame`-gated flag, tried first, never clears in a window with no
+    /// active display link — including under `swift test`, which runs with no live
+    /// `NSApplication` event loop), `scrollAssignmentJS` records the exact pixel value
+    /// (`window.__fenExpectedScrollTop`) it just wrote. This listener suppresses only the one
+    /// event whose `scrollTop` matches that value, then clears the expectation immediately —
+    /// so it's tied to the assignment's own effect, not to when or whether a frame renders.
     let scrollObserverJS = """
     window.addEventListener('scroll', function() {
-        if (window.__fenSuppressScrollEvent) { return; }
-        var scrollFraction = document.documentElement.scrollTop /
+        var scrollTop = document.documentElement.scrollTop;
+        var expected = window.__fenExpectedScrollTop;
+        if (expected !== undefined && expected !== null && Math.abs(scrollTop - expected) < 1) {
+            window.__fenExpectedScrollTop = null;
+            return;
+        }
+        var scrollFraction = scrollTop /
             Math.max(1, document.documentElement.scrollHeight - document.documentElement.clientHeight);
         if (window.__fenScrollSync) {
             scrollFraction = window.__fenScrollSync.sourceFractionForRendered(scrollFraction);
@@ -123,15 +130,13 @@ func fontScaleAssignmentJS(
     });
     """
 
-    /// Suppresses the DOM 'scroll' event this assignment itself triggers. WKWebView
-    /// dispatches that event asynchronously (around the next frame), well after this
-    /// script returns and evaluateJavaScript's completion handler runs on the Swift
-    /// side — so a Swift-side "ignore the next scroll" flag cleared from that
-    /// completion handler always races the real event and can clear before it fires,
-    /// letting the self-triggered scroll leak back through scrollObserverJS as if the
-    /// user had scrolled. Clearing __fenSuppressScrollEvent after two nested
-    /// requestAnimationFrame callbacks (not the completion handler) ties the guard to
-    /// the same frame timing the browser uses to actually dispatch the event.
+    /// Arms `scrollObserverJS`'s expectation with the exact pixel value this assignment is
+    /// about to write, so its listener can recognize and suppress only the event this
+    /// assignment itself triggers — see that constant's doc comment for why a value match
+    /// replaces the earlier `requestAnimationFrame`-gated flag. Skips arming when the target
+    /// doesn't actually change `scrollTop` (a no-op write never fires a 'scroll' event), so a
+    /// stale expectation can't linger and suppress an unrelated later user scroll that happens
+    /// to land on the same pixel.
     func scrollAssignmentJS(fraction: CGFloat) -> String {
         """
         (function () {
@@ -139,14 +144,12 @@ func fontScaleAssignmentJS(
             if (window.__fenScrollSync) {
                 renderedFraction = window.__fenScrollSync.renderedFractionForSource(renderedFraction);
             }
-            window.__fenSuppressScrollEvent = true;
-            document.documentElement.scrollTop = renderedFraction *
+            var target = renderedFraction *
                 Math.max(1, document.documentElement.scrollHeight - document.documentElement.clientHeight);
-            requestAnimationFrame(function () {
-                requestAnimationFrame(function () {
-                    window.__fenSuppressScrollEvent = false;
-                });
-            });
+            if (Math.abs(document.documentElement.scrollTop - target) >= 1) {
+                window.__fenExpectedScrollTop = target;
+            }
+            document.documentElement.scrollTop = target;
         })();
         """
     }

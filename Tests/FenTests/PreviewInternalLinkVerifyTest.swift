@@ -64,7 +64,9 @@ struct PreviewInternalLinkVerifyTest {
         _ = try await pollUntilTrue(webView, js: "document.getElementById('target-link') !== null")
 
         _ = try await webView.evaluateJavaScript("document.getElementById('target-link').click();")
-        try await Task.sleep(for: .milliseconds(300))
+        // decidePolicyFor's onOpenInternalLink call happens off the JS thread entirely, so poll
+        // the Swift-side callback's own result rather than sleeping a fixed duration.
+        _ = try await pollUntilTrue { openedURL != nil }
 
         let opened = try #require(openedURL)
         #expect(
@@ -112,7 +114,11 @@ struct PreviewInternalLinkVerifyTest {
         _ = try await pollUntilTrue(webView, js: "document.getElementById('anchor-link') !== null")
 
         _ = try await webView.evaluateJavaScript("document.getElementById('anchor-link').click();")
-        try await Task.sleep(for: .milliseconds(300))
+        // decidePolicyFor gates the navigation before it's allowed to proceed, so polling for
+        // the same-page anchor navigation to actually land (the URL hash changing) proves
+        // decidePolicyFor already ran and chose .allow -- at which point onOpenInternalLink
+        // either was or wasn't called, no fixed sleep needed to "give it time."
+        _ = try await pollUntilTrue(webView, js: "window.location.hash === '#section'")
 
         #expect(openedURL == nil, "Expected a same-page anchor click never to call onOpenInternalLink")
     }

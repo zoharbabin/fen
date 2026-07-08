@@ -58,28 +58,40 @@ struct FontSizeLiveUpdateVerifyTest {
 
         coordinator.load(html: normalHTML, baseURL: nil, into: webView)
         coordinator.lastHTML = normalHTML
-        _ = try await pollUntilTrue(webView, js: "document.readyState === 'complete'")
-        try await Task.sleep(for: .milliseconds(500))
+        // Poll the delegate's own counter, not `document.readyState` -- WebKit delivers
+        // `didFinish` to the navigation delegate and updates in-page JS state over separate
+        // channels that can land out of order, so a JS-side poll isn't a valid proxy for
+        // "the Swift-side delegate callback has run."
+        _ = try await pollUntilTrue { navDelegate.navigationCount == 1 }
         #expect(navDelegate.navigationCount == 1, "Expected exactly the initial load to navigate")
 
-        // Scroll partway down the page before zooming.
+        // Wait for layout to actually make the page overflow before scrolling it, and scroll
+        // partway down. A fixed sleep here isn't reliably long enough on a loaded CI runner.
+        _ = try await pollUntilTrue(
+            webView,
+            js: "document.documentElement.scrollHeight > document.documentElement.clientHeight"
+        )
         _ = try await webView.evaluateJavaScript("""
         document.documentElement.scrollTop = (document.documentElement.scrollHeight -
             document.documentElement.clientHeight) * 0.4;
         """)
-        try await Task.sleep(for: .milliseconds(100))
+        _ = try await pollUntilTrue(webView, js: "document.documentElement.scrollTop > 0")
         let midScrollTop = try await webView.evaluateJavaScript("document.documentElement.scrollTop") as? Double ?? 0
         #expect(midScrollTop > 0, "Expected the page to be scrollable and scrolled down before zooming")
 
         // Apply a font-size-only change the same way updateNSView's live-update branch does.
+        // applyFontSize's zoom assignment and scroll-fraction read run through an async
+        // evaluateJavaScript call, so poll for the CSS scale actually landing rather than
+        // sleeping a fixed duration.
         coordinator.applyFontSize(Preferences.defaultFontSize * 2, to: webView)
-        try await Task.sleep(for: .milliseconds(200))
+        _ = try await pollUntilTrue(webView, js: "getComputedStyle(document.body).zoom === '2'")
 
         #expect(navDelegate.navigationCount == 1, "A font-size-only change must not trigger a page navigation")
 
         let bodyZoom = try await webView.evaluateJavaScript("getComputedStyle(document.body).zoom") as? String
         #expect(bodyZoom == "2", "Expected the live-updated CSS custom property to scale body text")
 
+        _ = try await pollUntilTrue(webView, js: "document.documentElement.scrollTop > 10")
         let scrollTopAfter = try await webView.evaluateJavaScript(
             "document.documentElement.scrollTop"
         ) as? Double ?? -1
