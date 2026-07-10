@@ -1,6 +1,6 @@
 # Working in this repo
 
-Fen is a native Swift/SwiftUI Markdown editor. Read [README.md](README.md) for what it is, [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for why it's built this way, and [docs/ROADMAP.md](docs/ROADMAP.md) for what's next. This file is about *how* to work here — checks, procedure, tone.
+Fen is a native Swift/SwiftUI Markdown editor. Read [README.md](README.md) for what it is, [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for why it's built this way, and the [GitHub Issues list](https://github.com/zoharbabin/fen/issues) for what's next — [issue #3](https://github.com/zoharbabin/fen/issues/3) tracks the AI & knowledge layer epic specifically. This file is about *how* to work here — checks, procedure, tone.
 
 ## Before every commit
 
@@ -24,15 +24,15 @@ Full command reference: [CONTRIBUTING.md](CONTRIBUTING.md).
 
 Docs describe *current* behavior. Treat every doc edit as a chance to re-verify the claim, not just restate it:
 
-- **Verify against the source of truth.** Check the code, `gh release list`, and `gh secret list` before trusting a roadmap checkbox — that catches drift like ROADMAP.md's signing-secrets item, which stayed marked incomplete for four releases after the secrets actually shipped.
+- **Verify against the source of truth.** Check the code, `gh release list`, and `gh secret list` before trusting an issue checkbox — a checked box that doesn't match reality is worse than an open issue, because it hides work that still needs doing.
 - **Update the doc in the same change that changes the behavior it describes** — same PR, same commit where practical.
-- **Anchor to stable things** — file paths, function names, CLI flags — and link to the section that already covers a topic (README/ROADMAP/RELEASING/CONTRIBUTING) instead of restating it.
+- **Anchor to stable things** — file paths, function names, CLI flags — and link to the section that already covers a topic (README/ARCHITECTURE/RELEASING/CONTRIBUTING) instead of restating it.
 - **Favor facts that stay true**: architecture, interfaces, commands. Version numbers, line counts, and commit counts drift the moment they're written, so leave them out.
 - **The changelog lives in [GitHub Releases](https://github.com/zoharbabin/fen/releases)** — that's the one and only changelog, and every release needs hand-written notes. `release.yml` sets `generate_release_notes: true` as a fallback, but this repo pushes straight to `master` with no PRs, so that fallback has nothing to summarize and produces a bare `**Full Changelog**: vX...vY` link with no content — a real gap, not a placeholder to accept. Before calling a release done, run `gh release view <tag> --json body -q .body` and confirm it's more than that one line; if it isn't, write proper notes and fix it with `gh release edit <tag> --notes-file`. See [docs/RELEASING.md#write-the-release-notes-by-hand](docs/RELEASING.md#write-the-release-notes-by-hand) for the required section format.
 
 ## Writing style
 
-Second person, active voice, contractions welcome. Short, direct sentences beat long compound ones. Address the reader as "you"; call the project "we." Avoid: *leverage, utilize, synergy, seamless, robust, innovative, cutting-edge, game-changing, simply, easy*. This applies to README/ROADMAP/CONTRIBUTING/RELEASING/CODE_OF_CONDUCT and the `site/` landing page. Code comments, commit messages, and the MIT license text keep their own conventions.
+Second person, active voice, contractions welcome. Short, direct sentences beat long compound ones. Address the reader as "you"; call the project "we." Avoid: *leverage, utilize, synergy, seamless, robust, innovative, cutting-edge, game-changing, simply, easy*. This applies to README/CONTRIBUTING/RELEASING/CODE_OF_CONDUCT, GitHub issue bodies, and the `site/` landing page. Code comments, commit messages, and the MIT license text keep their own conventions.
 
 Write Markdown as flowing prose: keep each paragraph on one logical source line (let the editor/viewer soft-wrap it), and reserve a trailing double-space line break for a genuine mid-paragraph break, not routine line wrapping. Keep tables, task lists, fenced code blocks (with a language tag), and footnotes spec-compliant GFM — `assets/demo.md` exercises the full syntax surface Fen's renderer supports, so check new Markdown features against it.
 
@@ -49,11 +49,11 @@ Build and review every change to the strictest reasonable bar — enterprise and
 
 ## Development procedure
 
-1. **Open a [GitHub issue](https://github.com/zoharbabin/fen/issues)** for anything beyond a trivial fix — bug report or feature proposal, checked against [docs/ROADMAP.md](docs/ROADMAP.md) first.
+1. **Open a [GitHub issue](https://github.com/zoharbabin/fen/issues)** for anything beyond a trivial fix — bug report or feature proposal, checked against the [open issues list](https://github.com/zoharbabin/fen/issues) first to avoid duplicating an existing one.
 2. **Branch, then PR.** Work on a branch and open a PR for review, even though `master` has no branch protection enforcing it yet.
 3. **Every PR needs**: `swift build`, `swift test`, `swiftformat .`, and `swiftlint` clean (CI enforces this). Pair new behavior with a test, and pair bug fixes with a regression test that fails before the fix and passes after. See [CONTRIBUTING.md](CONTRIBUTING.md#tests).
 4. **Run UI tests yourself for anything touching `SplitEditorView`, the editor, or the preview** — `UITests/` exercises real window/document interaction and isn't wired into `ci.yml` yet. Mention in the PR description that you ran them.
-5. **Close the loop.** Reference the issue in the PR, and flip ROADMAP.md's checkbox in the same PR when the change finishes a tracked item.
+5. **Close the loop.** Reference the issue in the PR, and close the issue (or check its acceptance-criteria boxes) in the same PR when the change finishes it. If the issue is a sub-issue of an epic (e.g. #3), its parent's progress tracker updates automatically.
 
 ## Never use a fixed-duration sleep as a synchronization mechanism
 

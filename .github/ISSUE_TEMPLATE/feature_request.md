@@ -16,4 +16,4 @@ What you'd like to see happen.
 Any alternative solutions or workarounds you've tried.
 
 **Fits with the roadmap?**
-Check [ROADMAP.md](../../docs/ROADMAP.md) — does this align with an existing item, or is it something new?
+Check the [open issues](https://github.com/zoharbabin/fen/issues) — does this align with an existing one, or is it something new?

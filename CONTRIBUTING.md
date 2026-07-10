@@ -33,6 +33,7 @@ swift test
   - Keep the `FenMacOS` and `FeniOS` targets thin: platform-specific wiring only, no business logic.
 - **No force-unwraps or `try!` in new code** outside of tests, unless the invariant is truly guaranteed by the type system or an immediately preceding check.
 - **Match existing naming and file organization.** One primary type per file, file named after that type.
+- **Performance guardrails, applied throughout:** keep launch instant and typing latency invisible; use incremental/debounced rendering for large files; no feature ships if it makes the editor feel heavier.
 
 ## Tests
 

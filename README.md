@@ -16,7 +16,7 @@
 <p align="center">
   <a href="https://github.com/zoharbabin/fen/releases/latest">Download</a> ·
   <a href="https://zoharbabin.com/fen/">Website</a> ·
-  <a href="docs/ROADMAP.md">Roadmap</a> ·
+  <a href="https://github.com/zoharbabin/fen/issues">Roadmap</a> ·
   <a href="CONTRIBUTING.md">Contributing</a>
 </p>
 
@@ -24,7 +24,11 @@
   <img src="site/img/hero-screenshot-light.png" alt="Fen split-pane editor and live preview" width="820">
 </p>
 
-Fen edits Markdown on one side and renders it live on the other, with the two panes scrolling in sync as you type. It supports GitHub-Flavored Markdown, MathJax, and Mermaid diagrams. And it's built to grow: your notes become a connected, searchable knowledge base instead of a pile of loose files. See [ROADMAP.md](docs/ROADMAP.md) for where that's headed.
+Fen edits Markdown on one side and renders it live on the other, with the two panes scrolling in sync as you type. It supports GitHub-Flavored Markdown, MathJax, and Mermaid diagrams. And it's built to grow: your notes become a connected, searchable knowledge base instead of a pile of loose files.
+
+Our north star: be the app people reach for to write and *think* in Markdown on macOS — clean, fast, and native, that grows into a connected knowledge base instead of a pile of loose files. We take inspiration from Typora, iA Writer, Bear, Obsidian, and the original MacDown, but we stay minimal: speed and clarity over feature sprawl. Fen reads and writes plain `.md` files straight through the filesystem — no proprietary library or vault format — which keeps it iCloud- and Finder-friendly by construction, and we protect that property as the knowledge suite grows. See the [open issues](https://github.com/zoharbabin/fen/issues) for what's planned and in progress, and [issue #3](https://github.com/zoharbabin/fen/issues/3) for the AI & knowledge layer epic specifically.
+
+If Fen ever charges for anything, we'll favor a one-time purchase over a subscription — a vocal segment of this app's audience treats subscriptions as a dealbreaker and one-time pricing as a loyalty driver.
 
 ## Features
 
