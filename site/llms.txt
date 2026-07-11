@@ -14,7 +14,7 @@ Fen is built and maintained by Zohar Babin (https://zoharbabin.com/), CSO at Kal
 
 ## Links
 
-- Website: https://zoharbabin.com/fen/
+- Website: https://fen.md/
 - Source & releases: https://github.com/zoharbabin/fen
 - Roadmap: https://github.com/zoharbabin/fen/blob/master/ROADMAP.md
 - Contributing: https://github.com/zoharbabin/fen/blob/master/CONTRIBUTING.md
