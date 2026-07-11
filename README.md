@@ -15,7 +15,7 @@
 
 <p align="center">
   <a href="https://github.com/zoharbabin/fen/releases/latest">Download</a> ·
-  <a href="https://zoharbabin.com/fen/">Website</a> ·
+  <a href="https://fen.md/">Website</a> ·
   <a href="https://github.com/zoharbabin/fen/issues">Roadmap</a> ·
   <a href="CONTRIBUTING.md">Contributing</a>
 </p>
@@ -72,7 +72,7 @@ iOS/           iOS app target
 Tests/         Swift Testing test suite
 UITests/       UI tests (xcodegen-generated project, see CONTRIBUTING.md)
 scripts/       build-app.sh — assembles the .app bundle
-site/          zoharbabin.com/fen landing page (GitHub Pages)
+site/          fen.md landing page (GitHub Pages)
 docs/          architecture, roadmap, and release documentation
 ```
 
