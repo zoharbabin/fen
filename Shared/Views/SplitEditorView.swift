@@ -274,6 +274,21 @@ public struct SplitEditorView: View {
             .help("Toggle Outline")
             .accessibilityIdentifier("OutlineToggleButton")
 
+            Menu {
+                ForEach(FormattingAction.allCases, id: \.self) { action in
+                    Button {
+                        NotificationCenter.default.post(name: .insertMarkdownFormatting, object: action.identifier)
+                    } label: {
+                        Label(action.title, systemImage: action.systemImage)
+                    }
+                    .accessibilityIdentifier(action.accessibilityIdentifier)
+                }
+            } label: {
+                Image(systemName: "textformat")
+            }
+            .help("Formatting")
+            .accessibilityIdentifier("FormattingMenuButton")
+
             Picker("View", selection: $viewMode) {
                 ForEach(ViewMode.allCases, id: \.self) { mode in
                     Text(mode.rawValue).tag(mode)

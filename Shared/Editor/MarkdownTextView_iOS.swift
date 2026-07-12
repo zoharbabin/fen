@@ -56,11 +56,19 @@
 
             textView.text = text
             textView.delegate = context.coordinator
+            context.coordinator.textView = textView
 
             if scrollsPastEnd {
                 textView.contentInset.bottom = 300
             }
             textView.keyboardDismissMode = .interactive
+
+            NotificationCenter.default.addObserver(
+                context.coordinator,
+                selector: #selector(Coordinator.applyFormattingNotification(_:)),
+                name: .insertMarkdownFormatting,
+                object: nil
+            )
 
             return textView
         }
@@ -118,6 +126,7 @@
 
         class Coordinator: NSObject, UITextViewDelegate {
             var parent: MarkdownTextView
+            weak var textView: UITextView?
             var themeName: String
             private var isApplyingExternalScroll = false
             private var lastAppliedScrollFraction: CGFloat?
@@ -133,6 +142,18 @@
 
             func textViewDidChange(_ textView: UITextView) {
                 parent.text = textView.text
+                parent.onTextChange?()
+            }
+
+            @objc func applyFormattingNotification(_ notification: Notification) {
+                guard let identifier = notification.object as? String,
+                      let action = FormattingAction(identifier: identifier),
+                      let textView else { return }
+                let selection = textView.selectedRange
+                let result = MarkdownFormatting.apply(action, to: textView.text, selection: selection)
+                textView.text = result.text
+                textView.selectedRange = result.selection
+                parent.text = result.text
                 parent.onTextChange?()
             }
 
