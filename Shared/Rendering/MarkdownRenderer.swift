@@ -45,10 +45,34 @@ public struct MarkdownRenderer: Sendable {
         /// no front matter). cmark-gfm's `data-sourcepos` line numbers are relative to the
         /// stripped text, so scroll-sync must add this back to recover the raw-source line number.
         public let frontMatterLineCount: Int
+        /// Every heading in document order, independent of `Options.renderTOC` -- consumers
+        /// like the document outline navigator (issue #12) need this list even when `[TOC]`
+        /// rendering is off. `startLine` is only populated when `Options.sourcePositions` is on
+        /// (it's read off the same `data-sourcepos` attribute scroll-sync already relies on).
+        public let headings: [Heading]
 
         /// frontMatter is [String: Any] which isn't Sendable, but we only
         /// produce it from controlled YAML parsing. Mark as safe.
-        static let empty = RenderResult(html: "", frontMatter: nil, title: nil, frontMatterLineCount: 0)
+        static let empty = RenderResult(html: "", frontMatter: nil, title: nil, frontMatterLineCount: 0, headings: [])
+    }
+
+    /// One Markdown heading, extracted from the rendered `<h1>`-`<h6>` tags. Shared by both
+    /// `[TOC]` HTML generation and the document outline navigator (issue #12) so there's one
+    /// heading-extraction implementation, not two.
+    public struct Heading: Sendable, Equatable {
+        public let level: Int
+        public let text: String
+        public let slug: String
+        /// 1-based source line the heading starts on, or `nil` if `Options.sourcePositions`
+        /// was off for this render.
+        public let startLine: Int?
+
+        public init(level: Int, text: String, slug: String, startLine: Int? = nil) {
+            self.level = level
+            self.text = text
+            self.slug = slug
+            self.startLine = startLine
+        }
     }
 
     public init() {
@@ -114,15 +138,22 @@ public struct MarkdownRenderer: Sendable {
         var html = String(cString: htmlPtr)
         free(htmlPtr)
 
-        // TOC replacement
+        // Heading extraction always runs so RenderResult.headings is populated regardless of
+        // renderTOC (the document outline navigator, issue #12, needs it even with [TOC] off);
+        // only the HTML itself is rewritten with ids/TOC markup when renderTOC is on, to keep
+        // that output unchanged for consumers who never opt into it.
+        let extracted = extractHeadingsAndAssignIDs(from: html)
         if options.renderTOC {
-            let (headingsWithIDs, toc) = addHeadingIDsAndGenerateTOC(from: html)
-            html = headingsWithIDs
-            html = replaceTOCMarker(in: html, with: toc)
+            html = extracted.html
+            html = replaceTOCMarker(in: html, with: extracted.toc)
         }
 
         return RenderResult(
-            html: html, frontMatter: frontMatter, title: title, frontMatterLineCount: frontMatterLineCount
+            html: html,
+            frontMatter: frontMatter,
+            title: title,
+            frontMatterLineCount: frontMatterLineCount,
+            headings: extracted.headings
         )
     }
 
@@ -155,27 +186,31 @@ public struct MarkdownRenderer: Sendable {
         return FrontMatterResult(stripped: remaining, yaml: yaml, lineCount: end + 1)
     }
 
-    // MARK: - TOC Generation
+    // MARK: - Heading Extraction & TOC Generation
 
-    /// Assigns a unique `id` to every heading (deduping repeated slugs the way GitHub
-    /// does, with `-1`, `-2`, ... suffixes) and builds a TOC whose links target those
-    /// same ids, so `[TOC]` entries actually jump to their heading.
-    private func addHeadingIDsAndGenerateTOC(from html: String) -> (html: String, toc: String) {
+    /// Walks every `<h1>`-`<h6>` tag once, assigning each a unique `id` (deduping repeated
+    /// slugs the way GitHub does, with `-1`, `-2`, ... suffixes), building a `[TOC]`-ready
+    /// HTML list, and collecting the same data as `Heading` values -- the single source both
+    /// `[TOC]` rendering and the document outline navigator (issue #12) read from.
+    private func extractHeadingsAndAssignIDs(
+        from html: String
+    ) -> (html: String, toc: String, headings: [Heading]) {
         // Captures any existing attributes (e.g. data-sourcepos) separately from the
         // content, so they survive being spliced back into the rewritten opening tag.
         let pattern = #"<h([1-6])([^>]*)>(.*?)</h\1>"#
         guard let regex = try? NSRegularExpression(pattern: pattern, options: [.dotMatchesLineSeparators]) else {
-            return (html, "")
+            return (html, "", [])
         }
 
         let nsHTML = html as NSString
         let matches = regex.matches(in: html, range: NSRange(location: 0, length: nsHTML.length))
-        guard !matches.isEmpty else { return (html, "") }
+        guard !matches.isEmpty else { return (html, "", []) }
 
         var usedSlugs: [String: Int] = [:]
         var toc = "<ul>\n"
         var updatedHTML = ""
         var cursor = 0
+        var headings: [Heading] = []
 
         for match in matches {
             updatedHTML += nsHTML.substring(with: NSRange(location: cursor, length: match.range.location - cursor))
@@ -192,13 +227,31 @@ public struct MarkdownRenderer: Sendable {
 
             updatedHTML += "<h\(level) id=\"\(slug)\"\(attributes)>\(content)</h\(level)>"
             toc += "<li class=\"toc-h\(level)\"><a href=\"#\(slug)\">\(plainText)</a></li>\n"
+            headings.append(Heading(
+                level: Int(level) ?? 1,
+                text: plainText,
+                slug: slug,
+                startLine: startLine(fromDataSourcepos: attributes)
+            ))
 
             cursor = match.range.location + match.range.length
         }
         updatedHTML += nsHTML.substring(with: NSRange(location: cursor, length: nsHTML.length - cursor))
         toc += "</ul>"
 
-        return (updatedHTML, toc)
+        return (updatedHTML, toc, headings)
+    }
+
+    /// Parses the 1-based start line out of a `data-sourcepos="startLine:col-endLine:col"`
+    /// attribute, or `nil` if the tag has no such attribute (sourcePositions was off).
+    private func startLine(fromDataSourcepos attributes: String) -> Int? {
+        guard let regex = try? NSRegularExpression(pattern: #"data-sourcepos="(\d+):"#) else { return nil }
+        let nsAttributes = attributes as NSString
+        guard let match = regex.firstMatch(
+            in: attributes,
+            range: NSRange(location: 0, length: nsAttributes.length)
+        ) else { return nil }
+        return Int(nsAttributes.substring(with: match.range(at: 1)))
     }
 
     private func uniqueSlug(for text: String, usedSlugs: inout [String: Int]) -> String {

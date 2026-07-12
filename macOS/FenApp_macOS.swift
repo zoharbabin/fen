@@ -55,6 +55,11 @@ struct FenApp: App {
                     NotificationCenter.default.post(name: .toggleEditor, object: nil)
                 }
                 .keyboardShortcut("e", modifiers: [.command, .shift])
+
+                Button("Toggle Outline") {
+                    NotificationCenter.default.post(name: DocumentOutline.toggleOutlineNotification, object: nil)
+                }
+                .keyboardShortcut("o", modifiers: [.command, .shift])
             }
         }
 

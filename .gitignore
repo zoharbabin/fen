@@ -190,3 +190,8 @@ Build/
 # xcodegen-generated UI testing project (regenerate with `xcodegen generate`)
 #
 /FenUITesting.xcodeproj/
+
+#####
+# harness run output (scripts/harness/run-harness.sh) - never committed
+#
+/.harness-runs/
