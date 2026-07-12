@@ -98,6 +98,13 @@ func caretColor(for background: PlatformColor) -> PlatformColor {
             )
             scrollView.contentView.postsBoundsChangedNotifications = true
 
+            NotificationCenter.default.addObserver(
+                context.coordinator,
+                selector: #selector(Coordinator.applyFormattingNotification(_:)),
+                name: .insertMarkdownFormatting,
+                object: nil
+            )
+
             return scrollView
         }
 
@@ -173,6 +180,18 @@ func caretColor(for background: PlatformColor) -> PlatformColor {
             func textDidChange(_ notification: Notification) {
                 guard let textView = notification.object as? NSTextView else { return }
                 parent.text = textView.string
+                parent.onTextChange?()
+            }
+
+            @MainActor @objc func applyFormattingNotification(_ notification: Notification) {
+                guard let identifier = notification.object as? String,
+                      let action = FormattingAction(identifier: identifier),
+                      let textView else { return }
+                let selection = textView.selectedRange()
+                let result = MarkdownFormatting.apply(action, to: textView.string, selection: selection)
+                textView.string = result.text
+                textView.setSelectedRange(result.selection)
+                parent.text = result.text
                 parent.onTextChange?()
             }
 

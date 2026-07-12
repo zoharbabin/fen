@@ -87,38 +87,38 @@ struct FenApp: App {
     func formattingCommands() -> some Commands {
         CommandGroup(after: .textFormatting) {
             Section {
-                Button("Bold") {
-                    NotificationCenter.default.post(name: .insertMarkdownFormatting, object: "bold")
-                }
-                .keyboardShortcut("b", modifiers: .command)
-
-                Button("Italic") {
-                    NotificationCenter.default.post(name: .insertMarkdownFormatting, object: "italic")
-                }
-                .keyboardShortcut("i", modifiers: .command)
-
-                Button("Code") {
-                    NotificationCenter.default.post(name: .insertMarkdownFormatting, object: "code")
-                }
-                .keyboardShortcut("k", modifiers: [.command, .shift])
+                formattingButton(.bold).keyboardShortcut("b", modifiers: .command)
+                formattingButton(.italic).keyboardShortcut("i", modifiers: .command)
+                formattingButton(.strikethrough).keyboardShortcut("x", modifiers: [.command, .shift])
+                formattingButton(.inlineCode).keyboardShortcut("k", modifiers: [.command, .shift])
+                formattingButton(.codeBlock).keyboardShortcut("k", modifiers: [.command, .option])
             }
 
             Section {
-                Button("Heading 1") {
-                    NotificationCenter.default.post(name: .insertMarkdownFormatting, object: "h1")
-                }
-                .keyboardShortcut("1", modifiers: .command)
-
-                Button("Heading 2") {
-                    NotificationCenter.default.post(name: .insertMarkdownFormatting, object: "h2")
-                }
-                .keyboardShortcut("2", modifiers: .command)
-
-                Button("Heading 3") {
-                    NotificationCenter.default.post(name: .insertMarkdownFormatting, object: "h3")
-                }
-                .keyboardShortcut("3", modifiers: .command)
+                formattingButton(.heading1).keyboardShortcut("1", modifiers: .command)
+                formattingButton(.heading2).keyboardShortcut("2", modifiers: .command)
+                formattingButton(.heading3).keyboardShortcut("3", modifiers: .command)
             }
+
+            Section {
+                formattingButton(.bulletList).keyboardShortcut("u", modifiers: [.command, .shift])
+                formattingButton(.numberedList).keyboardShortcut("n", modifiers: [.command, .shift])
+                formattingButton(.taskItem).keyboardShortcut("j", modifiers: [.command, .shift])
+                formattingButton(.blockquote).keyboardShortcut("q", modifiers: [.command, .shift])
+            }
+
+            Section {
+                formattingButton(.link).keyboardShortcut("k", modifiers: .command)
+                formattingButton(.image).keyboardShortcut("i", modifiers: [.command, .shift])
+                formattingButton(.horizontalRule).keyboardShortcut("h", modifiers: [.command, .shift])
+                formattingButton(.table).keyboardShortcut("t", modifiers: [.command, .shift])
+            }
+        }
+    }
+
+    private func formattingButton(_ action: FormattingAction) -> some View {
+        Button(action.title) {
+            NotificationCenter.default.post(name: .insertMarkdownFormatting, object: action.identifier)
         }
     }
 
@@ -164,7 +164,6 @@ private func performTextFinderAction(_ action: NSTextFinder.Action) {
 // MARK: - Notification Names
 
 extension Notification.Name {
-    static let insertMarkdownFormatting = Notification.Name("insertMarkdownFormatting")
     static let togglePreview = Notification.Name("togglePreview")
     static let toggleEditor = Notification.Name("toggleEditor")
 }
