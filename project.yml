@@ -24,6 +24,7 @@ targets:
       - path: macOS
         excludes:
           - "AppIcon.iconset"
+          - "DocumentIcon.iconset"
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.zoharbabin.fen

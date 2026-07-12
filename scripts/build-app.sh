@@ -70,6 +70,10 @@ shopt -u nullglob
 # App icon
 iconutil -c icns "$ROOT/macOS/AppIcon.iconset" -o "$CONTENTS/Resources/AppIcon.icns"
 
+# Document icon (Finder icon for .md files, referenced by
+# CFBundleDocumentTypes:0:CFBundleTypeIconFile in macOS/Info.plist)
+iconutil -c icns "$ROOT/macOS/DocumentIcon.iconset" -o "$CONTENTS/Resources/DocumentIcon.icns"
+
 # Info.plist — start from the macOS source plist, then patch identity/version.
 PLIST="$CONTENTS/Info.plist"
 cp "$ROOT/macOS/Info.plist" "$PLIST"
