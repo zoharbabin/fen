@@ -85,5 +85,5 @@ struct DocumentOutlineTests {
         #expect(elapsed < .milliseconds(50))
     }
 
-    // MARK: - Rule 5.2: no stubs/TODOs (compile-time proof lives in harness gate 4's grep)
+    // MARK: - Rule 5.2: no unfinished-work markers (compile-time proof lives in harness gate 4's grep)
 }

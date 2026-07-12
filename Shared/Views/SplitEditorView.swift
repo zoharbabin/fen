@@ -17,8 +17,12 @@ public struct SplitEditorView: View {
     @State private var renderer = MarkdownRenderer()
     @State private var composer = HTMLComposer()
     @State private var scrollSync = ScrollSync()
+    @State private var outline = DocumentOutline()
     @State private var renderedHTML: String = ""
     @State private var renderTask: Task<Void, Never>?
+    @State private var isOutlineVisible = false
+    @State private var sourceLineCount = 1
+    @State private var sourceLineOffset = 0
 
     let preferences = Preferences.shared
 
@@ -36,14 +40,20 @@ public struct SplitEditorView: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            ZStack {
-                switch viewMode {
-                case .split:
-                    splitView
-                case .editorOnly:
-                    editorView
-                case .previewOnly:
-                    previewView
+            HStack(spacing: 0) {
+                if isOutlineVisible {
+                    outlineSidebar
+                    Divider()
+                }
+                ZStack {
+                    switch viewMode {
+                    case .split:
+                        splitView
+                    case .editorOnly:
+                        editorView
+                    case .previewOnly:
+                        previewView
+                    }
                 }
             }
             #if os(macOS)
@@ -63,6 +73,27 @@ public struct SplitEditorView: View {
         .onChange(of: preferences.renderRevision) { _, _ in
             renderMarkdown()
         }
+        #if os(macOS)
+        .onReceive(NotificationCenter.default.publisher(for: DocumentOutline.toggleOutlineNotification)) { _ in
+            isOutlineVisible.toggle()
+        }
+        #endif
+    }
+
+    // MARK: - Outline
+
+    private var outlineSidebar: some View {
+        DocumentOutlineSidebar(outline: outline, onSelectHeading: jumpToHeading(_:))
+    }
+
+    /// Scrolls both panes to a heading's source line, expressed as the same source-fraction
+    /// `ScrollSync` already shares between the editor and preview -- reusing the identical
+    /// `(startLine - 1 + lineOffset) / totalLines` formula `scroll-sync.js` uses for its own
+    /// `data-sourcepos` anchors, so a jump lands exactly where scroll-sync would place that line.
+    private func jumpToHeading(_ heading: Heading) {
+        guard let startLine = heading.startLine, sourceLineCount > 0 else { return }
+        let fraction = CGFloat(startLine - 1 + sourceLineOffset) / CGFloat(sourceLineCount)
+        scrollSync.jumpToSourceFraction(min(1, max(0, fraction)))
     }
 
     // MARK: - Split View
@@ -235,6 +266,14 @@ public struct SplitEditorView: View {
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
         ToolbarItemGroup {
+            Button {
+                isOutlineVisible.toggle()
+            } label: {
+                Image(systemName: "list.bullet.indent")
+            }
+            .help("Toggle Outline")
+            .accessibilityIdentifier("OutlineToggleButton")
+
             Picker("View", selection: $viewMode) {
                 ForEach(ViewMode.allCases, id: \.self) { mode in
                     Text(mode.rawValue).tag(mode)
@@ -275,12 +314,15 @@ public struct SplitEditorView: View {
         var options = MarkdownRenderer.Options.from(preferences: preferences)
         options.sourcePositions = true
         let result = renderer.render(document.text, options: options)
+        sourceLineCount = document.text.components(separatedBy: .newlines).count
+        sourceLineOffset = result.frontMatterLineCount
+        outline.update(headings: result.headings)
         renderedHTML = composer.compose(
             title: result.title,
             body: result.html,
             preferences: preferences,
-            sourceLineCount: document.text.components(separatedBy: .newlines).count,
-            sourceLineOffset: result.frontMatterLineCount
+            sourceLineCount: sourceLineCount,
+            sourceLineOffset: sourceLineOffset
         )
     }
 

@@ -82,7 +82,7 @@ final class DocumentOutlineUITests: XCTestCase {
         let start = Date()
         toggleButton.click()
 
-        let sidebar = documentWindow.otherElements["OutlineSidebar"]
+        let sidebar = documentWindow.outlines["OutlineSidebar"]
         XCTAssertTrue(sidebar.waitForExistence(timeout: 5), "Outline sidebar should appear")
         let elapsed = Date().timeIntervalSince(start)
 
@@ -100,15 +100,15 @@ final class DocumentOutlineUITests: XCTestCase {
         XCTAssertTrue(toggleButton.waitForExistence(timeout: 5))
         toggleButton.click()
 
-        let sidebar = documentWindow.otherElements["OutlineSidebar"]
+        let sidebar = documentWindow.outlines["OutlineSidebar"]
         XCTAssertTrue(sidebar.waitForExistence(timeout: 5))
 
         let editor = documentWindow.scrollViews["EditorTextView"]
         let editorScrollBefore = editor.value as? String
 
-        let rows = sidebar.staticTexts.allElementsBoundByIndex
+        let rows = sidebar.outlineRows.allElementsBoundByIndex
         XCTAssertFalse(rows.isEmpty, "Expected at least one heading row in the outline")
-        rows.last?.click()
+        rows.last?.buttons.allElementsBoundByIndex.last?.click()
 
         let deadline = Date().addingTimeInterval(5)
         var editorScrollAfter = editor.value as? String

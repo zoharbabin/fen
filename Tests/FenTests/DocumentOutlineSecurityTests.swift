@@ -1,4 +1,5 @@
 @testable import FenCore
+import Foundation
 import Testing
 
 /// Proves rule 2.1 from issue #12's spec: heading titles never reach a JS/HTML
@@ -15,10 +16,12 @@ struct DocumentOutlineSecurityTests {
             return
         }
 
-        // The heading's displayable text is kept as inert plain text -- cmark-gfm HTML-escapes
-        // it on render, and the outline model exposes that same escaped/plain string, never a
-        // raw fragment destined for `evaluateJavaScript` or unescaped HTML interpolation.
-        #expect(heading.text.contains("script"))
+        // The heading's displayable text has already had every tag stripped by the same
+        // plain-text extraction TOC generation uses -- no raw "<"/">" survives, so there's no
+        // markup fragment left that a later evaluateJavaScript/HTML interpolation could
+        // reinterpret as a tag.
+        #expect(!heading.text.contains("<"))
+        #expect(!heading.text.contains(">"))
         #expect(!heading.slug.contains("<"))
         #expect(!heading.slug.contains(">"))
         #expect(!heading.slug.contains("\""))

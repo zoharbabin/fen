@@ -34,4 +34,12 @@ final class ScrollSync {
         editorScrollFraction = fraction
         isUpdating = false
     }
+
+    /// Moves both panes to `fraction`, e.g. from the outline navigator's "jump to heading"
+    /// action (issue #12) -- distinct from `editorDidScroll`/`previewDidScroll` since neither
+    /// pane actually scrolled to produce this fraction.
+    func jumpToSourceFraction(_ fraction: CGFloat) {
+        editorScrollFraction = fraction
+        previewScrollFraction = fraction
+    }
 }

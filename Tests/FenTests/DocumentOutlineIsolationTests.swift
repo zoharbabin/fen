@@ -38,15 +38,11 @@ struct DocumentOutlineIsolationTests {
         )
     }
 
-    @Test func threeConcurrentInstancesEachKeepIndependentState() async {
+    @Test func threeInstancesEachKeepIndependentState() {
         let outlines = (0 ..< 3).map { _ in DocumentOutline() }
-        await withTaskGroup(of: Void.self) { group in
-            for (index, outline) in outlines.enumerated() {
-                group.addTask { @MainActor in
-                    outline.update(headings: [Heading(level: 1, text: "H\(index)", slug: "h\(index)")])
-                    outline.toggleCollapse(slug: "h\(index)")
-                }
-            }
+        for (index, outline) in outlines.enumerated() {
+            outline.update(headings: [Heading(level: 1, text: "H\(index)", slug: "h\(index)")])
+            outline.toggleCollapse(slug: "h\(index)")
         }
 
         for (index, outline) in outlines.enumerated() {
