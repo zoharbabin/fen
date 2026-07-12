@@ -2,6 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>CFBundleDisplayName</key>
+	<string>Fen</string>
 	<key>CFBundleDocumentTypes</key>
 	<array>
 		<dict>
@@ -13,6 +15,8 @@
 				<string>mkd</string>
 				<string>mkdn</string>
 			</array>
+			<key>CFBundleTypeIconFile</key>
+			<string>DocumentIcon</string>
 			<key>CFBundleTypeName</key>
 			<string>Markdown Document</string>
 			<key>CFBundleTypeRole</key>
@@ -26,6 +30,18 @@
 			</array>
 		</dict>
 	</array>
+	<key>CFBundleExecutable</key>
+	<string>Fen</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.zoharbabin.fen</string>
+	<key>CFBundleName</key>
+	<string>Fen</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>NSPrincipalClass</key>
+	<string>NSApplication</string>
 	<key>UTImportedTypeDeclarations</key>
 	<array>
 		<dict>
@@ -55,19 +71,5 @@
 			</dict>
 		</dict>
 	</array>
-	<key>CFBundleIdentifier</key>
-	<string>com.zoharbabin.fen</string>
-	<key>CFBundleName</key>
-	<string>Fen</string>
-	<key>CFBundleDisplayName</key>
-	<string>Fen</string>
-	<key>CFBundleExecutable</key>
-	<string>Fen</string>
-	<key>CFBundlePackageType</key>
-	<string>APPL</string>
-	<key>NSPrincipalClass</key>
-	<string>NSApplication</string>
-	<key>NSHighResolutionCapable</key>
-	<true/>
 </dict>
 </plist>
