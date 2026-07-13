@@ -42,8 +42,6 @@ struct GeneralSettingsTab: View {
     var body: some View {
         Form {
             Section("Behavior") {
-                Toggle("Suppress untitled document on launch", isOn: $prefs.suppressesUntitledDocumentOnLaunch)
-                Toggle("Create file for link targets", isOn: $prefs.createFileForLinkTarget)
                 Toggle("Ensure newline at end of file", isOn: $prefs.editorEnsuresNewlineAtEndOfFile)
             }
         }
@@ -117,6 +115,7 @@ struct EditorSettingsTab: View {
                 Toggle("Sync scrolling with preview", isOn: $prefs.editorSyncScrolling)
                 Toggle("Scroll past end", isOn: $prefs.editorScrollsPastEnd)
                 Toggle("Show word count", isOn: $prefs.editorShowWordCount)
+                Toggle("Editor on right", isOn: $prefs.editorOnRight)
                 #if os(macOS)
                     Toggle("Smart Home key", isOn: $prefs.editorSmartHome)
                 #endif
@@ -140,20 +139,15 @@ struct MarkdownSettingsTab: View {
         Form {
             Section("Extensions") {
                 Toggle("Tables", isOn: $prefs.extensionTables)
-                Toggle("Fenced code blocks", isOn: $prefs.extensionFencedCode)
                 Toggle("Autolinks", isOn: $prefs.extensionAutolink)
                 Toggle("Strikethrough", isOn: $prefs.extensionStrikethrough)
-                Toggle("Underline", isOn: $prefs.extensionUnderline)
-                Toggle("Superscript", isOn: $prefs.extensionSuperscript)
                 Toggle("Highlight", isOn: $prefs.extensionHighlight)
                 Toggle("Footnotes", isOn: $prefs.extensionFootnotes)
-                Toggle("Quote", isOn: $prefs.extensionQuote)
-                Toggle("Intra-emphasis", isOn: $prefs.extensionIntraEmphasis)
             }
 
             Section("Processing") {
                 Toggle("SmartyPants", isOn: $prefs.extensionSmartyPants)
-                Toggle("Manual render", isOn: $prefs.markdownManualRender)
+                Toggle("Update preview instantly (skip typing delay)", isOn: $prefs.markdownManualRender)
             }
         }
         .formStyle(.grouped)
