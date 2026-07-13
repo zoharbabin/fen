@@ -210,7 +210,11 @@ func caretColor(for background: PlatformColor) -> PlatformColor {
                     }
                     return handleNewline(in: textView, autoIncrement: preferences.editorAutoIncrementNumberedLists)
                 case #selector(NSResponder.moveToLeftEndOfLine(_:)),
-                     #selector(NSResponder.moveToBeginningOfLine(_:)):
+                     #selector(NSResponder.moveToBeginningOfLine(_:)),
+                     #selector(NSResponder.scrollToBeginningOfDocument(_:)):
+                    // AppKit's StandardKeyBinding.dict binds the plain Home key to
+                    // scrollToBeginningOfDocument:, not moveToBeginningOfLine:/moveToLeftEndOfLine:
+                    // (those need Control+Home) -- so the plain key must be intercepted here too.
                     guard preferences.editorSmartHome else { return false }
                     return handleSmartHome(in: textView)
                 default:
