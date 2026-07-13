@@ -201,4 +201,36 @@ struct MarkdownTextEditingTests {
         let action = MarkdownTextEditing.continuationAction(forLine: "just a paragraph", autoIncrement: true)
         #expect(action == .none)
     }
+
+    // MARK: - GFM task list continuation on Enter (issue #15 completeness)
+
+    @Test("Enter at the end of an unchecked task list item continues with a fresh unchecked checkbox")
+    func continuesTaskListWithFreshCheckbox() {
+        let action = MarkdownTextEditing.continuationAction(forLine: "- [ ] todo", autoIncrement: true)
+        #expect(action == .continuePrefix("- [ ] "))
+    }
+
+    @Test("Enter at the end of a checked task list item still continues with an unchecked checkbox")
+    func continuesCheckedTaskListWithUncheckedCheckbox() {
+        let action = MarkdownTextEditing.continuationAction(forLine: "- [x] done", autoIncrement: true)
+        #expect(action == .continuePrefix("- [ ] "))
+    }
+
+    @Test("Enter on an empty task list item terminates the list instead of continuing it")
+    func emptyTaskListItemTerminates() {
+        let action = MarkdownTextEditing.continuationAction(forLine: "- [ ] ", autoIncrement: true)
+        #expect(action == .terminateList)
+    }
+
+    @Test("Enter at the end of an ordered task list item increments the number and resets the checkbox")
+    func continuesOrderedTaskListWithIncrement() {
+        let action = MarkdownTextEditing.continuationAction(forLine: "1. [x] first", autoIncrement: true)
+        #expect(action == .continuePrefix("2. [ ] "))
+    }
+
+    @Test("Enter preserves indentation on a nested task list item")
+    func continuesNestedTaskListPreservesIndent() {
+        let action = MarkdownTextEditing.continuationAction(forLine: "  - [ ] nested", autoIncrement: true)
+        #expect(action == .continuePrefix("  - [ ] "))
+    }
 }

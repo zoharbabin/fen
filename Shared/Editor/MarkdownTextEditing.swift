@@ -138,8 +138,8 @@ public enum MarkdownTextEditing {
         case none
     }
 
-    private static let unorderedListPattern = #"^(\s*)([-*+])(\s+)(.*)$"#
-    private static let orderedListPattern = #"^(\s*)(\d+)([.)])(\s+)(.*)$"#
+    private static let unorderedListPattern = #"^(\s*)([-*+])(\s+)(\[[ xX]\]\s+)?(.*)$"#
+    private static let orderedListPattern = #"^(\s*)(\d+)([.)])(\s+)(\[[ xX]\]\s+)?(.*)$"#
     private static let blockquotePattern = #"^(\s*)(>+)(\s?)(.*)$"#
 
     /// Decides what Enter should do given the full text of the line the caret is on (the caret
@@ -147,19 +147,23 @@ public enum MarkdownTextEditing {
     /// MacDown's original behavior of only continuing at end-of-line).
     public static func continuationAction(forLine line: String, autoIncrement: Bool) -> ContinuationAction {
         if let match = firstMatch(of: orderedListPattern, in: line) {
-            let indent = match[1], number = match[2], separator = match[3], rest = match[5]
+            let indent = match[1], number = match[2], separator = match[3], checkbox = match[5], rest = match[6]
             if rest.isEmpty {
                 return .terminateList
             }
             let nextNumberText = autoIncrement ? String((Int(number) ?? 0) + 1) : number
-            return .continuePrefix("\(indent)\(nextNumberText)\(separator) ")
+            // A task list item always continues with a fresh unchecked box, regardless of
+            // whether the item being continued from was checked.
+            let continuedCheckbox = checkbox.isEmpty ? "" : "[ ] "
+            return .continuePrefix("\(indent)\(nextNumberText)\(separator) \(continuedCheckbox)")
         }
         if let match = firstMatch(of: unorderedListPattern, in: line) {
-            let indent = match[1], marker = match[2], rest = match[4]
+            let indent = match[1], marker = match[2], checkbox = match[4], rest = match[5]
             if rest.isEmpty {
                 return .terminateList
             }
-            return .continuePrefix("\(indent)\(marker) ")
+            let continuedCheckbox = checkbox.isEmpty ? "" : "[ ] "
+            return .continuePrefix("\(indent)\(marker) \(continuedCheckbox)")
         }
         if let match = firstMatch(of: blockquotePattern, in: line) {
             let indent = match[1], quote = match[2], rest = match[4]
