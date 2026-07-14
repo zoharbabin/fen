@@ -126,6 +126,18 @@ public enum MarkdownTextEditing {
         return baseInset + excess * 0.45
     }
 
+    // MARK: - Selection restoration after a programmatic replacement
+
+    /// The selection to restore after a programmatic text replacement on `UITextView`.
+    /// Assigning `UITextView.text` directly (unlike a real keystroke) resets
+    /// `selectedRange` to the end of the document, so callers that edit text
+    /// programmatically must restore it explicitly. Mirrors where AppKit's
+    /// `NSTextStorage`-driven caret tracking already lands on its own for the
+    /// equivalent edit: right past the inserted text, or at the deletion's start.
+    public static func selectionAfterReplacement(range: NSRange, replacementLength: Int) -> NSRange {
+        NSRange(location: range.location + replacementLength, length: 0)
+    }
+
     // MARK: - List/blockquote continuation on Enter (issue #15)
 
     public enum ContinuationAction: Equatable {

@@ -232,6 +232,15 @@ struct MarkdownRendererTests {
         #expect(result.html.contains("==not highlighted=="))
     }
 
+    @Test("Highlight does not touch a == pair inside an HTML tag's attribute")
+    func highlightSkipsTagAttribute() {
+        var opts = MarkdownRenderer.Options()
+        opts.highlight = true
+        let result = renderer.render("[link](https://example.com/?token=abc==def==ghi)", options: opts)
+        #expect(!result.html.contains("<mark>"))
+        #expect(result.html.contains(#"href="https://example.com/?token=abc==def==ghi""#))
+    }
+
     // MARK: - Footnotes toggle (issue #53)
 
     @Test("Footnotes render when enabled")

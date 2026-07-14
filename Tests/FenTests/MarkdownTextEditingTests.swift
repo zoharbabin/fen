@@ -202,6 +202,24 @@ struct MarkdownTextEditingTests {
         #expect(action == .none)
     }
 
+    // MARK: - Selection restoration after a programmatic replacement
+
+    @Test("Selection after an insertion lands right past the inserted text")
+    func selectionAfterInsertionLandsPastInsertedText() {
+        let selection = MarkdownTextEditing.selectionAfterReplacement(
+            range: NSRange(location: 6, length: 0), replacementLength: 3
+        )
+        #expect(selection == NSRange(location: 9, length: 0))
+    }
+
+    @Test("Selection after a deletion collapses to the deletion's start")
+    func selectionAfterDeletionCollapsesToStart() {
+        let selection = MarkdownTextEditing.selectionAfterReplacement(
+            range: NSRange(location: 0, length: 4), replacementLength: 0
+        )
+        #expect(selection == NSRange(location: 0, length: 0))
+    }
+
     // MARK: - GFM task list continuation on Enter (issue #15 completeness)
 
     @Test("Enter at the end of an unchecked task list item continues with a fresh unchecked checkbox")

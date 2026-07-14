@@ -311,9 +311,14 @@
 
             /// Performs a text replacement and notifies `parent`/`onTextChange` the same way
             /// `textViewDidChange` does, since this bypasses the normal delegate change callback.
+            /// Assigning `UITextView.text` (unlike a real keystroke) resets `selectedRange` to the
+            /// end of the document, so this restores the caret to where the replacement leaves it.
             private func replaceAndNotify(in textView: UITextView, range: NSRange, with replacement: String) {
                 let ns = textView.text as NSString
                 textView.text = ns.replacingCharacters(in: range, with: replacement)
+                textView.selectedRange = MarkdownTextEditing.selectionAfterReplacement(
+                    range: range, replacementLength: (replacement as NSString).length
+                )
                 parent.text = textView.text
                 parent.onTextChange?()
             }

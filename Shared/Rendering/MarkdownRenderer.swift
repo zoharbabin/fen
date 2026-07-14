@@ -204,12 +204,13 @@ public struct MarkdownRenderer: Sendable {
 
     // MARK: - Highlight Extension (==text== -> <mark>, issue #52)
 
-    /// Wraps `==text==` spans in `<mark>`, skipping any span inside a `<pre>` or `<code>`
-    /// block -- cmark has already rendered code spans/fences to those tags by this point, so
-    /// scanning for them (rather than the original Markdown backticks/fences) is what keeps
-    /// literal `==...==` inside code untouched.
+    /// Wraps `==text==` spans in `<mark>`, skipping any span inside a `<pre>`/`<code>` block or
+    /// inside any HTML tag itself (e.g. a `==` pair inside a link's `href` query string) --
+    /// cmark has already rendered code spans/fences and tags to HTML by this point, so scanning
+    /// for them (rather than the original Markdown backticks/fences) is what keeps literal
+    /// `==...==` inside code, or inside tag markup, untouched.
     private func applyHighlightMarkup(to html: String) -> String {
-        let pattern = #"<pre[^>]*>.*?</pre>|<code[^>]*>.*?</code>|==([^=\n]+?)=="#
+        let pattern = #"<pre[^>]*>.*?</pre>|<code[^>]*>.*?</code>|<[^>]*>|==([^=\n]+?)=="#
         guard let regex = try? NSRegularExpression(pattern: pattern, options: [.dotMatchesLineSeparators]) else {
             return html
         }

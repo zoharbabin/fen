@@ -18,7 +18,7 @@ final class SmartHomeUITests: XCTestCase {
     }
 
     override func tearDownWithError() throws {
-        app.terminate()
+        app?.terminate()
     }
 
     /// Same launch strategy as `FormattingToolbarUITests.launch`.
