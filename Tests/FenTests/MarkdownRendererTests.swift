@@ -189,6 +189,87 @@ struct MarkdownRendererTests {
         let result = renderer.render(md, options: opts)
         #expect(result.html.contains("checked"))
     }
+
+    // MARK: - Highlight extension (issue #52)
+
+    @Test("Highlight wraps ==text== in <mark> when enabled")
+    func highlightEnabled() {
+        var opts = MarkdownRenderer.Options()
+        opts.highlight = true
+        let result = renderer.render("This is ==important== text.", options: opts)
+        #expect(result.html.contains("<mark>important</mark>"))
+    }
+
+    @Test("Highlight leaves ==text== untouched when disabled")
+    func highlightDisabled() {
+        var opts = MarkdownRenderer.Options()
+        opts.highlight = false
+        let result = renderer.render("This is ==important== text.", options: opts)
+        #expect(!result.html.contains("<mark>"))
+        #expect(result.html.contains("==important=="))
+    }
+
+    @Test("Highlight does not affect an inline code span containing ==text==")
+    func highlightSkipsCodeSpan() {
+        var opts = MarkdownRenderer.Options()
+        opts.highlight = true
+        let result = renderer.render("Use `==not highlighted==` here.", options: opts)
+        #expect(!result.html.contains("<mark>"))
+        #expect(result.html.contains("==not highlighted=="))
+    }
+
+    @Test("Highlight does not affect a fenced code block containing ==text==")
+    func highlightSkipsCodeBlock() {
+        var opts = MarkdownRenderer.Options()
+        opts.highlight = true
+        let md = """
+        ```
+        ==not highlighted==
+        ```
+        """
+        let result = renderer.render(md, options: opts)
+        #expect(!result.html.contains("<mark>"))
+        #expect(result.html.contains("==not highlighted=="))
+    }
+
+    @Test("Highlight does not touch a == pair inside an HTML tag's attribute")
+    func highlightSkipsTagAttribute() {
+        var opts = MarkdownRenderer.Options()
+        opts.highlight = true
+        let result = renderer.render("[link](https://example.com/?token=abc==def==ghi)", options: opts)
+        #expect(!result.html.contains("<mark>"))
+        #expect(result.html.contains(#"href="https://example.com/?token=abc==def==ghi""#))
+    }
+
+    // MARK: - Footnotes toggle (issue #53)
+
+    @Test("Footnotes render when enabled")
+    func footnotesEnabled() {
+        var opts = MarkdownRenderer.Options()
+        opts.footnotes = true
+        let md = """
+        Here's a claim.[^1]
+
+        [^1]: The footnote text.
+        """
+        let result = renderer.render(md, options: opts)
+        #expect(result.html.contains("footnote"))
+        #expect(result.html.contains("The footnote text."))
+    }
+
+    @Test("Footnotes render as literal text when disabled")
+    func footnotesDisabled() {
+        var opts = MarkdownRenderer.Options()
+        opts.footnotes = false
+        let md = """
+        Here's a claim.[^1]
+
+        [^1]: A footnote body.
+        """
+        let result = renderer.render(md, options: opts)
+        #expect(!result.html.contains("class=\"footnote"))
+        #expect(result.html.contains("[^1]"))
+    }
 }
 
 @Suite("Theme Parser Tests")

@@ -5,30 +5,10 @@ import SwiftUI
 public final class Preferences {
     public nonisolated(unsafe) static let shared = Preferences()
 
-    // MARK: - General
-
-    var suppressesUntitledDocumentOnLaunch: Bool = false {
-        didSet { defaults.set(suppressesUntitledDocumentOnLaunch, forKey: "suppressesUntitledDocumentOnLaunch") }
-    }
-
-    var createFileForLinkTarget: Bool = false {
-        didSet { defaults.set(createFileForLinkTarget, forKey: "createFileForLinkTarget") }
-    }
-
     // MARK: - Markdown Extension Flags
-
-    var extensionIntraEmphasis: Bool = false {
-        didSet { defaults.set(extensionIntraEmphasis, forKey: "extensionIntraEmphasis") }
-    }
 
     var extensionTables: Bool = true {
         didSet { defaults.set(extensionTables, forKey: "extensionTables")
-            renderRevision += 1
-        }
-    }
-
-    var extensionFencedCode: Bool = true {
-        didSet { defaults.set(extensionFencedCode, forKey: "extensionFencedCode")
             renderRevision += 1
         }
     }
@@ -45,24 +25,19 @@ public final class Preferences {
         }
     }
 
-    var extensionUnderline: Bool = false {
-        didSet { defaults.set(extensionUnderline, forKey: "extensionUnderline") }
-    }
-
-    var extensionSuperscript: Bool = false {
-        didSet { defaults.set(extensionSuperscript, forKey: "extensionSuperscript") }
-    }
-
     var extensionHighlight: Bool = false {
-        didSet { defaults.set(extensionHighlight, forKey: "extensionHighlight") }
+        didSet { defaults.set(extensionHighlight, forKey: "extensionHighlight")
+            renderRevision += 1
+        }
     }
 
-    var extensionFootnotes: Bool = false {
-        didSet { defaults.set(extensionFootnotes, forKey: "extensionFootnotes") }
-    }
-
-    var extensionQuote: Bool = false {
-        didSet { defaults.set(extensionQuote, forKey: "extensionQuote") }
+    /// Matches MacDown's original default (footnotes rendered uncontrolled, effectively
+    /// always on) rather than defaulting off like most other extension toggles here --
+    /// see issue #53.
+    var extensionFootnotes: Bool = true {
+        didSet { defaults.set(extensionFootnotes, forKey: "extensionFootnotes")
+            renderRevision += 1
+        }
     }
 
     var extensionSmartyPants: Bool = false {
@@ -255,32 +230,21 @@ public final class Preferences {
         // Load persisted values. didSet is NOT called for direct property assignments
         // within the class's own init, so no side effects (no UserDefaults writes, no
         // renderRevision increments) occur here.
-        loadGeneralDefaults(from: defaults)
         loadExtensionDefaults(from: defaults)
         loadEditorDefaults(from: defaults)
         loadHTMLDefaults(from: defaults)
     }
 
-    private func loadGeneralDefaults(from defaults: UserDefaults) {
-        suppressesUntitledDocumentOnLaunch = defaults.bool(forKey: "suppressesUntitledDocumentOnLaunch")
-        createFileForLinkTarget = defaults.bool(forKey: "createFileForLinkTarget")
-    }
-
     private func loadExtensionDefaults(from defaults: UserDefaults) {
-        extensionIntraEmphasis = defaults.bool(forKey: "extensionIntraEmphasis")
         extensionTables = defaults.object(forKey: "extensionTables") != nil
             ? defaults.bool(forKey: "extensionTables") : true
-        extensionFencedCode = defaults.object(forKey: "extensionFencedCode") != nil
-            ? defaults.bool(forKey: "extensionFencedCode") : true
         extensionAutolink = defaults.object(forKey: "extensionAutolink") != nil
             ? defaults.bool(forKey: "extensionAutolink") : true
         extensionStrikethrough = defaults.object(forKey: "extensionStrikethrough") != nil
             ? defaults.bool(forKey: "extensionStrikethrough") : true
-        extensionUnderline = defaults.bool(forKey: "extensionUnderline")
-        extensionSuperscript = defaults.bool(forKey: "extensionSuperscript")
         extensionHighlight = defaults.bool(forKey: "extensionHighlight")
-        extensionFootnotes = defaults.bool(forKey: "extensionFootnotes")
-        extensionQuote = defaults.bool(forKey: "extensionQuote")
+        extensionFootnotes = defaults.object(forKey: "extensionFootnotes") != nil
+            ? defaults.bool(forKey: "extensionFootnotes") : true
         extensionSmartyPants = defaults.bool(forKey: "extensionSmartyPants")
         markdownManualRender = defaults.bool(forKey: "markdownManualRender")
     }

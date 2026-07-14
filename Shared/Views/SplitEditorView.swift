@@ -141,6 +141,8 @@ public struct SplitEditorView: View {
             lineSpacing: preferences.editorLineSpacing,
             horizontalInset: preferences.editorHorizontalInset,
             verticalInset: preferences.editorVerticalInset,
+            isWidthLimited: preferences.editorWidthLimited,
+            maximumWidth: preferences.editorMaximumWidth,
             isEditable: true,
             scrollsPastEnd: preferences.editorScrollsPastEnd,
             scrollFraction: scrollSync.editorScrollFraction,

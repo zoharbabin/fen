@@ -13,6 +13,11 @@ public struct MarkdownRenderer: Sendable {
         public var tagfilter: Bool = false
         public var hardBreaks: Bool = false
         public var smartPunctuation: Bool = false
+        public var footnotes: Bool = true
+        /// `==text==` -> `<mark>text</mark>`. Not a cmark-gfm extension (no such syntax
+        /// extension exists there), so this is applied as a post-processing pass over the
+        /// rendered HTML rather than a parser option -- see `applyHighlightMarkup`.
+        public var highlight: Bool = false
         public var renderTOC: Bool = false
         public var detectFrontMatter: Bool = true
         /// Emits `data-sourcepos="startLine:col-endLine:col"` on block elements, which
@@ -33,6 +38,8 @@ public struct MarkdownRenderer: Sendable {
             opts.smartPunctuation = preferences.extensionSmartyPants
             opts.renderTOC = preferences.htmlRendersTOC
             opts.detectFrontMatter = preferences.htmlDetectFrontMatter
+            opts.footnotes = preferences.extensionFootnotes
+            opts.highlight = preferences.extensionHighlight
             return opts
         }
     }
@@ -97,7 +104,7 @@ public struct MarkdownRenderer: Sendable {
         }
 
         // Parse markdown to AST
-        let cmarkOptions: Int32 = CMARK_OPT_FOOTNOTES
+        let cmarkOptions: Int32 = (options.footnotes ? CMARK_OPT_FOOTNOTES : 0)
             | (options.hardBreaks ? CMARK_OPT_HARDBREAKS : 0)
             | (options.smartPunctuation ? CMARK_OPT_SMART : 0)
             | (options.sourcePositions ? CMARK_OPT_SOURCEPOS : 0)
@@ -107,22 +114,7 @@ public struct MarkdownRenderer: Sendable {
         }
         defer { cmark_parser_free(parser) }
 
-        // Attach GFM extensions
-        if options.tables, let ext = cmark_find_syntax_extension("table") {
-            cmark_parser_attach_syntax_extension(parser, ext)
-        }
-        if options.strikethrough, let ext = cmark_find_syntax_extension("strikethrough") {
-            cmark_parser_attach_syntax_extension(parser, ext)
-        }
-        if options.autolink, let ext = cmark_find_syntax_extension("autolink") {
-            cmark_parser_attach_syntax_extension(parser, ext)
-        }
-        if options.taskList, let ext = cmark_find_syntax_extension("tasklist") {
-            cmark_parser_attach_syntax_extension(parser, ext)
-        }
-        if options.tagfilter, let ext = cmark_find_syntax_extension("tagfilter") {
-            cmark_parser_attach_syntax_extension(parser, ext)
-        }
+        attachSyntaxExtensions(to: parser, options: options)
 
         // Feed text to parser
         cmark_parser_feed(parser, text, text.utf8.count)
@@ -137,6 +129,10 @@ public struct MarkdownRenderer: Sendable {
         }
         var html = String(cString: htmlPtr)
         free(htmlPtr)
+
+        if options.highlight {
+            html = applyHighlightMarkup(to: html)
+        }
 
         // Heading extraction always runs so RenderResult.headings is populated regardless of
         // renderTOC (the document outline navigator, issue #12, needs it even with [TOC] off);
@@ -155,6 +151,26 @@ public struct MarkdownRenderer: Sendable {
             frontMatterLineCount: frontMatterLineCount,
             headings: extracted.headings
         )
+    }
+
+    /// Attaches each enabled GFM syntax extension (table/strikethrough/autolink/tasklist/
+    /// tagfilter) to `parser`.
+    private func attachSyntaxExtensions(to parser: UnsafeMutablePointer<cmark_parser>, options: Options) {
+        if options.tables, let ext = cmark_find_syntax_extension("table") {
+            cmark_parser_attach_syntax_extension(parser, ext)
+        }
+        if options.strikethrough, let ext = cmark_find_syntax_extension("strikethrough") {
+            cmark_parser_attach_syntax_extension(parser, ext)
+        }
+        if options.autolink, let ext = cmark_find_syntax_extension("autolink") {
+            cmark_parser_attach_syntax_extension(parser, ext)
+        }
+        if options.taskList, let ext = cmark_find_syntax_extension("tasklist") {
+            cmark_parser_attach_syntax_extension(parser, ext)
+        }
+        if options.tagfilter, let ext = cmark_find_syntax_extension("tagfilter") {
+            cmark_parser_attach_syntax_extension(parser, ext)
+        }
     }
 
     // MARK: - Front Matter
@@ -184,6 +200,39 @@ public struct MarkdownRenderer: Sendable {
 
         let yaml = try? Yams.load(yaml: yamlContent) as? [String: Any]
         return FrontMatterResult(stripped: remaining, yaml: yaml, lineCount: end + 1)
+    }
+
+    // MARK: - Highlight Extension (==text== -> <mark>, issue #52)
+
+    /// Wraps `==text==` spans in `<mark>`, skipping any span inside a `<pre>`/`<code>` block or
+    /// inside any HTML tag itself (e.g. a `==` pair inside a link's `href` query string) --
+    /// cmark has already rendered code spans/fences and tags to HTML by this point, so scanning
+    /// for them (rather than the original Markdown backticks/fences) is what keeps literal
+    /// `==...==` inside code, or inside tag markup, untouched.
+    private func applyHighlightMarkup(to html: String) -> String {
+        let pattern = #"<pre[^>]*>.*?</pre>|<code[^>]*>.*?</code>|<[^>]*>|==([^=\n]+?)=="#
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.dotMatchesLineSeparators]) else {
+            return html
+        }
+
+        let nsHTML = html as NSString
+        let matches = regex.matches(in: html, range: NSRange(location: 0, length: nsHTML.length))
+        guard !matches.isEmpty else { return html }
+
+        var result = ""
+        var cursor = 0
+        for match in matches {
+            result += nsHTML.substring(with: NSRange(location: cursor, length: match.range.location - cursor))
+            let highlightRange = match.range(at: 1)
+            if highlightRange.location != NSNotFound {
+                result += "<mark>\(nsHTML.substring(with: highlightRange))</mark>"
+            } else {
+                result += nsHTML.substring(with: match.range)
+            }
+            cursor = match.range.location + match.range.length
+        }
+        result += nsHTML.substring(with: NSRange(location: cursor, length: nsHTML.length - cursor))
+        return result
     }
 
     // MARK: - Heading Extraction & TOC Generation
