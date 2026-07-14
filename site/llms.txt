@@ -16,10 +16,10 @@ Fen is built and maintained by Zohar Babin (https://zoharbabin.com/), CSO at Kal
 
 - Website: https://fen.md/
 - Source & releases: https://github.com/zoharbabin/fen
-- Roadmap: https://github.com/zoharbabin/fen/blob/master/ROADMAP.md
+- Roadmap: https://github.com/zoharbabin/fen/issues
 - Contributing: https://github.com/zoharbabin/fen/blob/master/CONTRIBUTING.md
 - License: https://github.com/zoharbabin/fen/blob/master/LICENSE.md
 
 ## Where Fen is headed
 
-Near-term: PDF/HTML export, a formatting toolbar, and default-`.md`-editor system integration. Longer-term ("the knowledge suite"): multi-file workspaces, `[[wiki-link]]` backlinks, local full-text search, a lightweight tagging/ontology layer, and a graph view — turning isolated Markdown files into a connected, searchable knowledge base.
+Shipped: a formatting toolbar, and default-`.md`-editor system integration (Finder icon, Open Recent, session restore). Near-term: PDF/HTML export. Longer-term ("the knowledge suite"): multi-file workspaces, `[[wiki-link]]` backlinks, local full-text search, a lightweight tagging/ontology layer, and a graph view — turning isolated Markdown files into a connected, searchable knowledge base.

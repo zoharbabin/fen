@@ -33,7 +33,10 @@ If Fen ever charges for anything, we'll favor a one-time purchase over a subscri
 ## Features
 
 - **Live preview with scroll sync** — the preview pane tracks your scroll position as you type
-- **GitHub-Flavored Markdown** via Apple's [`swift-cmark`](https://github.com/apple/swift-cmark) — tables, task lists, strikethrough, autolinks, footnotes
+- **GitHub-Flavored Markdown** via Apple's [`swift-cmark`](https://github.com/apple/swift-cmark) — tables, task lists, strikethrough, autolinks, footnotes, and `==highlight==` marks
+- **A formatting toolbar and menu commands** — bold, italic, strikethrough, code, headings, lists, task items, blockquotes, links, images, tables, and more, one click or keyboard shortcut away
+- **Editing quality-of-life** — auto-pair brackets/quotes, tabs-to-spaces, smart Home key, and list/blockquote continuation on Enter
+- **Set as your default `.md` editor** — a proper Finder document icon, Open Recent, and session restore on both platforms
 - **Syntax highlighting** in code blocks, **MathJax** for equations, and **Mermaid** for diagrams
 - **Pure Swift + SwiftUI**, with a cross-platform core (macOS and iOS share `FenCore`) — no Objective-C, no CocoaPods
 - **Apple Silicon native**, built with Swift Package Manager
