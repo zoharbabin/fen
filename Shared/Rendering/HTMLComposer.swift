@@ -28,6 +28,7 @@ public struct HTMLComposer: Sendable {
         }
 
         styleTags.append(inlineStyle(fontScaleCSS(preferences: preferences)))
+        styleTags.append(inlineStyle(Self.listMarkerCSS))
 
         let highlighting = syntaxHighlightingTags(preferences: preferences)
         styleTags += highlighting.styles
@@ -40,6 +41,7 @@ public struct HTMLComposer: Sendable {
         scriptTags += mermaid.scripts
 
         scriptTags += taskListTags(preferences: preferences)
+        scriptTags.append(inlineScript(Self.listMarkerStartJS))
         scriptTags += scrollSyncTags(sourceLineCount: sourceLineCount, sourceLineOffset: sourceLineOffset)
 
         return htmlDocument(
@@ -77,6 +79,36 @@ public struct HTMLComposer: Sendable {
     static func fontScaleRatios(fontSize: CGFloat) -> (scale: CGFloat, inverseScale: CGFloat) {
         (fontSize / Preferences.defaultFontSize, Preferences.defaultFontSize / fontSize)
     }
+
+    /// Replaces every theme's native `list-style: outside` markers with a CSS-counter/bullet
+    /// `::before` plus a hanging indent (`padding-left` + negative `text-indent`). WebKit's
+    /// `zoom` (used by `fontScaleCSS` above) breaks the layout link between a native outside
+    /// marker and its list item's wrapped lines, so wrapped lines drift right of the first
+    /// line at any non-1 zoom factor. A hanging indent never depends on that marker/line-box
+    /// relationship, so it stays aligned regardless of zoom. Applied once here rather than
+    /// duplicated across all seven theme files.
+    private static let listMarkerCSS = """
+    ol, ul { list-style: none; padding-left: 0; margin-left: 0; }
+    ol { counter-reset: fen-ol; }
+    ol > li { counter-increment: fen-ol; padding-left: 1.8em; text-indent: -1.8em; }
+    ol > li::before { content: counter(fen-ol) '. '; display: inline-block; width: 1.8em; text-indent: 0; }
+    ul > li { padding-left: 1.8em; text-indent: -1.8em; }
+    ul > li::before { content: '•'; display: inline-block; width: 1.8em; text-indent: 0; }
+    li:has(> input[type="checkbox"]) { padding-left: 1.5em; text-indent: 0; }
+    li:has(> input[type="checkbox"])::before { content: none; }
+    """
+
+    /// WebKit in this app doesn't resolve `attr(start type(<integer>))` inside `calc()`
+    /// (confirmed via `CSS.supports`), so a Markdown ordered list's custom start number
+    /// (`<ol start="5">`, from e.g. `5. five`) can't be picked up in pure CSS. Read it from
+    /// the DOM instead and set the counter's starting value as an inline style, which wins
+    /// over the stylesheet rule above by specificity.
+    private static let listMarkerStartJS = """
+    document.querySelectorAll('ol[start]').forEach(function (ol) {
+        var start = parseInt(ol.getAttribute('start'), 10);
+        if (!isNaN(start)) { ol.style.counterReset = 'fen-ol ' + (start - 1); }
+    });
+    """
 
     private func syntaxHighlightingTags(preferences: Preferences) -> (styles: [String], scripts: [String]) {
         guard preferences.htmlSyntaxHighlighting else { return ([], []) }
