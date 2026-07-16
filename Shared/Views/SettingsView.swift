@@ -189,7 +189,7 @@ struct RenderingSettingsTab: View {
                             Text(theme).tag(theme)
                         }
                     }
-                    Toggle("Show line numbers", isOn: $prefs.htmlLineNumbers)
+                    Toggle("Show line numbers in code blocks", isOn: $prefs.htmlLineNumbers)
                 }
             }
 
