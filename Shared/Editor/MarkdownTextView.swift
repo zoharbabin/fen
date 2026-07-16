@@ -283,8 +283,12 @@ func caretColor(for background: PlatformColor) -> PlatformColor {
                 // Only continue when the caret is at the true end of the line -- matching
                 // MacDown's original behavior of not continuing mid-line.
                 var contentEnd = lineRange.location + lineRange.length
-                if contentEnd > lineRange.location, ns.character(at: contentEnd - 1) == 10 { contentEnd -= 1 }
-                if contentEnd > lineRange.location, ns.character(at: contentEnd - 1) == 13 { contentEnd -= 1 }
+                if contentEnd > lineRange.location, ns.character(at: contentEnd - 1) == 10 {
+                    contentEnd -= 1
+                }
+                if contentEnd > lineRange.location, ns.character(at: contentEnd - 1) == 13 {
+                    contentEnd -= 1
+                }
                 guard location == contentEnd else { return false }
 
                 let line = ns.substring(with: NSRange(
@@ -332,7 +336,9 @@ func caretColor(for background: PlatformColor) -> PlatformColor {
                         forGlyphAt: caretGlyphIndex,
                         effectiveRange: nil
                     ).origin.y
-                    if lineFragmentTop != caretFragmentTop { return false }
+                    if lineFragmentTop != caretFragmentTop {
+                        return false
+                    }
                 }
 
                 let line = ns.substring(with: lineRange)

@@ -133,8 +133,12 @@ public struct EditorTheme: Sendable {
             guard let element = currentElement else { return }
             switch element {
             case "editor":
-                if let fg = block.foreground { editorForeground = fg }
-                if let bg = block.background { editorBackground = bg }
+                if let fg = block.foreground {
+                    editorForeground = fg
+                }
+                if let bg = block.background {
+                    editorBackground = bg
+                }
             case "editor-selection":
                 selectionFg = block.foreground
                 selectionBg = block.background

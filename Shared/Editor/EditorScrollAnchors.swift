@@ -69,8 +69,12 @@ func interpolateEditorAnchor(
     value: CGFloat
 ) -> CGFloat {
     guard table.count >= 2, let first = table.first, let last = table.last else { return value }
-    if value <= from(first) { return to(first) }
-    if value >= from(last) { return to(last) }
+    if value <= from(first) {
+        return to(first)
+    }
+    if value >= from(last) {
+        return to(last)
+    }
     for i in 1 ..< table.count {
         let current = table[i]
         if value <= from(current) {
