@@ -43,7 +43,9 @@ final class ExternalScrollGuard {
     /// is false only for the load-time scroll *restore* itself — `hasScrolledSinceLoad` exists
     /// to detect a real external scroll racing the load, not the restore reacting to it.
     func recordPendingScroll(_ fraction: CGFloat, countsAsSinceLoad: Bool = true) {
-        if countsAsSinceLoad { hasScrolledSinceLoad = true }
+        if countsAsSinceLoad {
+            hasScrolledSinceLoad = true
+        }
         lastAppliedScrollFraction = fraction
     }
 

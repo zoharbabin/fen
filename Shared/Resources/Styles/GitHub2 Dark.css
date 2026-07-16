@@ -252,7 +252,14 @@ kbd {
 
 @media screen and (min-width: 914px) {
   body {
-    width: 854px;
+    /* Multiplied by the font-scale inverse (set by HTMLComposer's fontScaleCSS) so this
+       fixed box isn't re-inflated by `body`'s own `zoom` at a non-default font size --
+       without it, the rendered box becomes (854px + 2*30px padding) * zoom, wider than the
+       real viewport, and content bleeds past the right edge once the unzoomed viewport
+       crosses 914px. Padding needs the same correction as width since `zoom` scales the
+       whole box, padding included. */
+    width: calc(854px * var(--fen-font-inverse-scale, 1));
+    padding: calc(30px * var(--fen-font-inverse-scale, 1));
     margin: 0 auto;
   }
 }

@@ -81,7 +81,11 @@ kbd {
 }
 @media screen and (min-width: 914px) {
     body {
-        width: 854px;
+        /* Multiplied by the font-scale inverse (set by HTMLComposer's fontScaleCSS) so this
+           fixed width isn't re-inflated by `body`'s own `zoom` at a non-default font size --
+           without it, the rendered width becomes 854px * zoom, wider than the real viewport,
+           and content bleeds past the right edge once the unzoomed viewport crosses 914px. */
+        width: calc(854px * var(--fen-font-inverse-scale, 1));
         margin:0 auto;
     }
 }

@@ -49,7 +49,9 @@ struct EditorScrollAnchorTests {
             var charIndex = 0
             for (i, line) in lines.enumerated() {
                 if charIndex == targetIndex {
-                    if i == 0 { return 0 }
+                    if i == 0 {
+                        return 0
+                    }
                     return CGFloat(wrappedVisualLines + (i - 1)) * lineHeight
                 }
                 charIndex += line.utf16.count + 1

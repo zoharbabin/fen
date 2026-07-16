@@ -252,8 +252,12 @@
                 let ns = textView.text as NSString
                 let lineRange = ns.lineRange(for: NSRange(location: location, length: 0))
                 var contentEnd = lineRange.location + lineRange.length
-                if contentEnd > lineRange.location, ns.character(at: contentEnd - 1) == 10 { contentEnd -= 1 }
-                if contentEnd > lineRange.location, ns.character(at: contentEnd - 1) == 13 { contentEnd -= 1 }
+                if contentEnd > lineRange.location, ns.character(at: contentEnd - 1) == 10 {
+                    contentEnd -= 1
+                }
+                if contentEnd > lineRange.location, ns.character(at: contentEnd - 1) == 13 {
+                    contentEnd -= 1
+                }
                 guard location == contentEnd else { return false }
 
                 let line = ns.substring(with: NSRange(

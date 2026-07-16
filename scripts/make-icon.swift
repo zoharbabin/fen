@@ -51,7 +51,9 @@ let reedAmber = NSColor(srgbRed: 0.91, green: 0.71, blue: 0.25, alpha: 1) // sun
 let fFont = NSFont.systemFont(ofSize: markHeight * 1.30, weight: .heavy)
 let roundedF: NSFont = {
     if let d = fFont.fontDescriptor
-        .withDesign(.rounded) { return NSFont(descriptor: d, size: fFont.pointSize) ?? fFont }
+        .withDesign(.rounded) {
+        return NSFont(descriptor: d, size: fFont.pointSize) ?? fFont
+    }
     return fFont
 }()
 

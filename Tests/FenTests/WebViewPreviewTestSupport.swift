@@ -104,8 +104,12 @@ final class NavDelegate: NSObject, WKNavigationDelegate {
     }
 
     func waitForFinish() async throws {
-        if finished { return }
-        if let error { throw error }
+        if finished {
+            return
+        }
+        if let error {
+            throw error
+        }
         try await withCheckedThrowingContinuation { continuation in
             self.continuation = continuation
         }

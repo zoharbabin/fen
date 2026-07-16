@@ -48,3 +48,105 @@
 .fen-mermaid-controls button:hover {
   background: #fff;
 }
+
+/* Colors use currentColor/opacity rather than a fixed light or dark palette so this
+   reads correctly under every preview theme in Shared/Resources/Styles/, including
+   dark ones -- those set body's color/background directly rather than through
+   prefers-color-scheme, so a hardcoded light-mode palette here would go illegible
+   on a dark theme. */
+
+/* mermaid.init.js builds this panel inside the original <pre> that held the fenced
+   code, rather than replacing it, so every theme's own `pre { background; border;
+   padding; border-radius; }` still applies to that element. Left alone, the panel's
+   own border/background renders nested inside the theme's, producing two visibly
+   mismatched boxes. Neutralize the outer <pre> only when it wraps this panel so the
+   panel is the only box the reader sees. `<pre>`'s `white-space: pre` is inherited by
+   the panel's children too, which broke text wrapping on the heading/help lines
+   (the message/source blocks already override it locally) -- reset it here so the
+   default is `normal` for the panel as a whole. */
+pre:has(> .fen-mermaid-error) {
+  padding: 0;
+  border: none;
+  background: transparent;
+  border-radius: 0;
+  overflow: visible;
+  white-space: normal;
+}
+
+.fen-mermaid-error {
+  margin: 15px 0;
+  padding: 12px 16px;
+  border: 1px solid #ff3d23;
+  border-left-width: 4px;
+  border-radius: 4px;
+  background: rgba(255, 61, 35, 0.08);
+  font-family: Helvetica, Arial, sans-serif;
+}
+
+.fen-mermaid-error-heading {
+  margin: 0 0 8px;
+  font-weight: 600;
+  color: inherit;
+}
+
+.fen-mermaid-error-summary {
+  margin: 0 0 8px;
+  color: inherit;
+}
+
+.fen-mermaid-error-technical {
+  margin: 0 0 8px;
+  font-size: 0.9em;
+}
+
+.fen-mermaid-error-technical summary {
+  cursor: pointer;
+  color: inherit;
+  opacity: 0.85;
+}
+
+.fen-mermaid-error-message {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  overflow-x: auto;
+  border-radius: 3px;
+  background: rgba(127, 127, 127, 0.12);
+  color: inherit;
+  font-family: Menlo, Consolas, monospace;
+  font-size: 0.85em;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.fen-mermaid-error-help {
+  margin: 0 0 8px;
+  font-size: 0.9em;
+  color: inherit;
+  opacity: 0.85;
+}
+
+.fen-mermaid-error-help a {
+  color: #006efa;
+}
+
+.fen-mermaid-error-source {
+  font-size: 0.9em;
+}
+
+.fen-mermaid-error-source summary {
+  cursor: pointer;
+  color: inherit;
+  opacity: 0.85;
+}
+
+.fen-mermaid-error-source pre {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  overflow-x: auto;
+  border-radius: 3px;
+  background: rgba(127, 127, 127, 0.12);
+  color: inherit;
+  font-family: Menlo, Consolas, monospace;
+  font-size: 0.85em;
+  white-space: pre-wrap;
+}

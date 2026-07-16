@@ -213,7 +213,11 @@ public enum MarkdownFormatting {
 
         var hashCount = 0
         for character in lineContent {
-            if character == "#" { hashCount += 1 } else { break }
+            if character == "#" {
+                hashCount += 1
+            } else {
+                break
+            }
         }
         var existingPrefixLength = 0
         if hashCount > 0, hashCount <= 6 {
@@ -423,8 +427,12 @@ public enum MarkdownFormatting {
         var lastIndex = lines.count - 1
         for (index, start) in offsets.enumerated() {
             let end = start + (lines[index] as NSString).length
-            if selectionStart >= start, selectionStart <= end { firstIndex = index }
-            if selectionEnd >= start, selectionEnd <= end { lastIndex = index }
+            if selectionStart >= start, selectionStart <= end {
+                firstIndex = index
+            }
+            if selectionEnd >= start, selectionEnd <= end {
+                lastIndex = index
+            }
         }
         return min(firstIndex, lastIndex) ... max(firstIndex, lastIndex)
     }
