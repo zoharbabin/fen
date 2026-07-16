@@ -44,7 +44,9 @@ struct PreviewWidthOverflowVerifyTest {
 
             for width in stride(from: 300, through: 1000, by: 20) {
                 webView.frame = NSRect(x: 0, y: 0, width: Double(width), height: 800)
-                try await Task.sleep(for: .milliseconds(60))
+                let resized = try await pollUntilTrue(webView, js: "window.innerWidth === \(width)")
+                let resizeMessage = "Theme \(themeName) at font size \(fontSize): viewport never resized to \(width)"
+                #expect(resized, Comment(rawValue: resizeMessage))
                 let bodyRight = try await webView.evaluateJavaScript(
                     "document.body.getBoundingClientRect().right"
                 ) as? Double ?? -1
