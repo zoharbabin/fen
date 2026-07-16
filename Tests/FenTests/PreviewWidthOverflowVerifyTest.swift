@@ -17,8 +17,15 @@ import WebKit
 /// by multiplying each theme's fixed width/padding by `--fen-font-inverse-scale` (the same
 /// variable `HTMLComposer` already uses to cancel `zoom` out for images/SVGs), so the
 /// rendered box resolves back to the intended 854px regardless of font size. A DOM string
-/// check can't see this -- it only shows up as an actual `getBoundingClientRect()` overflow
-/// after real CSS `zoom` and `@media` evaluation in a live `WKWebView`.
+/// check can't see this -- it only shows up as real overflow after CSS `zoom` and `@media`
+/// evaluation in a live `WKWebView`. Compares `document.documentElement.scrollWidth` against
+/// `clientWidth` (both read from the same element) rather than `getBoundingClientRect()`
+/// against `window.innerWidth` -- different WebKit builds report `getBoundingClientRect()` in
+/// zoomed-visual vs. unzoomed-layout coordinates inconsistently, which made an
+/// `innerWidth`-relative assertion pass locally but fail on CI's WebKit even for content that
+/// was never actually overflowing. `scrollWidth`/`clientWidth` are internally consistent within
+/// a single WebKit build, so the comparison holds regardless of which coordinate space that
+/// build uses for the geometry APIs.
 @Suite("Preview width overflow")
 struct PreviewWidthOverflowVerifyTest {
     @Test(
@@ -47,12 +54,15 @@ struct PreviewWidthOverflowVerifyTest {
                 let resized = try await pollUntilTrue(webView, js: "window.innerWidth === \(width)")
                 let resizeMessage = "Theme \(themeName) at font size \(fontSize): viewport never resized to \(width)"
                 #expect(resized, Comment(rawValue: resizeMessage))
-                let bodyRight = try await webView.evaluateJavaScript(
-                    "document.body.getBoundingClientRect().right"
+                let scrollWidth = try await webView.evaluateJavaScript(
+                    "document.documentElement.scrollWidth"
+                ) as? Double ?? -1
+                let clientWidth = try await webView.evaluateJavaScript(
+                    "document.documentElement.clientWidth"
                 ) as? Double ?? -1
                 let failureMessage = "Theme \(themeName) at font size \(fontSize), viewport \(width): " +
-                    "body right edge \(bodyRight) overflows the viewport"
-                #expect(bodyRight <= Double(width) + 1, Comment(rawValue: failureMessage))
+                    "scrollWidth \(scrollWidth) overflows clientWidth \(clientWidth)"
+                #expect(scrollWidth <= clientWidth + 1, Comment(rawValue: failureMessage))
             }
         }
     }
