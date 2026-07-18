@@ -33,10 +33,16 @@ If Fen ever charges for anything, we'll favor a one-time purchase over a subscri
 ## Features
 
 - **Live preview with scroll sync** — the preview pane tracks your scroll position as you type
-- **GitHub-Flavored Markdown** via Apple's [`swift-cmark`](https://github.com/apple/swift-cmark) — tables, task lists, strikethrough, autolinks, footnotes, and `==highlight==` marks
+- **GitHub-Flavored Markdown** via Apple's [`swift-cmark`](https://github.com/apple/swift-cmark) — tables, task lists, strikethrough, autolinks, footnotes, and `==highlight==` marks, plus GitHub-style alert/callout blocks (`> [!NOTE]`, `[!TIP]`, `[!WARNING]`, and more)
 - **A formatting toolbar and menu commands** — bold, italic, strikethrough, code, headings, lists, task items, blockquotes, links, images, tables, and more, one click or keyboard shortcut away
 - **Editing quality-of-life** — auto-pair brackets/quotes, tabs-to-spaces, smart Home key, and list/blockquote continuation on Enter
 - **Set as your default `.md` editor** — a proper Finder document icon, Open Recent, and session restore on both platforms
+- **Autosave and crash recovery** — an unsaved buffer is periodically saved to a recovery file; Fen offers to restore it the next time you reopen that document after an unclean exit
+- **External change detection** — if a file you have open changes on disk (another app, `git checkout`, a sync conflict), Fen prompts you to reload it or keep your own edits
+- **Paste and drag-and-drop image insertion** — a pasted screenshot or dropped image file is written into a `<document>.assets` sidecar folder next to the document and linked automatically
+- **Dark-mode preview** that follows the system appearance automatically, alongside a full set of light/dark theme pairs
+- **Custom preview CSS**, plus per-document `fen:` front-matter overrides for theme and table-of-contents rendering
+- **Copy-to-clipboard buttons** on every rendered code block in the preview
 - **Syntax highlighting** in code blocks, **MathJax** for equations, and **Mermaid** for diagrams
 - **Pure Swift + SwiftUI**, with a cross-platform core (macOS and iOS share `FenCore`) — no Objective-C, no CocoaPods
 - **Apple Silicon native**, built with Swift Package Manager
