@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 #if os(iOS)
     import UIKit
 #endif
@@ -21,6 +22,7 @@ public struct SplitEditorView: View {
     @State private var outline = DocumentOutline()
     @State private var externalChangeController = ExternalChangeController()
     @State private var autosaveController = AutosaveController()
+    @State private var htmlExportController = HTMLExportController()
     @State private var renderedHTML: String = ""
     @State private var renderTask: Task<Void, Never>?
     @State private var isOutlineVisible = false
@@ -39,6 +41,12 @@ public struct SplitEditorView: View {
     @State private var editorOnRight = false
     #if os(macOS)
         @State private var hoveredLinkHref: String?
+    #endif
+    #if os(iOS)
+        @State private var htmlExportDocument: HTMLExportDocument?
+        @State private var htmlExportContentType: UTType = .html
+        @State private var htmlExportFilename = "export.html"
+        @State private var isHTMLExportPresented = false
     #endif
 
     public var body: some View {
@@ -95,6 +103,17 @@ public struct SplitEditorView: View {
         .onReceive(NotificationCenter.default.publisher(for: DocumentOutline.toggleOutlineNotification)) { _ in
             isOutlineVisible.toggle()
         }
+        .onReceive(NotificationCenter.default.publisher(for: .exportToHTML)) { _ in
+            htmlExportController.presentSavePanel(document: document, preferences: preferences)
+        }
+        #endif
+        #if os(iOS)
+        .fileExporter(
+            isPresented: $isHTMLExportPresented,
+            document: htmlExportDocument,
+            contentType: htmlExportContentType,
+            defaultFilename: htmlExportFilename
+        ) { _ in }
         #endif
     }
 
@@ -330,8 +349,41 @@ public struct SplitEditorView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+
+            #if os(iOS)
+                Menu {
+                    ForEach(HTMLExportChoice.allCases, id: \.self) { choice in
+                        Button(choice.rawValue) { presentHTMLExporter(choice: choice) }
+                    }
+                } label: {
+                    Image(systemName: "square.and.arrow.up.on.square")
+                }
+                .help("Export to HTML")
+                .accessibilityIdentifier("ExportToHTMLButton")
+            #endif
         }
     }
+
+    #if os(iOS)
+        /// Renders and resolves the export up front (issue #31) -- `.fileExporter` needs a
+        /// fully-prepared `FileDocument` before the user picks a destination, unlike macOS's
+        /// `NSSavePanel` which can pass a chosen directory into the write step.
+        private func presentHTMLExporter(choice: HTMLExportChoice) {
+            let baseName = document.title ?? "Untitled"
+            let mode: ExportAssetMode = choice == .selfContained
+                ? .selfContained
+                : .linkedAssets(exportBaseName: baseName)
+
+            let result = DocumentHTMLExporter().export(
+                markdown: document.text, documentURL: document.fileURL, preferences: preferences, mode: mode
+            )
+            let isDirectory = choice == .linkedAssets
+            htmlExportDocument = HTMLExportDocument(result: result, isDirectory: isDirectory)
+            htmlExportContentType = isDirectory ? .folder : .html
+            htmlExportFilename = isDirectory ? baseName : "\(baseName).html"
+            isHTMLExportPresented = true
+        }
+    #endif
 
     // MARK: - Rendering
 
