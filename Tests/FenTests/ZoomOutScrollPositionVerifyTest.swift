@@ -16,24 +16,27 @@ import WebKit
 /// last known-good fraction for.
 @Suite("Zoom-out scroll position")
 struct ZoomOutScrollPositionVerifyTest {
+    // sourceLineCount: 0 leaves scroll-sync.js's anchor table empty, so
+    // sourceFractionForRendered falls through to the rendered fraction unchanged --
+    // isolating this test from the anchor interpolation's own noise, which is
+    // unrelated to the zoom-collapse bug this test targets. 25 lines leaves a solid overflow
+    // margin at the default font size, unlike the 15 this used, which landed at exactly 0pt of
+    // overflow -- font-metric differences between WebKit versions/runners could tip that
+    // negative, the actual CI failure mode.
+    private static let markdown = (1 ... 25).map { "Line \($0) of body text." }.joined(separator: "\n\n")
+
+    private static func html(fontSize: CGFloat) -> String {
+        let prefs = Preferences()
+        prefs.fontSize = fontSize
+        let renderer = MarkdownRenderer()
+        let result = renderer.render(markdown, options: MarkdownRenderer.Options())
+        return HTMLComposer().compose(title: nil, body: result.html, preferences: prefs)
+    }
+
     @Test("Zooming out past the point where the page stops overflowing doesn't lose the scroll position")
     @MainActor
     func zoomOutCollapseKeepsScrollPosition() async throws {
-        let markdown = (1 ... 15).map { "Line \($0) of body text." }.joined(separator: "\n\n")
-
-        // sourceLineCount: 0 leaves scroll-sync.js's anchor table empty, so
-        // sourceFractionForRendered falls through to the rendered fraction unchanged --
-        // isolating this test from the anchor interpolation's own noise, which is
-        // unrelated to the zoom-collapse bug this test targets.
-        func html(fontSize: CGFloat) -> String {
-            let prefs = Preferences()
-            prefs.fontSize = fontSize
-            let renderer = MarkdownRenderer()
-            let result = renderer.render(markdown, options: MarkdownRenderer.Options())
-            return HTMLComposer().compose(title: nil, body: result.html, preferences: prefs)
-        }
-
-        let normalHTML = html(fontSize: Preferences.defaultFontSize)
+        let normalHTML = Self.html(fontSize: Preferences.defaultFontSize)
         let coordinator = PreviewWebView(html: normalHTML, baseURL: nil, scrollFraction: 0.5, onScrollChange: nil)
             .makeCoordinator()
 
@@ -42,6 +45,12 @@ struct ZoomOutScrollPositionVerifyTest {
         let webView = WKWebView(frame: NSRect(x: 0, y: 0, width: 800, height: 600), configuration: config)
         webView.navigationDelegate = coordinator
         coordinator.webView = webView
+
+        // Programmatic scrollTop assignments are silently dropped unless the WKWebView is
+        // actually attached to a window and laid out -- see PreviewScrollRaceVerifyTest's
+        // makeLoadedPreview for the same requirement.
+        let window = NSWindow(contentRect: webView.frame, styleMask: [.borderless], backing: .buffered, defer: false)
+        window.contentView = webView
 
         coordinator.load(html: normalHTML, baseURL: nil, into: webView)
         coordinator.lastHTML = normalHTML
@@ -80,7 +89,7 @@ struct ZoomOutScrollPositionVerifyTest {
         }
 
         // Zoom out enough that the page stops overflowing its viewport.
-        await reloadTo(html(fontSize: Preferences.minFontSize))
+        await reloadTo(Self.html(fontSize: Preferences.minFontSize))
         _ = try await pollUntilTrue(
             webView,
             js: "document.documentElement.scrollHeight - document.documentElement.clientHeight <= 0"
