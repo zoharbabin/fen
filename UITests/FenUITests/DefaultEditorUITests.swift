@@ -42,12 +42,32 @@ final class DefaultEditorUITests: XCTestCase {
     /// only records a URL as "recently opened" once the document has actually finished opening,
     /// so a caller that force-terminates the next instance too early (before that registration
     /// lands) would race Open Recent's own bookkeeping.
+    /// Force-terminates any previous instance and waits for it to actually exit, not just for the
+    /// termination request to be posted -- a still-dying previous process can otherwise rewrite
+    /// the very saved-state/prefs files `wipeAppDataContainer()` just deleted, resurrecting the
+    /// state the wipe was meant to remove.
+    private func terminateRunningInstancesAndWait() {
+        func running() -> [NSRunningApplication] {
+            NSRunningApplication.runningApplications(withBundleIdentifier: Self.bundleIdentifier)
+        }
+        running().forEach { $0.forceTerminate() }
+        let deadline = Date().addingTimeInterval(5)
+        while Date() < deadline, !running().isEmpty {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        }
+    }
+
     private func launch(fileURL: URL?) throws {
-        NSRunningApplication.runningApplications(withBundleIdentifier: Self.bundleIdentifier)
-            .forEach { $0.forceTerminate() }
+        terminateRunningInstancesAndWait()
 
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.createsNewApplicationInstance = true
+        // macOS's own window-restoration (Resume) otherwise reopens whatever Fen windows were
+        // left over from unrelated prior runs (including ordinary manual use as the default .md
+        // handler) alongside the document/state this test opens -- see Apple Technical Q&A
+        // QA1544. Open Recent (rules 9.1/9.2, tested elsewhere in this file) is LaunchServices
+        // bookkeeping, unrelated to and unaffected by this flag.
+        configuration.arguments = ["-ApplePersistenceIgnoreState", "YES"]
         let openedExpectation = expectation(description: "Fen launched")
         let url = try appURL()
         if let fileURL {
@@ -195,6 +215,9 @@ final class DefaultEditorUITests: XCTestCase {
     // MARK: - Rule 9.3: a fresh launch (no prior session) opens a sensible new empty document
 
     func testFreshLaunchOpensANewEmptyDocumentNotACrashOrBlankWindow() throws {
+        // Order matters: terminate before wiping, not after -- a still-alive previous instance
+        // can otherwise rewrite the saved-state/prefs files this wipe deletes before it exits.
+        terminateRunningInstancesAndWait()
         wipeAppDataContainer()
 
         try launch(fileURL: nil)

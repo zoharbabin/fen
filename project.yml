@@ -65,6 +65,11 @@ targets:
         CODE_SIGN_STYLE: Automatic
         GENERATE_INFOPLIST_FILE: true
         TEST_TARGET_NAME: FenMacOSApp
+        # Automatic signing otherwise sandboxes the test runner, which silently redirects
+        # FileManager calls (Application Support, home-relative paths) into the runner's own
+        # container instead of the real locations the unsandboxed app under test reads/writes --
+        # breaking any test that plants or wipes real app state on disk.
+        CODE_SIGN_ENTITLEMENTS: UITests/FenUITests/FenUITests.entitlements
     dependencies:
       - target: FenMacOSApp
 

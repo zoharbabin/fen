@@ -218,7 +218,13 @@ struct AutosaveVerifyTest {
         newController.presentRestorePrompt = { restore, _ in restore() }
         newController.start(for: newDocument)
 
-        #expect(newDocument.text == "unsaved recovered text")
+        // `checkForSavedDocumentRecovery` defers `presentRestorePrompt` to the next run loop
+        // turn (see AutosaveController's doc comment), so the restore doesn't land synchronously
+        // right after `start(for:)` returns.
+        let restored = try await pollUntilTrue(timeout: .seconds(2)) {
+            newDocument.text == "unsaved recovered text"
+        }
+        #expect(restored)
         #expect(
             !FileManager.default.fileExists(atPath: recoveryURL.path),
             "accepting a restore must consume the recovery entry"
@@ -259,8 +265,13 @@ struct AutosaveVerifyTest {
         newController.presentRestorePrompt = { _, discard in discard() }
         newController.start(for: newDocument)
 
+        // Same deferred-prompt timing as the Restore test above: wait for the discard's
+        // recovery-file deletion to actually land before asserting on it.
+        let cleared = try await pollUntilTrue(timeout: .seconds(2)) {
+            !FileManager.default.fileExists(atPath: recoveryURL.path)
+        }
+        #expect(cleared, "discarding must clear the recovery entry")
         #expect(newDocument.text == "saved content", "discarding must leave the document's buffer exactly as it was")
-        #expect(!FileManager.default.fileExists(atPath: recoveryURL.path), "discarding must clear the recovery entry")
     }
 
     @Test("A write into an unwritable recovery directory fails silently, without crashing or leaving a partial file")
