@@ -19,12 +19,16 @@ public struct HTMLComposer: Sendable {
         body: String,
         preferences: Preferences,
         sourceLineCount: Int = 0,
-        sourceLineOffset: Int = 0
+        sourceLineOffset: Int = 0,
+        documentOverrides: DocumentPreviewOverrides = .none
     ) -> String {
         var styleTags: [String] = []
         var scriptTags: [String] = []
 
-        let effectiveStyleName = Self.resolveEffectiveStyleName(preferences: preferences)
+        let effectiveStyleName = Self.resolveEffectiveStyleName(
+            preferences: preferences,
+            documentOverrides: documentOverrides
+        )
         if let css = loadStyleCSS(named: effectiveStyleName) {
             styleTags.append(inlineStyle(css))
         }
@@ -379,13 +383,16 @@ public struct HTMLComposer: Sendable {
     /// (`GitHub`) is returned unchanged regardless of what's wanted (rule 3.1), and an
     /// unrecognized style name is likewise returned unchanged (rule 3.2) -- this function
     /// never fails, throws, or returns an empty string.
-    static func resolveEffectiveStyleName(preferences: Preferences) -> String {
+    static func resolveEffectiveStyleName(
+        preferences: Preferences,
+        documentOverrides: DocumentPreviewOverrides = .none
+    ) -> String {
         let wantsDark: Bool = switch preferences.previewAppearanceMode {
         case .system: preferences.systemPrefersDarkAppearance
         case .light: false
         case .dark: true
         }
-        let styleName = preferences.htmlStyleName
+        let styleName = documentOverrides.styleName ?? preferences.htmlStyleName
         guard styleName.contains("Dark") != wantsDark else { return styleName }
         return styleAppearancePairs[styleName] ?? styleName
     }

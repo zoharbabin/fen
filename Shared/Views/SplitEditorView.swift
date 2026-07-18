@@ -347,8 +347,16 @@ public struct SplitEditorView: View {
     }
 
     private func renderMarkdown() {
+        // Per-document overrides (issue #27) only apply when front-matter detection itself is
+        // on -- otherwise the `---...---` block renders as literal content, and a `fen:` key
+        // inside it must not silently still drive rendering (rule 3.2).
+        let documentOverrides: DocumentPreviewOverrides = preferences.htmlDetectFrontMatter
+            ? .parse(frontMatter: renderer.peekFrontMatter(document.text))
+            : .none
+
         var options = MarkdownRenderer.Options.from(preferences: preferences)
         options.sourcePositions = true
+        options.renderTOC = documentOverrides.rendersTOC ?? options.renderTOC
         let result = renderer.render(document.text, options: options)
         sourceLineCount = document.text.components(separatedBy: .newlines).count
         sourceLineOffset = result.frontMatterLineCount
@@ -358,7 +366,8 @@ public struct SplitEditorView: View {
             body: result.html,
             preferences: preferences,
             sourceLineCount: sourceLineCount,
-            sourceLineOffset: sourceLineOffset
+            sourceLineOffset: sourceLineOffset,
+            documentOverrides: documentOverrides
         )
     }
 

@@ -93,6 +93,15 @@ public struct MarkdownRenderer: Sendable {
         cmark_gfm_core_extensions_ensure_registered()
     }
 
+    /// Extracts and parses just the leading YAML front-matter block, without running a full
+    /// parse/render pass. Lets a caller (e.g. `SplitEditorView`, resolving issue #27's
+    /// per-document preview overrides) inspect front matter before deciding render options,
+    /// without paying for cmark twice per render. Returns `nil` if there's no front-matter
+    /// block or it doesn't parse as YAML.
+    public func peekFrontMatter(_ markdown: String) -> [String: Any]? {
+        extractFrontMatter(from: markdown).yaml
+    }
+
     /// Render markdown text to HTML with the given options.
     public func render(_ markdown: String, options: Options = Options()) -> RenderResult {
         var text = markdown
