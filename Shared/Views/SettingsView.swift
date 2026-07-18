@@ -192,6 +192,7 @@ struct RenderingSettingsTab: View {
                     }
                     Toggle("Show line numbers in code blocks", isOn: $prefs.htmlLineNumbers)
                 }
+                Toggle("Show copy button on code blocks", isOn: $prefs.htmlCopyButton)
             }
 
             Section("Math & Diagrams") {

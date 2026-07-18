@@ -43,6 +43,11 @@ public struct HTMLComposer: Sendable {
 
         scriptTags += taskListTags(preferences: preferences)
         scriptTags.append(inlineScript(Self.listMarkerStartJS))
+
+        let copyButton = copyButtonTags(preferences: preferences)
+        styleTags += copyButton.styles
+        scriptTags += copyButton.scripts
+
         scriptTags += scrollSyncTags(sourceLineCount: sourceLineCount, sourceLineOffset: sourceLineOffset)
 
         return htmlDocument(
@@ -201,6 +206,18 @@ public struct HTMLComposer: Sendable {
         guard preferences.htmlTaskList,
               let taskJS = loadExtensionFile(named: "tasklist", ext: "js") else { return [] }
         return [inlineScript(taskJS)]
+    }
+
+    private func copyButtonTags(preferences: Preferences) -> (styles: [String], scripts: [String]) {
+        guard preferences.htmlCopyButton else { return ([], []) }
+
+        let styles = [loadExtensionFile(named: "copy-button", ext: "css")]
+            .compactMap(\.self)
+            .map { inlineStyle($0) }
+        let scripts = [loadExtensionFile(named: "copy-button", ext: "js")]
+            .compactMap(\.self)
+            .map { inlineScript($0) }
+        return (styles, scripts)
     }
 
     private func scrollSyncTags(sourceLineCount: Int, sourceLineOffset: Int) -> [String] {

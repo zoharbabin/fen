@@ -215,6 +215,12 @@ public final class Preferences {
         }
     }
 
+    var htmlCopyButton: Bool = true {
+        didSet { defaults.set(htmlCopyButton, forKey: "htmlCopyButton")
+            renderRevision += 1
+        }
+    }
+
     var htmlMermaid: Bool = false {
         didSet { defaults.set(htmlMermaid, forKey: "htmlMermaid")
             renderRevision += 1
@@ -308,6 +314,8 @@ public final class Preferences {
             ? defaults.bool(forKey: "htmlSyntaxHighlighting") : true
         htmlHighlightingThemeName = defaults.string(forKey: "htmlHighlightingThemeName") ?? "github"
         htmlLineNumbers = defaults.bool(forKey: "htmlLineNumbers")
+        htmlCopyButton = defaults.object(forKey: "htmlCopyButton") != nil
+            ? defaults.bool(forKey: "htmlCopyButton") : true
         htmlMermaid = defaults.bool(forKey: "htmlMermaid")
         htmlRendersTOC = defaults.bool(forKey: "htmlRendersTOC")
     }
