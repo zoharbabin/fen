@@ -6,6 +6,7 @@ import SwiftUI
 /// The main split view containing the markdown editor and HTML preview side by side.
 public struct SplitEditorView: View {
     @Bindable var document: MarkdownDocument
+    @Environment(\.colorScheme) private var colorScheme
     #if os(macOS)
         @Environment(\.openDocument) private var openDocument
     #endif
@@ -67,6 +68,7 @@ public struct SplitEditorView: View {
         }
         .onAppear {
             editorOnRight = preferences.editorOnRight
+            preferences.systemPrefersDarkAppearance = colorScheme == .dark
             renderMarkdown()
             externalChangeController.start(for: document)
             autosaveController.start(for: document)
@@ -85,6 +87,9 @@ public struct SplitEditorView: View {
         .onChange(of: document.fileURL) { _, _ in
             externalChangeController.start(for: document)
             autosaveController.start(for: document)
+        }
+        .onChange(of: colorScheme) { _, newValue in
+            preferences.systemPrefersDarkAppearance = newValue == .dark
         }
         #if os(macOS)
         .onReceive(NotificationCenter.default.publisher(for: DocumentOutline.toggleOutlineNotification)) { _ in

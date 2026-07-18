@@ -1,6 +1,15 @@
 import Foundation
 import SwiftUI
 
+/// User-facing choice for which appearance the preview should render in (issue #25).
+/// `.system` means "follow `Preferences.systemPrefersDarkAppearance`"; `.light`/`.dark` pin
+/// the preview independent of the system setting.
+public enum PreviewAppearanceMode: String, CaseIterable, Sendable {
+    case system
+    case light
+    case dark
+}
+
 @Observable
 public final class Preferences {
     public nonisolated(unsafe) static let shared = Preferences()
@@ -167,6 +176,22 @@ public final class Preferences {
         }
     }
 
+    /// Manual override for the preview's light/dark appearance (issue #25). `.system` (the
+    /// default) makes `HTMLComposer` follow `systemPrefersDarkAppearance` instead.
+    var previewAppearanceMode: PreviewAppearanceMode = .system {
+        didSet { defaults.set(previewAppearanceMode.rawValue, forKey: "previewAppearanceMode")
+            renderRevision += 1
+        }
+    }
+
+    /// Live system light/dark state, set by `SplitEditorView` from SwiftUI's
+    /// `@Environment(\.colorScheme)` -- not a user preference, so unlike every other property
+    /// in this file, this one is never written to `UserDefaults`: it should always reflect
+    /// the system's *current* appearance, never a stale persisted snapshot from a previous run.
+    var systemPrefersDarkAppearance: Bool = false {
+        didSet { renderRevision += 1 }
+    }
+
     var htmlDetectFrontMatter: Bool = true {
         didSet { defaults.set(htmlDetectFrontMatter, forKey: "htmlDetectFrontMatter")
             renderRevision += 1
@@ -303,6 +328,8 @@ public final class Preferences {
 
     private func loadHTMLDefaults(from defaults: UserDefaults) {
         htmlStyleName = defaults.string(forKey: "htmlStyleName") ?? "GitHub2"
+        previewAppearanceMode = defaults.string(forKey: "previewAppearanceMode")
+            .flatMap(PreviewAppearanceMode.init(rawValue:)) ?? .system
         htmlDetectFrontMatter = defaults.object(forKey: "htmlDetectFrontMatter") != nil
             ? defaults.bool(forKey: "htmlDetectFrontMatter") : true
         htmlTaskList = defaults.object(forKey: "htmlTaskList") != nil

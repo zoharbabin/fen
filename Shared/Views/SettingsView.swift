@@ -173,6 +173,11 @@ struct RenderingSettingsTab: View {
                         Text(style).tag(style)
                     }
                 }
+                Picker("Appearance", selection: $prefs.previewAppearanceMode) {
+                    Text("Follow System").tag(PreviewAppearanceMode.system)
+                    Text("Light").tag(PreviewAppearanceMode.light)
+                    Text("Dark").tag(PreviewAppearanceMode.dark)
+                }
             }
 
             Section("Features") {

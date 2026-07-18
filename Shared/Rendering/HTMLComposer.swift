@@ -23,7 +23,8 @@ public struct HTMLComposer: Sendable {
         var styleTags: [String] = []
         var scriptTags: [String] = []
 
-        if let css = loadStyleCSS(named: preferences.htmlStyleName) {
+        let effectiveStyleName = Self.resolveEffectiveStyleName(preferences: preferences)
+        if let css = loadStyleCSS(named: effectiveStyleName) {
             styleTags.append(inlineStyle(css))
         }
 
@@ -37,7 +38,7 @@ public struct HTMLComposer: Sendable {
 
         scriptTags += mathJaxTags(preferences: preferences)
 
-        let mermaid = mermaidTags(preferences: preferences)
+        let mermaid = mermaidTags(preferences: preferences, effectiveStyleName: effectiveStyleName)
         styleTags += mermaid.styles
         scriptTags += mermaid.scripts
 
@@ -181,10 +182,13 @@ public struct HTMLComposer: Sendable {
         return scripts
     }
 
-    private func mermaidTags(preferences: Preferences) -> (styles: [String], scripts: [String]) {
+    private func mermaidTags(
+        preferences: Preferences,
+        effectiveStyleName: String
+    ) -> (styles: [String], scripts: [String]) {
         guard preferences.htmlMermaid else { return ([], []) }
 
-        let mermaidTheme = preferences.htmlStyleName.contains("Dark") ? "dark" : "default"
+        let mermaidTheme = effectiveStyleName.contains("Dark") ? "dark" : "default"
         let themeScript = inlineScript("window.__fenMermaidTheme = \"\(mermaidTheme)\";")
 
         let styles = [loadExtensionFile(named: "mermaid-zoom", ext: "css")]
@@ -340,6 +344,39 @@ public struct HTMLComposer: Sendable {
 
     private func inlineScript(_ js: String) -> String {
         "<script>\n\(js)\n</script>"
+    }
+
+    // MARK: - Appearance Resolution (issue #25)
+
+    /// Maps each light style to its dark counterpart and vice versa, covering the 3 pairs that
+    /// already exist by filename convention. `GitHub` has no dark counterpart and is
+    /// deliberately absent -- `resolveEffectiveStyleName` falls back to the original name
+    /// unchanged for any style with no entry here (rule 3.1).
+    static let styleAppearancePairs: [String: String] = [
+        "Clearness": "Clearness Dark",
+        "Clearness Dark": "Clearness",
+        "GitHub2": "GitHub2 Dark",
+        "GitHub2 Dark": "GitHub2",
+        "Solarized (Light)": "Solarized (Dark)",
+        "Solarized (Dark)": "Solarized (Light)",
+    ]
+
+    /// Resolves which CSS file to actually load, given the user's selected `htmlStyleName`,
+    /// the manual appearance override, and the live system appearance. A style whose own
+    /// darkness (via the existing `.contains("Dark")` convention) already matches what's
+    /// wanted is returned unchanged; otherwise its pair is looked up. A style with no pair
+    /// (`GitHub`) is returned unchanged regardless of what's wanted (rule 3.1), and an
+    /// unrecognized style name is likewise returned unchanged (rule 3.2) -- this function
+    /// never fails, throws, or returns an empty string.
+    static func resolveEffectiveStyleName(preferences: Preferences) -> String {
+        let wantsDark: Bool = switch preferences.previewAppearanceMode {
+        case .system: preferences.systemPrefersDarkAppearance
+        case .light: false
+        case .dark: true
+        }
+        let styleName = preferences.htmlStyleName
+        guard styleName.contains("Dark") != wantsDark else { return styleName }
+        return styleAppearancePairs[styleName] ?? styleName
     }
 
     // MARK: - Available Styles
