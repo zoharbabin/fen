@@ -31,6 +31,21 @@ struct CustomCSSSanitizationVerifyTest {
         #expect(!mixedCase.contains("evil.example"))
     }
 
+    @Test("Strips a </style breakout sequence, case-insensitively, with or without a closing >")
+    func stripsStyleCloseTagBreakout() {
+        let sanitized = HTMLComposer.sanitizeCustomCSS(
+            "body{color:red}</style><script>window.pwned=1</script><style>"
+        )
+        #expect(!sanitized.contains("</style"))
+        #expect(sanitized.contains("color:red"))
+
+        let mixedCase = HTMLComposer.sanitizeCustomCSS("body{color:red}</STYLE><script>x</script>")
+        #expect(!mixedCase.lowercased().contains("</style"))
+
+        let noCloseAngle = HTMLComposer.sanitizeCustomCSS("body{color:red}</style ><script>x</script>")
+        #expect(!noCloseAngle.contains("</style"))
+    }
+
     @Test("A legitimate data: URL survives unchanged, not stripped as a false positive")
     func preservesDataURL() {
         let css = "body { background: url(data:image/png;base64,AAAA); }"
@@ -103,6 +118,20 @@ struct CustomCSSSanitizationVerifyTest {
         #expect((color as? String) == "rgb(4, 5, 6)", "the rest of the rule must still apply")
         let html = try await webView.evaluateJavaScript("document.documentElement.outerHTML")
         #expect(!((html as? String ?? "").contains("evil.example")))
+    }
+
+    @Test("A </style breakout in custom CSS never executes injected script in the real preview")
+    @MainActor
+    func styleBreakoutNeverExecutesInComposedDocument() async throws {
+        let webView = try await renderPreviewWebView(markdown: "# Hello") { prefs in
+            prefs.htmlStyleName = "GitHub2"
+            prefs.customCSSEnabled = true
+            prefs.customCSS = "body{color:rgb(7, 8, 9)}</style><script>window.fenPwned=true</script><style>"
+        }
+        let pwned = try await webView.evaluateJavaScript("window.fenPwned === true")
+        #expect((pwned as? Bool ?? false) == false, "the injected <script> must never execute")
+        let color = try await webView.evaluateJavaScript("getComputedStyle(document.body).color")
+        #expect((color as? String) == "rgb(7, 8, 9)", "the rest of the rule must still apply")
     }
 
     @Test("Empty or disabled custom CSS composes byte-identical to the feature not existing")

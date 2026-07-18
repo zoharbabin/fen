@@ -414,22 +414,34 @@ public struct HTMLComposer: Sendable {
     private static let nonDataURLRegex = try? NSRegularExpression(
         pattern: #"url\(\s*(?!['"]?data:)[^)]*\)"#, options: [.caseInsensitive]
     )
+    /// Matches `</style` (with or without a closing `>`), case-insensitively -- `inlineStyle`
+    /// inlines this text directly inside a real `<style>` tag with no HTML escaping, so any
+    /// occurrence would close the style block early and let the rest of the string be parsed as
+    /// live markup/script in the preview `WKWebView`.
+    private static let styleCloseTagRegex = try? NSRegularExpression(
+        pattern: #"</style"#, options: [.caseInsensitive]
+    )
 
-    /// Strips every `@import` rule and every `url(...)` reference whose scheme isn't `data:`,
-    /// so user-supplied CSS can never trigger a network fetch (rule 2.1) -- Fen's trust model is
-    /// local-first with zero third-party runtime network loads, and custom CSS is the first
-    /// feature where externally-authored text is inlined into the preview's WKWebView, so this
-    /// is the one new content-injection point that needs its own guard. Operates as plain text
-    /// substitution, never a full CSS parse, so malformed input can't throw (rule 3.2). Also
-    /// enforces `customCSSCharacterLimit` (rule 2.2) as the final step.
+    /// Strips every `@import` rule, every `url(...)` reference whose scheme isn't `data:`, and
+    /// any `</style` breakout sequence, so user-supplied CSS can never trigger a network fetch
+    /// (rule 2.1) or escape the `<style>` tag `inlineStyle` wraps it in to run as live HTML/JS in
+    /// the preview's WKWebView -- Fen's trust model is local-first with zero third-party runtime
+    /// network loads, and custom CSS is the first feature where externally-authored text is
+    /// inlined into the preview's WKWebView, so this is the one new content-injection point that
+    /// needs its own guard. Operates as plain text substitution, never a full CSS parse, so
+    /// malformed input can't throw (rule 3.2). Also enforces `customCSSCharacterLimit` (rule 2.2)
+    /// as the final step.
     static func sanitizeCustomCSS(_ css: String) -> String {
         let truncated = String(css.prefix(customCSSCharacterLimit))
-        guard let importRuleRegex, let nonDataURLRegex else { return truncated }
+        guard let importRuleRegex, let nonDataURLRegex, let styleCloseTagRegex else { return truncated }
         var result = truncated as NSString
         result = importRuleRegex.stringByReplacingMatches(
             in: result as String, range: NSRange(location: 0, length: result.length), withTemplate: ""
         ) as NSString
         result = nonDataURLRegex.stringByReplacingMatches(
+            in: result as String, range: NSRange(location: 0, length: result.length), withTemplate: ""
+        ) as NSString
+        result = styleCloseTagRegex.stringByReplacingMatches(
             in: result as String, range: NSRange(location: 0, length: result.length), withTemplate: ""
         ) as NSString
         return result as String
