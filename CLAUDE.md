@@ -50,7 +50,7 @@ Build and review every change to the strictest reasonable bar — enterprise and
 ## Development procedure
 
 1. **Open a [GitHub issue](https://github.com/zoharbabin/fen/issues)** for anything beyond a trivial fix — bug report or feature proposal, checked against the [open issues list](https://github.com/zoharbabin/fen/issues) first to avoid duplicating an existing one.
-2. **Branch, then PR.** Work on a branch and open a PR for review, even though `master` has no branch protection enforcing it yet.
+2. **Branch, then PR.** Work on a branch and open a PR for review — `master` has branch protection enforcing this (a required PR and a required `lint & swift test (macOS)` status check), including for admins.
 3. **Every PR needs**: `swift build`, `swift test`, `swiftformat .`, and `swiftlint` clean (CI enforces this). Pair new behavior with a test, and pair bug fixes with a regression test that fails before the fix and passes after. See [CONTRIBUTING.md](CONTRIBUTING.md#tests).
 4. **Run UI tests yourself for anything touching `SplitEditorView`, the editor, or the preview** — `UITests/` exercises real window/document interaction and isn't wired into `ci.yml` yet. Mention in the PR description that you ran them.
 5. **Close the loop.** Reference the issue in the PR, and close the issue (or check its acceptance-criteria boxes) in the same PR when the change finishes it. If the issue is a sub-issue of an epic (e.g. #3), its parent's progress tracker updates automatically.
