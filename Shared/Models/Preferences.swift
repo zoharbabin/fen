@@ -192,6 +192,24 @@ public final class Preferences {
         didSet { renderRevision += 1 }
     }
 
+    /// Whether `customCSS` is layered on top of the selected theme (issue #26). Kept separate
+    /// from the text itself so a user can author CSS, toggle it off to compare against the
+    /// bundled theme, and toggle back on without retyping.
+    var customCSSEnabled: Bool = false {
+        didSet { defaults.set(customCSSEnabled, forKey: "customCSSEnabled")
+            renderRevision += 1
+        }
+    }
+
+    /// User-authored CSS, layered last (after every bundled/extension style) so it wins the
+    /// cascade by source order alone (issue #26). Passed through `HTMLComposer.sanitizeCustomCSS`
+    /// before being inlined -- never trust this string directly.
+    var customCSS: String = "" {
+        didSet { defaults.set(customCSS, forKey: "customCSS")
+            renderRevision += 1
+        }
+    }
+
     var htmlDetectFrontMatter: Bool = true {
         didSet { defaults.set(htmlDetectFrontMatter, forKey: "htmlDetectFrontMatter")
             renderRevision += 1
@@ -330,6 +348,8 @@ public final class Preferences {
         htmlStyleName = defaults.string(forKey: "htmlStyleName") ?? "GitHub2"
         previewAppearanceMode = defaults.string(forKey: "previewAppearanceMode")
             .flatMap(PreviewAppearanceMode.init(rawValue:)) ?? .system
+        customCSSEnabled = defaults.bool(forKey: "customCSSEnabled")
+        customCSS = defaults.string(forKey: "customCSS") ?? ""
         htmlDetectFrontMatter = defaults.object(forKey: "htmlDetectFrontMatter") != nil
             ? defaults.bool(forKey: "htmlDetectFrontMatter") : true
         htmlTaskList = defaults.object(forKey: "htmlTaskList") != nil

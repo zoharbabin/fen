@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 
 /// Composes a full HTML document by wrapping rendered markdown HTML
 /// with CSS styles, JavaScript extensions, and a document template.
@@ -50,6 +51,11 @@ public struct HTMLComposer: Sendable {
         scriptTags += copyButton.scripts
 
         scriptTags += scrollSyncTags(sourceLineCount: sourceLineCount, sourceLineOffset: sourceLineOffset)
+
+        if preferences.customCSSEnabled,
+           !preferences.customCSS.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            styleTags.append(inlineStyle(Self.sanitizeCustomCSS(preferences.customCSS)))
+        }
 
         return htmlDocument(
             title: title,
@@ -294,6 +300,11 @@ public struct HTMLComposer: Sendable {
             }
         }
 
+        if preferences.customCSSEnabled,
+           !preferences.customCSS.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            styleTags.append(inlineStyle(Self.sanitizeCustomCSS(preferences.customCSS)))
+        }
+
         return htmlDocument(
             title: title,
             body: body,
@@ -377,6 +388,89 @@ public struct HTMLComposer: Sendable {
         let styleName = preferences.htmlStyleName
         guard styleName.contains("Dark") != wantsDark else { return styleName }
         return styleAppearancePairs[styleName] ?? styleName
+    }
+
+    // MARK: - Custom CSS (issue #26)
+
+    /// The largest custom CSS contribution `compose`/`composeForExport` will inline, regardless
+    /// of how much text `Preferences.customCSS` holds -- a defensive bound against pathological
+    /// input, not a feature limit any real stylesheet is expected to hit (rule 2.2).
+    static let customCSSCharacterLimit = 8000
+
+    /// `@import`/non-`data:` `url(...)` regexes for `sanitizeCustomCSS`, compiled once. `try?`
+    /// rather than `try!` (matching `MarkdownRenderer+Alerts.swift`'s convention): the patterns
+    /// are compile-time literals that always compile, but `sanitizeCustomCSS` still degrades to
+    /// returning the untouched, truncated input rather than crashing if that ever changed.
+    private static let importRuleRegex = try? NSRegularExpression(
+        pattern: #"@import\s+[^;]*;"#, options: [.caseInsensitive]
+    )
+    private static let nonDataURLRegex = try? NSRegularExpression(
+        pattern: #"url\(\s*(?!['"]?data:)[^)]*\)"#, options: [.caseInsensitive]
+    )
+
+    /// Strips every `@import` rule and every `url(...)` reference whose scheme isn't `data:`,
+    /// so user-supplied CSS can never trigger a network fetch (rule 2.1) -- Fen's trust model is
+    /// local-first with zero third-party runtime network loads, and custom CSS is the first
+    /// feature where externally-authored text is inlined into the preview's WKWebView, so this
+    /// is the one new content-injection point that needs its own guard. Operates as plain text
+    /// substitution, never a full CSS parse, so malformed input can't throw (rule 3.2). Also
+    /// enforces `customCSSCharacterLimit` (rule 2.2) as the final step.
+    static func sanitizeCustomCSS(_ css: String) -> String {
+        let truncated = String(css.prefix(customCSSCharacterLimit))
+        guard let importRuleRegex, let nonDataURLRegex else { return truncated }
+        var result = truncated as NSString
+        result = importRuleRegex.stringByReplacingMatches(
+            in: result as String, range: NSRange(location: 0, length: result.length), withTemplate: ""
+        ) as NSString
+        result = nonDataURLRegex.stringByReplacingMatches(
+            in: result as String, range: NSRange(location: 0, length: result.length), withTemplate: ""
+        ) as NSString
+        return result as String
+    }
+
+    /// `body { background-color: ...; color: ...; }` regexes for `themeSwatchColors`. Anchored
+    /// to the start of a line (`^body`, multiline mode) so a compound selector like
+    /// `html body { ... }` -- a different, more specific rule -- never matches as if it were the
+    /// bare `body` rule; every bundled theme's own standalone `body {` rule starts at column 0.
+    private static let backgroundColorRegex = try? NSRegularExpression(
+        pattern: #"^body\s*\{[^}]*background-color:\s*([^;}\s]+)"#, options: [.caseInsensitive, .anchorsMatchLines]
+    )
+    private static let textColorRegex = try? NSRegularExpression(
+        pattern: #"^body\s*\{[^}]*(?<!background-)color:\s*([^;}\s]+)"#,
+        options: [.caseInsensitive, .anchorsMatchLines]
+    )
+
+    /// Parses a bundled theme's own `body { background-color: ...; color: ...; }` declaration
+    /// into a small swatch for the settings picker (issue #26), without a full CSS parser.
+    /// `color` is optional and defaults to black (the browser's own UA default for unset text
+    /// color) -- `GitHub2.css`'s `body` rule legitimately never sets one. Returns `nil` (never
+    /// throws) when a theme's `body` rule doesn't declare a background in a form this simple
+    /// regex can find -- e.g. `Solarized (Light).css`/`Solarized (Dark).css` declare `body`'s
+    /// background via a separate `html body { background-color: ... }` override rather than in
+    /// the `body` rule itself, so those two themes show no swatch (rule 3.3).
+    static func themeSwatchColors(cssFileName: String) -> (background: Color, text: Color)? {
+        guard let backgroundColorRegex, let css = HTMLComposer().loadStyleCSS(named: cssFileName) else { return nil }
+        guard let background = firstCaptureColor(backgroundColorRegex, in: css) else { return nil }
+        let text = textColorRegex.flatMap { firstCaptureColor($0, in: css) } ?? .black
+        return (background, text)
+    }
+
+    private static func firstCaptureColor(_ regex: NSRegularExpression, in css: String) -> Color? {
+        let nsCSS = css as NSString
+        guard let match = regex.firstMatch(in: css, range: NSRange(location: 0, length: nsCSS.length)),
+              match.numberOfRanges > 1
+        else { return nil }
+        let value = nsCSS.substring(with: match.range(at: 1)).trimmingCharacters(in: .whitespaces)
+        if let hexColor = PlatformColor(hex: value) {
+            return Color(hexColor)
+        }
+        if value.caseInsensitiveCompare("white") == .orderedSame {
+            return .white
+        }
+        if value.caseInsensitiveCompare("black") == .orderedSame {
+            return .black
+        }
+        return nil
     }
 
     // MARK: - Available Styles
