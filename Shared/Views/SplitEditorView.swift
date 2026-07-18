@@ -18,6 +18,7 @@ public struct SplitEditorView: View {
     @State private var composer = HTMLComposer()
     @State private var scrollSync = ScrollSync()
     @State private var outline = DocumentOutline()
+    @State private var externalChangeController = ExternalChangeController()
     @State private var renderedHTML: String = ""
     @State private var renderTask: Task<Void, Never>?
     @State private var isOutlineVisible = false
@@ -66,12 +67,19 @@ public struct SplitEditorView: View {
         .onAppear {
             editorOnRight = preferences.editorOnRight
             renderMarkdown()
+            externalChangeController.start(for: document)
+        }
+        .onDisappear {
+            externalChangeController.stop()
         }
         .onChange(of: document.text) { _, _ in
             scheduleRender()
         }
         .onChange(of: preferences.renderRevision) { _, _ in
             renderMarkdown()
+        }
+        .onChange(of: document.fileURL) { _, _ in
+            externalChangeController.start(for: document)
         }
         #if os(macOS)
         .onReceive(NotificationCenter.default.publisher(for: DocumentOutline.toggleOutlineNotification)) { _ in

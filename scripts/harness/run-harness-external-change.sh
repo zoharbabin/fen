@@ -51,7 +51,7 @@ periphery scan --format xcode 2>&1 | tee "$RUN_DIR/04-periphery.log" \
     || fail "periphery found unused code"
 log "Gate 4/6: no unfinished-work markers in new external-change feature files"
 if grep -rnE "TODO|FIXME" \
-    Shared/Models/ExternalFileChangeMonitor.swift \
+    Shared/Models/ExternalFileChangeMonitor.swift Shared/Models/ExternalChangeController.swift \
     Tests/FenTests/ExternalFileChangeIsolationTests.swift Tests/FenTests/ExternalFileChangeSecurityTests.swift \
     Tests/FenTests/ExternalFileChangeVerifyTest.swift \
     2>/dev/null | tee "$RUN_DIR/04-todo-grep.log" | grep -q .; then
