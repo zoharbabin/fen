@@ -17,8 +17,12 @@
         /// Pasteboard types AppKit offers here that carry raw image bytes -- e.g. a copied
         /// screenshot with no backing file. Each maps directly to a `UTType` via its raw
         /// identifier, empirically confirmed to conform to `.image` for `.tiff`/`.png` and not
-        /// for `.string`/`.pdf`/`.rtf` (issue #18 Phase 3).
-        private static let imageDataPasteboardTypes: [NSPasteboard.PasteboardType] = [.tiff, .png]
+        /// for `.string`/`.pdf`/`.rtf` (issue #18 Phase 3). Order matters for
+        /// `preferredPasteboardType` below: `.png` first preserves a PNG source's original bytes,
+        /// where picking `.tiff` instead would silently re-encode them into AppKit's own
+        /// TIFF representation (confirmed empirically via `ImagePasteUITests`'s byte-equality
+        /// assertion on the written sidecar file).
+        private static let imageDataPasteboardTypes: [NSPasteboard.PasteboardType] = [.png, .tiff]
 
         /// Both a Finder copy and a Finder drag of one or more files -- image or not -- offer
         /// this legacy type by default (confirmed empirically, issue #18 Phase 3: a modern
@@ -26,6 +30,25 @@
         /// `readablePasteboardTypes`/`acceptableDragTypes` with no override needed). Its payload
         /// is a property-list array of absolute file paths, not a single `.fileURL` string.
         private static let filenamesPasteboardType = NSPasteboard.PasteboardType("NSFilenamesPboardType")
+
+        /// A raw image copy (e.g. a screenshot) offers both a modern UTI (`public.tiff`) and a
+        /// legacy pasteboard-type alias (`NeXT TIFF v4.0 pasteboard type`) for the same bytes --
+        /// AppKit's default negotiation in `NSTextView` can pick the legacy alias, which
+        /// `readSelection` below doesn't recognize as one of `imageDataPasteboardTypes`, so the
+        /// paste silently falls through to `super`'s default attachment handling instead of
+        /// `insertPastedImage` (issue #18, confirmed empirically via `ImagePasteUITests`).
+        /// Preferring our modern types here whenever they're on offer keeps `readSelection`
+        /// reachable regardless of which alias AppKit would otherwise have chosen.
+        override func preferredPasteboardType(
+            from availableTypes: [NSPasteboard.PasteboardType],
+            restrictedToTypesFrom allowedTypes: [NSPasteboard.PasteboardType]?
+        ) -> NSPasteboard.PasteboardType? {
+            for type in Self.imageDataPasteboardTypes
+                where availableTypes.contains(type) && (allowedTypes?.contains(type) ?? true) {
+                return type
+            }
+            return super.preferredPasteboardType(from: availableTypes, restrictedToTypesFrom: allowedTypes)
+        }
 
         /// Intercepts an image paste or drop before AppKit's own default rich-text handling
         /// embeds it as an inline `NSTextAttachment` (issue #18) -- this single override point

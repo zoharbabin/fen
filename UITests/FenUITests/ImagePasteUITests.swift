@@ -20,6 +20,21 @@ final class ImagePasteUITests: XCTestCase {
         app?.terminate()
     }
 
+    /// Force-terminates any previous instance and waits for it to actually exit, not just for the
+    /// termination request to be posted -- a still-dying previous process can otherwise get
+    /// coalesced with the "new" instance the next launch requests, or leave a stale window that
+    /// collides with this test's own window-title lookup.
+    private func terminateRunningInstancesAndWait() {
+        func running() -> [NSRunningApplication] {
+            NSRunningApplication.runningApplications(withBundleIdentifier: Self.bundleIdentifier)
+        }
+        running().forEach { $0.forceTerminate() }
+        let deadline = Date().addingTimeInterval(5)
+        while Date() < deadline, !running().isEmpty {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        }
+    }
+
     /// Same launch strategy as `FormattingToolbarUITests.launch` -- opens a real file from this
     /// test bundle's sibling app build, in a freshly launched process.
     private func launch(fileURL: URL) {
@@ -34,11 +49,14 @@ final class ImagePasteUITests: XCTestCase {
             "Expected the built app under test at \(appURL.path)"
         )
 
-        NSRunningApplication.runningApplications(withBundleIdentifier: Self.bundleIdentifier)
-            .forEach { $0.forceTerminate() }
+        terminateRunningInstancesAndWait()
 
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.createsNewApplicationInstance = true
+        // macOS's own window-restoration (Resume) otherwise reopens whatever Fen windows were
+        // left over from unrelated prior runs (including ordinary manual use as the default .md
+        // handler) alongside the document this test opens -- see Apple Technical Q&A QA1544.
+        configuration.arguments = ["-ApplePersistenceIgnoreState", "YES"]
         let openedExpectation = expectation(description: "Fen opened \(fileURL.lastPathComponent)")
         NSWorkspace.shared.open([fileURL], withApplicationAt: appURL, configuration: configuration) { _, error in
             XCTAssertNil(error)
@@ -83,7 +101,13 @@ final class ImagePasteUITests: XCTestCase {
             .appendingPathComponent("ImagePasteUITests-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         addTeardownBlock { try? FileManager.default.removeItem(at: directory) }
-        let documentURL = directory.appendingPathComponent("notes.md")
+        // A literal "notes.md" collides with a same-named window macOS's own session restoration
+        // can leave open from an earlier test run in this same app; a UUID-qualified name -- the
+        // same approach every other UI test in this suite already uses -- makes the window title
+        // this test looks up for unique to this run, and the sidecar folder name (which tracks
+        // the document's own basename) unique right along with it.
+        let documentName = "notes-\(UUID().uuidString)"
+        let documentURL = directory.appendingPathComponent("\(documentName).md")
         try "".write(to: documentURL, atomically: true, encoding: .utf8)
 
         let pasteboard = NSPasteboard.general
@@ -97,7 +121,7 @@ final class ImagePasteUITests: XCTestCase {
         editor.click()
         editor.typeKey("v", modifierFlags: .command)
 
-        let sidecarFile = directory.appendingPathComponent("notes.assets/image-1.png")
+        let sidecarFile = directory.appendingPathComponent("\(documentName).assets/image-1.png")
         let deadline = Date().addingTimeInterval(10)
         while Date() < deadline, !FileManager.default.fileExists(atPath: sidecarFile.path) {
             RunLoop.current.run(until: Date().addingTimeInterval(0.1))
@@ -112,6 +136,6 @@ final class ImagePasteUITests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: sidecarFile), onePixelPNG)
 
         let value = editor.value as? String
-        XCTAssertEqual(value, "![image-1.png](notes.assets/image-1.png)")
+        XCTAssertEqual(value, "![image-1.png](\(documentName).assets/image-1.png)")
     }
 }

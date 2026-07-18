@@ -16,6 +16,21 @@ final class AutosaveUITests: XCTestCase {
         app?.terminate()
     }
 
+    /// Force-terminates any previous instance and waits for it to actually exit, not just for the
+    /// termination request to be posted -- a still-dying previous process can otherwise get
+    /// coalesced with the "new" instance the next launch requests, or leave a stale window that
+    /// collides with this test's own window-title lookup.
+    private func terminateRunningInstancesAndWait() {
+        func running() -> [NSRunningApplication] {
+            NSRunningApplication.runningApplications(withBundleIdentifier: Self.bundleIdentifier)
+        }
+        running().forEach { $0.forceTerminate() }
+        let deadline = Date().addingTimeInterval(5)
+        while Date() < deadline, !running().isEmpty {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        }
+    }
+
     private func launch(fileURL: URL) {
         let productsDirectory = Bundle(for: Self.self).bundleURL
             .deletingLastPathComponent() // PlugIns
@@ -27,10 +42,13 @@ final class AutosaveUITests: XCTestCase {
             FileManager.default.fileExists(atPath: appURL.path),
             "Expected the built app under test at \(appURL.path)"
         )
-        NSRunningApplication.runningApplications(withBundleIdentifier: Self.bundleIdentifier)
-            .forEach { $0.forceTerminate() }
+        terminateRunningInstancesAndWait()
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.createsNewApplicationInstance = true
+        // macOS's own window-restoration (Resume) otherwise reopens whatever Fen windows were
+        // left over from unrelated prior runs (including ordinary manual use as the default .md
+        // handler) alongside the document this test opens -- see Apple Technical Q&A QA1544.
+        configuration.arguments = ["-ApplePersistenceIgnoreState", "YES"]
         let openedExpectation = expectation(description: "Fen opened \(fileURL.lastPathComponent)")
         NSWorkspace.shared.open([fileURL], withApplicationAt: appURL, configuration: configuration) { _, error in
             XCTAssertNil(error)
@@ -78,13 +96,19 @@ final class AutosaveUITests: XCTestCase {
             .appendingPathComponent("AutosaveUITests-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         addTeardownBlock { try? FileManager.default.removeItem(at: directory) }
-        let documentURL = directory.appendingPathComponent("notes.md")
+        // A literal "notes.md" collides with a same-named window macOS's own session restoration
+        // can leave open from an earlier test run in this same app; a UUID-qualified name -- the
+        // same approach every other UI test in this suite already uses -- makes the window title
+        // this test looks up for unique to this run.
+        let documentURL = directory.appendingPathComponent("notes-\(UUID().uuidString).md")
         try "saved content".write(to: documentURL, atomically: true, encoding: .utf8)
         try plantRecoveryEntry(forFileAt: documentURL, recoveredText: "unsaved recovered text")
 
         launch(fileURL: documentURL)
 
-        let restoreButton = app.buttons["Restore"]
+        // Scoped to the alert's own AXDialog container, not app.buttons: AppKit mirrors every
+        // NSAlert button onto the current Touch Bar too, and an unscoped query matches both.
+        let restoreButton = app.dialogs.buttons["Restore"]
         XCTAssertTrue(
             restoreButton.waitForExistence(timeout: 10),
             "Expected the recovery alert's Restore button to appear"

@@ -157,30 +157,39 @@ public final class AutosaveController {
         }
     }
 
+    /// Both recovery checks defer `presentRestorePrompt` to the next run loop turn rather than
+    /// calling it inline: they run from `start(for:)`, which fires from `SplitEditorView.onAppear`
+    /// / `.onChange(of: document.fileURL)` before the document's window has become key -- and
+    /// `NSAlert.runModal()` silently no-ops (returns immediately, never shows the alert) when
+    /// called before there's a key/main window to attach to.
     private func checkForSavedDocumentRecovery(identity: String, document: MarkdownDocument) {
         guard let recoveryText = Self.readRecoveryFile(identity: identity) else { return }
         guard recoveryText.trimmingTrailingNewline != document.text.trimmingTrailingNewline else {
             Self.deleteRecoveryFile(identity: identity)
             return
         }
-        presentRestorePrompt(
-            { [weak document] in
-                document?.text = recoveryText
-                Self.deleteRecoveryFile(identity: identity)
-            },
-            { Self.deleteRecoveryFile(identity: identity) }
-        )
+        DispatchQueue.main.async { [presentRestorePrompt] in
+            presentRestorePrompt(
+                { [weak document] in
+                    document?.text = recoveryText
+                    Self.deleteRecoveryFile(identity: identity)
+                },
+                { Self.deleteRecoveryFile(identity: identity) }
+            )
+        }
     }
 
     private func checkForUntitledDocumentRecovery(identity: String, document: MarkdownDocument) {
         guard let recoveryText = Self.readRecoveryFile(identity: identity), !recoveryText.isEmpty else { return }
-        presentRestorePrompt(
-            { [weak document] in
-                document?.text = recoveryText
-                Self.deleteRecoveryFile(identity: identity)
-            },
-            { Self.deleteRecoveryFile(identity: identity) }
-        )
+        DispatchQueue.main.async { [presentRestorePrompt] in
+            presentRestorePrompt(
+                { [weak document] in
+                    document?.text = recoveryText
+                    Self.deleteRecoveryFile(identity: identity)
+                },
+                { Self.deleteRecoveryFile(identity: identity) }
+            )
+        }
     }
 
     // MARK: - Identity and storage

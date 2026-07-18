@@ -434,7 +434,9 @@ func caretColor(for background: PlatformColor) -> PlatformColor {
                 }
                 guard let relativePath = ImageSidecarWriter.write(
                     data: data, contentType: contentType, documentURL: documentURL
-                ) else { return false }
+                ) else {
+                    return false
+                }
 
                 let altText = (relativePath as NSString).lastPathComponent
                 let selection = textView.selectedRange()
