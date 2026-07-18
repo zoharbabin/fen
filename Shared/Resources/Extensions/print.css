@@ -1,0 +1,13 @@
+/* Break avoidance for paginated PDF export (issue #30) and print (issue #32) -- shared unchanged
+   by both features since they drive the same print-layout pipeline. Page margins are set via
+   `NSPrintInfo`/`UIPrintPageRenderer` (the platform print pipeline), not `@page`, so the two
+   never double up. */
+pre, table, blockquote, img, figure {
+    break-inside: avoid;
+    page-break-inside: avoid;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    break-after: avoid;
+    page-break-after: avoid;
+}
