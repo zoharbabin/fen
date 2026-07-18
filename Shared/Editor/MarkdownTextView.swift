@@ -16,6 +16,7 @@ func caretColor(for background: PlatformColor) -> PlatformColor {
 
 #if os(macOS)
     import AppKit
+    import UniformTypeIdentifiers
 
     /// NSTextView-backed markdown editor for macOS with live syntax highlighting.
     struct MarkdownTextView: NSViewRepresentable {
@@ -31,6 +32,10 @@ func caretColor(for background: PlatformColor) -> PlatformColor {
         var scrollsPastEnd: Bool
         var scrollFraction: CGFloat = 0
         var isScrollSyncEnabled: Bool = false
+        /// The document's on-disk location, used to resolve where a pasted/dropped image's
+        /// sidecar folder belongs (issue #18). `nil` for an unsaved document -- that case
+        /// declines the paste/drop with an alert rather than guessing a location.
+        var documentURL: URL?
         var onScroll: ((CGFloat) -> Void)?
         var onTextChange: (() -> Void)?
 
@@ -65,6 +70,10 @@ func caretColor(for background: PlatformColor) -> PlatformColor {
             textView.isSelectable = true
             textView.allowsUndo = true
             textView.isRichText = true // required for attributed (highlighted) text to render
+            // Adds .tiff/.png/etc. to readablePasteboardTypes/acceptableDragTypes -- without
+            // this, paste(_:)/drag-drop never calls readSelection(from:type:) for a raw image
+            // pasteboard type at all (confirmed empirically, issue #18).
+            textView.importsGraphics = true
             textView.usesFindBar = true
             textView.isAutomaticQuoteSubstitutionEnabled = false
             textView.isAutomaticDashSubstitutionEnabled = false
@@ -91,7 +100,9 @@ func caretColor(for background: PlatformColor) -> PlatformColor {
 
             textView.string = text
             textView.delegate = context.coordinator
+            textView.imagePasteCoordinator = context.coordinator
             context.coordinator.textView = textView
+            context.coordinator.documentURL = documentURL
 
             scrollView.documentView = textView
 
@@ -165,15 +176,17 @@ func caretColor(for background: PlatformColor) -> PlatformColor {
             textView.defaultParagraphStyle = paragraphStyle
 
             context.coordinator.parent = self
+            context.coordinator.documentURL = documentURL
             if isScrollSyncEnabled {
                 context.coordinator.applyScrollFraction(scrollFraction, to: scrollView)
             }
         }
 
-        class Coordinator: NSObject, NSTextViewDelegate {
+        class Coordinator: NSObject, NSTextViewDelegate, ImagePasteCoordinating {
             var parent: MarkdownTextView
             weak var textView: MarkdownNSTextView?
             var themeName: String
+            var documentURL: URL?
             private var isApplyingExternalScroll = false
             private var lastAppliedScrollFraction: CGFloat?
             private var lastAppliedTotalHeight: CGFloat?
@@ -409,6 +422,43 @@ func caretColor(for background: PlatformColor) -> PlatformColor {
                 parent.onTextChange?()
             }
 
+            /// Writes `data` into the document's sidecar assets folder and inserts a Markdown
+            /// image link at `textView`'s current selection (issue #18). Returns `false` --
+            /// leaving `textView` untouched -- if there's no on-disk document to anchor the
+            /// sidecar folder to, or if the write itself fails, so the caller can fall through
+            /// to `super.readSelection(from:type:)`'s default handling.
+            @MainActor func insertPastedImage(data: Data, contentType: UTType, into textView: NSTextView) -> Bool {
+                guard let documentURL else {
+                    presentUnsavedDocumentAlert()
+                    return false
+                }
+                guard let relativePath = ImageSidecarWriter.write(
+                    data: data, contentType: contentType, documentURL: documentURL
+                ) else { return false }
+
+                let altText = (relativePath as NSString).lastPathComponent
+                let selection = textView.selectedRange()
+                let result = MarkdownFormatting.insertImageLink(
+                    altText: altText, relativePath: relativePath, into: textView.string, at: selection
+                )
+                textView.string = result.text
+                textView.setSelectedRange(result.selection)
+                parent.text = result.text
+                parent.onTextChange?()
+                return true
+            }
+
+            /// Overridden by `ImagePasteE2ETest` (issue #18, rule 5.3) so an unsaved-document
+            /// paste can be exercised headlessly -- `NSAlert.runModal()` blocks indefinitely
+            /// without a real user click, confirmed empirically by running it standalone.
+            @MainActor var presentUnsavedDocumentAlert: () -> Void = {
+                let alert = NSAlert()
+                alert.messageText = "Can't Insert Image"
+                alert.informativeText = "Save the document before inserting images."
+                alert.alertStyle = .warning
+                alert.runModal()
+            }
+
             @MainActor @objc func applyFormattingNotification(_ notification: Notification) {
                 guard let identifier = notification.object as? String,
                       let action = FormattingAction(identifier: identifier),
@@ -486,73 +536,4 @@ func caretColor(for background: PlatformColor) -> PlatformColor {
         }
     }
 
-    /// Custom NSTextView with scroll-past-end and editor features.
-    class MarkdownNSTextView: NSTextView {
-        var scrollsPastEnd = true
-
-        // MARK: - Limit editor width (issue #50)
-
-        var baseHorizontalInset: CGFloat = 15
-        var verticalInset: CGFloat = 30
-        var isWidthLimited = false
-        var maximumWidth: CGFloat = 800
-
-        /// Recomputes `textContainerInset`'s horizontal component from the view's current
-        /// width -- call on every width change and once on initial load (see
-        /// `widthLimitedHorizontalInset`'s doc comment for why both call sites matter).
-        func applyWidthLimitedInset() {
-            let inset = MarkdownTextEditing.widthLimitedHorizontalInset(
-                viewWidth: frame.width,
-                baseInset: baseHorizontalInset,
-                isWidthLimited: isWidthLimited,
-                maximumWidth: maximumWidth
-            )
-            textContainerInset = NSSize(width: inset, height: verticalInset)
-        }
-
-        /// The document's real content height, excluding the blank padding
-        /// `setFrameSize` adds below the last line when `scrollsPastEnd` is
-        /// on. Scroll-fraction math must use this instead of `frame.height`,
-        /// or fraction 1.0 lands inside that padding instead of on the
-        /// actual last line.
-        var contentHeightExcludingScrollPastEnd: CGFloat {
-            guard let layoutManager, let textContainer else { return frame.height }
-            let usedRect = layoutManager.usedRect(for: textContainer)
-            return usedRect.height + 2 * textContainerInset.height
-        }
-
-        /// The laid-out y-position of the line fragment containing `index`, in the
-        /// same coordinate space as `contentHeightExcludingScrollPastEnd`. Returns
-        /// nil for an out-of-range index (e.g. the trailing empty line after a
-        /// final newline) so callers can skip that sample.
-        func lineTop(forCharacterIndex index: Int) -> CGFloat? {
-            guard let layoutManager, let textContainer else { return nil }
-            let length = (string as NSString).length
-            guard index >= 0, index < length else { return nil }
-            layoutManager.ensureLayout(for: textContainer)
-            let glyphIndex = layoutManager.glyphIndexForCharacter(at: index)
-            let rect = layoutManager.lineFragmentRect(forGlyphAt: glyphIndex, effectiveRange: nil)
-            return rect.origin.y + textContainerInset.height
-        }
-
-        override func setFrameSize(_ newSize: NSSize) {
-            var adjustedSize = newSize
-            if scrollsPastEnd, let scrollView = enclosingScrollView {
-                let visibleHeight = scrollView.contentSize.height
-                let usedRect = layoutManager?.usedRect(for: textContainer!) ?? .zero
-                let contentHeight = usedRect.height + 2 * textContainerInset.height
-                let extraSpace = max(0, visibleHeight - 50) // Leave 50pt at bottom
-                if contentHeight > visibleHeight {
-                    adjustedSize.height = max(adjustedSize.height, contentHeight + extraSpace)
-                }
-            }
-            let widthChanged = adjustedSize.width != frame.width
-            super.setFrameSize(adjustedSize)
-            // Recompute on every width change, not just once -- MacDown's own issue #288 was
-            // exactly this check being skipped on resize.
-            if widthChanged, isWidthLimited {
-                applyWidthLimitedInset()
-            }
-        }
-    }
 #endif

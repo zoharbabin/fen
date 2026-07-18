@@ -360,6 +360,27 @@ public enum MarkdownFormatting {
         return (newText, NSRange(location: location, length: 3))
     }
 
+    // MARK: - Pasted/dropped image (issue #18 -- always concrete alt text + a real relative
+
+    // path, unlike the toolbar's `.image` placeholder-wrap above, so this is a separate function
+    // rather than a new `applyLink` case)
+
+    /// Inserts `![altText](relativePath)` at `selection`'s location (replacing any selected
+    /// text), landing the cursor immediately after the inserted link.
+    public static func insertImageLink(
+        altText: String,
+        relativePath: String,
+        into text: String,
+        at selection: NSRange
+    ) -> (text: String, selection: NSRange) {
+        let ns = text as NSString
+        let bounded = boundedRange(selection, in: ns)
+        let insertion = "![\(altText)](\(relativePath))"
+        let newText = ns.replacingCharacters(in: bounded, with: insertion)
+        let location = bounded.location + (insertion as NSString).length
+        return (newText, clampedSelection(location: location, length: 0, in: newText as NSString))
+    }
+
     // MARK: - Horizontal rule (ignores selection, own line)
 
     private static func applyHorizontalRule(text: String, selection: NSRange) -> (text: String, selection: NSRange) {

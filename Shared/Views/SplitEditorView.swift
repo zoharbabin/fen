@@ -147,6 +147,7 @@ public struct SplitEditorView: View {
             scrollsPastEnd: preferences.editorScrollsPastEnd,
             scrollFraction: scrollSync.editorScrollFraction,
             isScrollSyncEnabled: preferences.editorSyncScrolling,
+            documentURL: document.fileURL,
             onScroll: { fraction in
                 if preferences.editorSyncScrolling {
                     scrollSync.editorDidScroll(to: fraction)
