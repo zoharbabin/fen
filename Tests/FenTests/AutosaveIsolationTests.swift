@@ -40,7 +40,7 @@ struct AutosaveIsolationTests {
     }
 
     @Test @MainActor
-    func twoUntitledDocumentsOpenedAtOnceNeverClaimTheSameOrphan() throws {
+    func twoUntitledDocumentsOpenedAtOnceNeverClaimTheSameOrphan() async throws {
         // Plants one leftover orphaned untitled recovery entry on disk, exactly as an unclean
         // exit of a prior blank document would leave behind, then starts two brand-new blank
         // documents' controllers back to back and proves at most one of them claims (and
@@ -89,6 +89,11 @@ struct AutosaveIsolationTests {
             restoredY = true
         }
         controllerY.start(for: documentY)
+
+        // `checkForUntitledDocumentRecovery` defers `presentRestorePrompt` to the next run loop
+        // turn (see AutosaveController's doc comment), so wait for one of the two deferred
+        // callbacks to have actually fired before asserting on which one claimed the orphan.
+        _ = try await pollUntilTrue(timeout: .seconds(2)) { restoredX || restoredY }
 
         #expect(!(restoredX && restoredY), "two blank documents must never both restore from the same orphan")
         #expect(
