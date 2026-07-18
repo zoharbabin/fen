@@ -75,6 +75,30 @@ struct PreviewThemeCoverageTests {
         #expect((sameLine as? Bool) == true, "Theme \(themeName): expected checkbox and item text on the same line")
     }
 
+    @Test("Each of the 5 alert types renders a visually distinct border color across every theme", arguments: allThemes)
+    @MainActor
+    func alertsRenderDistinctColorsAcrossThemes(themeName: String) async throws {
+        let types = ["note", "tip", "important", "warning", "caution"]
+        let markdown = types.map { "> [!\($0.uppercased())]\n> Body for \($0)." }.joined(separator: "\n\n")
+        var opts = MarkdownRenderer.Options()
+        opts.alerts = true
+        let webView = try await renderPreviewWebView(markdown: markdown, options: opts) { prefs in
+            prefs.htmlStyleName = themeName
+        }
+
+        var borderColors: Set<String> = []
+        for type in types {
+            let js = "getComputedStyle(document.querySelector('.markdown-alert-\(type)')).borderLeftColor"
+            let color = try await webView.evaluateJavaScript(js) as? String ?? ""
+            #expect(!color.isEmpty, "Theme \(themeName): expected a border-left-color for alert type \(type)")
+            borderColors.insert(color)
+        }
+        #expect(
+            borderColors.count == types.count,
+            "Theme \(themeName): expected all 5 alert types to have distinct border colors, got \(borderColors)"
+        )
+    }
+
     @Test("Mermaid picks the dark diagram theme only for themes named *Dark*", arguments: allThemes)
     @MainActor
     func mermaidThemeFollowsPreviewTheme(themeName: String) async throws {

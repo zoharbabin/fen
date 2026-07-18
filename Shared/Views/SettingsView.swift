@@ -143,6 +143,7 @@ struct MarkdownSettingsTab: View {
                 Toggle("Strikethrough", isOn: $prefs.extensionStrikethrough)
                 Toggle("Highlight", isOn: $prefs.extensionHighlight)
                 Toggle("Footnotes", isOn: $prefs.extensionFootnotes)
+                Toggle("Alerts", isOn: $prefs.extensionAlerts)
             }
 
             Section("Processing") {

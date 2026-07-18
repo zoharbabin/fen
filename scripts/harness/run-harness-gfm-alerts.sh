@@ -41,7 +41,7 @@ if [ ! -f Tests/FenTests/GFMAlertsIsolationTests.swift ]; then
     fail "GFMAlertsIsolationTests.swift does not exist yet -- nothing to run for gate 3"
 fi
 if ! swift test --no-parallel --filter GFMAlertsIsolationTests 2>&1 | tee "$RUN_DIR/03-isolation.log" \
-    | grep -qE "Executed [1-9][0-9]* test"; then
+    | grep -qE "Test run with [1-9][0-9]* tests? in [1-9][0-9]* suites? passed"; then
     fail "isolation test failed, or no tests actually ran -- alert transform leaked state, or filter matched nothing"
 fi
 
@@ -51,16 +51,19 @@ periphery scan --format xcode 2>&1 | tee "$RUN_DIR/04-periphery.log" \
     || fail "periphery found unused code"
 log "Gate 4/6: no unfinished-work markers in new alert files"
 if grep -rnE "TODO|FIXME" \
-    Shared/Rendering/MarkdownRenderer.swift Shared/Models/Preferences.swift \
-    Tests/FenTests/GFMAlertsIsolationTests.swift \
+    Shared/Rendering/MarkdownRenderer.swift Shared/Rendering/MarkdownRenderer+Alerts.swift \
+    Shared/Models/Preferences.swift \
+    Tests/FenTests/GFMAlertsIsolationTests.swift Tests/FenTests/MarkdownRendererAlertsTests.swift \
     2>/dev/null | tee "$RUN_DIR/04-todo-grep.log" | grep -q .; then
     fail "TODO/FIXME marker found in alert feature files"
 fi
 
 # --- Gate 5: Unit/integration tests proving each Phase-1 rule ---
-log "Gate 5/6: unit tests (MarkdownRendererTests alert cases, PreviewThemeCoverageTests, GFMFeatureCoverageTests)"
+log "Gate 5/6: unit tests (MarkdownRendererTests, MarkdownRendererAlertsTests, PreviewThemeCoverageTests, GFMFeatureCoverageTests)"
 swift test --no-parallel --filter MarkdownRendererTests 2>&1 | tee "$RUN_DIR/05-unit.log" \
     || fail "MarkdownRendererTests failed"
+swift test --no-parallel --filter MarkdownRendererAlertsTests 2>&1 | tee "$RUN_DIR/05-alerts-unit.log" \
+    || fail "MarkdownRendererAlertsTests failed"
 swift test --no-parallel --filter PreviewThemeCoverageTests 2>&1 | tee "$RUN_DIR/05-theme.log" \
     || fail "PreviewThemeCoverageTests failed"
 swift test --no-parallel --filter GFMFeatureCoverageTests 2>&1 | tee "$RUN_DIR/05-coverage.log" \

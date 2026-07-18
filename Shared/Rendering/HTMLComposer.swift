@@ -29,6 +29,7 @@ public struct HTMLComposer: Sendable {
 
         styleTags.append(inlineStyle(fontScaleCSS(preferences: preferences)))
         styleTags.append(inlineStyle(Self.listMarkerCSS))
+        styleTags.append(inlineStyle(Self.alertsCSS))
 
         let highlighting = syntaxHighlightingTags(preferences: preferences)
         styleTags += highlighting.styles
@@ -108,6 +109,30 @@ public struct HTMLComposer: Sendable {
         var start = parseInt(ol.getAttribute('start'), 10);
         if (!isNaN(start)) { ol.style.counterReset = 'fen-ol ' + (start - 1); }
     });
+    """
+
+    /// Visual treatment for the 5 GFM alert types (issue #29's `MarkdownRenderer.applyAlertMarkup`
+    /// emits `markdown-alert markdown-alert-<type>` on the blockquote). Applied once here rather
+    /// than duplicated across all 7 theme files, the same reasoning `listMarkerCSS` above already
+    /// uses. A `.markdown-alert` class selector out-specifies a theme's plain `blockquote` rule,
+    /// so this always wins the border-color/background cascade regardless of style-tag order.
+    /// Colors are semi-transparent so they read correctly over both light and dark theme
+    /// backgrounds without needing a per-theme variant.
+    private static let alertsCSS = """
+    blockquote.markdown-alert { border-left-width: 4px; border-radius: 3px; }
+    blockquote.markdown-alert-note { border-left-color: #0969da; background-color: rgba(9, 105, 218, 0.1); }
+    blockquote.markdown-alert-tip { border-left-color: #1a7f37; background-color: rgba(26, 127, 55, 0.1); }
+    blockquote.markdown-alert-important {
+        border-left-color: #8250df; background-color: rgba(130, 80, 223, 0.1);
+    }
+    blockquote.markdown-alert-warning { border-left-color: #9a6700; background-color: rgba(154, 103, 0, 0.1); }
+    blockquote.markdown-alert-caution { border-left-color: #cf222e; background-color: rgba(207, 34, 46, 0.1); }
+    p.markdown-alert-title { font-weight: bold; margin-top: 0; }
+    .markdown-alert-note p.markdown-alert-title { color: #0969da; }
+    .markdown-alert-tip p.markdown-alert-title { color: #1a7f37; }
+    .markdown-alert-important p.markdown-alert-title { color: #8250df; }
+    .markdown-alert-warning p.markdown-alert-title { color: #9a6700; }
+    .markdown-alert-caution p.markdown-alert-title { color: #cf222e; }
     """
 
     private func syntaxHighlightingTags(preferences: Preferences) -> (styles: [String], scripts: [String]) {

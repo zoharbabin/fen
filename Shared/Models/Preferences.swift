@@ -46,6 +46,16 @@ public final class Preferences {
         }
     }
 
+    /// Defaults on (unlike `extensionHighlight`'s default-off): the `> [!TYPE]` marker is
+    /// specific enough that accidental collision with real prose is effectively impossible,
+    /// the same reasoning `extensionTables`/`extensionAutolink`/`extensionStrikethrough`
+    /// already default on for -- see issue #29.
+    var extensionAlerts: Bool = true {
+        didSet { defaults.set(extensionAlerts, forKey: "extensionAlerts")
+            renderRevision += 1
+        }
+    }
+
     var markdownManualRender: Bool = false {
         didSet { defaults.set(markdownManualRender, forKey: "markdownManualRender") }
     }
@@ -245,6 +255,8 @@ public final class Preferences {
         extensionHighlight = defaults.bool(forKey: "extensionHighlight")
         extensionFootnotes = defaults.object(forKey: "extensionFootnotes") != nil
             ? defaults.bool(forKey: "extensionFootnotes") : true
+        extensionAlerts = defaults.object(forKey: "extensionAlerts") != nil
+            ? defaults.bool(forKey: "extensionAlerts") : true
         extensionSmartyPants = defaults.bool(forKey: "extensionSmartyPants")
         markdownManualRender = defaults.bool(forKey: "markdownManualRender")
     }
