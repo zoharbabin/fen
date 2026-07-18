@@ -262,6 +262,27 @@ struct GFMFeatureCoverageTests {
         #expect(str.contains("\u{2026}"), "Expected an ellipsis character from ...")
     }
 
+    @Test("Alerts (GFM): a [!NOTE] blockquote renders as a titled, classed alert block")
+    @MainActor
+    func alerts() async throws {
+        let md = "> [!NOTE]\n> Useful information."
+        var opts = MarkdownRenderer.Options()
+        opts.alerts = true
+        let webView = try await renderPreviewWebView(markdown: md, options: opts)
+        let hasAlertClass = try await webView.evaluateJavaScript(
+            "!!document.querySelector('blockquote.markdown-alert.markdown-alert-note')"
+        )
+        let titleText = try await webView.evaluateJavaScript(
+            "document.querySelector('.markdown-alert-title') ? document.querySelector('.markdown-alert-title')" +
+                ".textContent : null"
+        )
+        let bodyText = try await webView.evaluateJavaScript("document.body.textContent")
+        #expect((hasAlertClass as? Bool) == true, "Expected the blockquote to carry markdown-alert-note")
+        #expect((titleText as? String) == "Note")
+        #expect((bodyText as? String)?.contains("Useful information.") == true)
+        #expect((bodyText as? String)?.contains("[!NOTE]") == false, "The literal marker must not remain in the text")
+    }
+
     @Test("Mermaid diagrams: a fenced mermaid block renders as an inline SVG, not plain code")
     @MainActor
     func mermaidDiagrams() async throws {

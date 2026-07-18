@@ -14,7 +14,8 @@ func renderPreviewWebView(
     options: MarkdownRenderer.Options = MarkdownRenderer.Options(),
     configurePreferences: (Preferences) -> Void = { _ in },
     baseDirectory: URL? = nil,
-    sourceLineCount: Int = 0
+    sourceLineCount: Int = 0,
+    documentOverrides: DocumentPreviewOverrides = .none
 ) async throws -> WKWebView {
     let renderer = MarkdownRenderer()
     let rendered = renderer.render(markdown, options: options)
@@ -25,7 +26,8 @@ func renderPreviewWebView(
         body: rendered.html,
         preferences: prefs,
         sourceLineCount: sourceLineCount,
-        sourceLineOffset: rendered.frontMatterLineCount
+        sourceLineOffset: rendered.frontMatterLineCount,
+        documentOverrides: documentOverrides
     )
 
     let handler = PreviewSchemeHandler()

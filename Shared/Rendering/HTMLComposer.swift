@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 
 /// Composes a full HTML document by wrapping rendered markdown HTML
 /// with CSS styles, JavaScript extensions, and a document template.
@@ -18,17 +19,23 @@ public struct HTMLComposer: Sendable {
         body: String,
         preferences: Preferences,
         sourceLineCount: Int = 0,
-        sourceLineOffset: Int = 0
+        sourceLineOffset: Int = 0,
+        documentOverrides: DocumentPreviewOverrides = .none
     ) -> String {
         var styleTags: [String] = []
         var scriptTags: [String] = []
 
-        if let css = loadStyleCSS(named: preferences.htmlStyleName) {
+        let effectiveStyleName = Self.resolveEffectiveStyleName(
+            preferences: preferences,
+            documentOverrides: documentOverrides
+        )
+        if let css = loadStyleCSS(named: effectiveStyleName) {
             styleTags.append(inlineStyle(css))
         }
 
         styleTags.append(inlineStyle(fontScaleCSS(preferences: preferences)))
         styleTags.append(inlineStyle(Self.listMarkerCSS))
+        styleTags.append(inlineStyle(Self.alertsCSS))
 
         let highlighting = syntaxHighlightingTags(preferences: preferences)
         styleTags += highlighting.styles
@@ -36,13 +43,23 @@ public struct HTMLComposer: Sendable {
 
         scriptTags += mathJaxTags(preferences: preferences)
 
-        let mermaid = mermaidTags(preferences: preferences)
+        let mermaid = mermaidTags(preferences: preferences, effectiveStyleName: effectiveStyleName)
         styleTags += mermaid.styles
         scriptTags += mermaid.scripts
 
         scriptTags += taskListTags(preferences: preferences)
         scriptTags.append(inlineScript(Self.listMarkerStartJS))
+
+        let copyButton = copyButtonTags(preferences: preferences)
+        styleTags += copyButton.styles
+        scriptTags += copyButton.scripts
+
         scriptTags += scrollSyncTags(sourceLineCount: sourceLineCount, sourceLineOffset: sourceLineOffset)
+
+        if preferences.customCSSEnabled,
+           !preferences.customCSS.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            styleTags.append(inlineStyle(Self.sanitizeCustomCSS(preferences.customCSS)))
+        }
 
         return htmlDocument(
             title: title,
@@ -110,6 +127,30 @@ public struct HTMLComposer: Sendable {
     });
     """
 
+    /// Visual treatment for the 5 GFM alert types (issue #29's `MarkdownRenderer.applyAlertMarkup`
+    /// emits `markdown-alert markdown-alert-<type>` on the blockquote). Applied once here rather
+    /// than duplicated across all 7 theme files, the same reasoning `listMarkerCSS` above already
+    /// uses. A `.markdown-alert` class selector out-specifies a theme's plain `blockquote` rule,
+    /// so this always wins the border-color/background cascade regardless of style-tag order.
+    /// Colors are semi-transparent so they read correctly over both light and dark theme
+    /// backgrounds without needing a per-theme variant.
+    private static let alertsCSS = """
+    blockquote.markdown-alert { border-left-width: 4px; border-radius: 3px; }
+    blockquote.markdown-alert-note { border-left-color: #0969da; background-color: rgba(9, 105, 218, 0.1); }
+    blockquote.markdown-alert-tip { border-left-color: #1a7f37; background-color: rgba(26, 127, 55, 0.1); }
+    blockquote.markdown-alert-important {
+        border-left-color: #8250df; background-color: rgba(130, 80, 223, 0.1);
+    }
+    blockquote.markdown-alert-warning { border-left-color: #9a6700; background-color: rgba(154, 103, 0, 0.1); }
+    blockquote.markdown-alert-caution { border-left-color: #cf222e; background-color: rgba(207, 34, 46, 0.1); }
+    p.markdown-alert-title { font-weight: bold; margin-top: 0; }
+    .markdown-alert-note p.markdown-alert-title { color: #0969da; }
+    .markdown-alert-tip p.markdown-alert-title { color: #1a7f37; }
+    .markdown-alert-important p.markdown-alert-title { color: #8250df; }
+    .markdown-alert-warning p.markdown-alert-title { color: #9a6700; }
+    .markdown-alert-caution p.markdown-alert-title { color: #cf222e; }
+    """
+
     private func syntaxHighlightingTags(preferences: Preferences) -> (styles: [String], scripts: [String]) {
         guard preferences.htmlSyntaxHighlighting else { return ([], []) }
 
@@ -151,10 +192,13 @@ public struct HTMLComposer: Sendable {
         return scripts
     }
 
-    private func mermaidTags(preferences: Preferences) -> (styles: [String], scripts: [String]) {
+    private func mermaidTags(
+        preferences: Preferences,
+        effectiveStyleName: String
+    ) -> (styles: [String], scripts: [String]) {
         guard preferences.htmlMermaid else { return ([], []) }
 
-        let mermaidTheme = preferences.htmlStyleName.contains("Dark") ? "dark" : "default"
+        let mermaidTheme = effectiveStyleName.contains("Dark") ? "dark" : "default"
         let themeScript = inlineScript("window.__fenMermaidTheme = \"\(mermaidTheme)\";")
 
         let styles = [loadExtensionFile(named: "mermaid-zoom", ext: "css")]
@@ -176,6 +220,18 @@ public struct HTMLComposer: Sendable {
         guard preferences.htmlTaskList,
               let taskJS = loadExtensionFile(named: "tasklist", ext: "js") else { return [] }
         return [inlineScript(taskJS)]
+    }
+
+    private func copyButtonTags(preferences: Preferences) -> (styles: [String], scripts: [String]) {
+        guard preferences.htmlCopyButton else { return ([], []) }
+
+        let styles = [loadExtensionFile(named: "copy-button", ext: "css")]
+            .compactMap(\.self)
+            .map { inlineStyle($0) }
+        let scripts = [loadExtensionFile(named: "copy-button", ext: "js")]
+            .compactMap(\.self)
+            .map { inlineScript($0) }
+        return (styles, scripts)
     }
 
     private func scrollSyncTags(sourceLineCount: Int, sourceLineOffset: Int) -> [String] {
@@ -248,6 +304,11 @@ public struct HTMLComposer: Sendable {
             }
         }
 
+        if preferences.customCSSEnabled,
+           !preferences.customCSS.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            styleTags.append(inlineStyle(Self.sanitizeCustomCSS(preferences.customCSS)))
+        }
+
         return htmlDocument(
             title: title,
             body: body,
@@ -298,6 +359,137 @@ public struct HTMLComposer: Sendable {
 
     private func inlineScript(_ js: String) -> String {
         "<script>\n\(js)\n</script>"
+    }
+
+    // MARK: - Appearance Resolution (issue #25)
+
+    /// Maps each light style to its dark counterpart and vice versa, covering the 3 pairs that
+    /// already exist by filename convention. `GitHub` has no dark counterpart and is
+    /// deliberately absent -- `resolveEffectiveStyleName` falls back to the original name
+    /// unchanged for any style with no entry here (rule 3.1).
+    static let styleAppearancePairs: [String: String] = [
+        "Clearness": "Clearness Dark",
+        "Clearness Dark": "Clearness",
+        "GitHub2": "GitHub2 Dark",
+        "GitHub2 Dark": "GitHub2",
+        "Solarized (Light)": "Solarized (Dark)",
+        "Solarized (Dark)": "Solarized (Light)",
+    ]
+
+    /// Resolves which CSS file to actually load, given the user's selected `htmlStyleName`,
+    /// the manual appearance override, and the live system appearance. A style whose own
+    /// darkness (via the existing `.contains("Dark")` convention) already matches what's
+    /// wanted is returned unchanged; otherwise its pair is looked up. A style with no pair
+    /// (`GitHub`) is returned unchanged regardless of what's wanted (rule 3.1), and an
+    /// unrecognized style name is likewise returned unchanged (rule 3.2) -- this function
+    /// never fails, throws, or returns an empty string.
+    static func resolveEffectiveStyleName(
+        preferences: Preferences,
+        documentOverrides: DocumentPreviewOverrides = .none
+    ) -> String {
+        let wantsDark: Bool = switch preferences.previewAppearanceMode {
+        case .system: preferences.systemPrefersDarkAppearance
+        case .light: false
+        case .dark: true
+        }
+        let styleName = documentOverrides.styleName ?? preferences.htmlStyleName
+        guard styleName.contains("Dark") != wantsDark else { return styleName }
+        return styleAppearancePairs[styleName] ?? styleName
+    }
+
+    // MARK: - Custom CSS (issue #26)
+
+    /// The largest custom CSS contribution `compose`/`composeForExport` will inline, regardless
+    /// of how much text `Preferences.customCSS` holds -- a defensive bound against pathological
+    /// input, not a feature limit any real stylesheet is expected to hit (rule 2.2).
+    static let customCSSCharacterLimit = 8000
+
+    /// `@import`/non-`data:` `url(...)` regexes for `sanitizeCustomCSS`, compiled once. `try?`
+    /// rather than `try!` (matching `MarkdownRenderer+Alerts.swift`'s convention): the patterns
+    /// are compile-time literals that always compile, but `sanitizeCustomCSS` still degrades to
+    /// returning the untouched, truncated input rather than crashing if that ever changed.
+    private static let importRuleRegex = try? NSRegularExpression(
+        pattern: #"@import\s+[^;]*;"#, options: [.caseInsensitive]
+    )
+    private static let nonDataURLRegex = try? NSRegularExpression(
+        pattern: #"url\(\s*(?!['"]?data:)[^)]*\)"#, options: [.caseInsensitive]
+    )
+    /// Matches `</style` (with or without a closing `>`), case-insensitively -- `inlineStyle`
+    /// inlines this text directly inside a real `<style>` tag with no HTML escaping, so any
+    /// occurrence would close the style block early and let the rest of the string be parsed as
+    /// live markup/script in the preview `WKWebView`.
+    private static let styleCloseTagRegex = try? NSRegularExpression(
+        pattern: #"</style"#, options: [.caseInsensitive]
+    )
+
+    /// Strips every `@import` rule, every `url(...)` reference whose scheme isn't `data:`, and
+    /// any `</style` breakout sequence, so user-supplied CSS can never trigger a network fetch
+    /// (rule 2.1) or escape the `<style>` tag `inlineStyle` wraps it in to run as live HTML/JS in
+    /// the preview's WKWebView -- Fen's trust model is local-first with zero third-party runtime
+    /// network loads, and custom CSS is the first feature where externally-authored text is
+    /// inlined into the preview's WKWebView, so this is the one new content-injection point that
+    /// needs its own guard. Operates as plain text substitution, never a full CSS parse, so
+    /// malformed input can't throw (rule 3.2). Also enforces `customCSSCharacterLimit` (rule 2.2)
+    /// as the final step.
+    static func sanitizeCustomCSS(_ css: String) -> String {
+        let truncated = String(css.prefix(customCSSCharacterLimit))
+        guard let importRuleRegex, let nonDataURLRegex, let styleCloseTagRegex else { return truncated }
+        var result = truncated as NSString
+        result = importRuleRegex.stringByReplacingMatches(
+            in: result as String, range: NSRange(location: 0, length: result.length), withTemplate: ""
+        ) as NSString
+        result = nonDataURLRegex.stringByReplacingMatches(
+            in: result as String, range: NSRange(location: 0, length: result.length), withTemplate: ""
+        ) as NSString
+        result = styleCloseTagRegex.stringByReplacingMatches(
+            in: result as String, range: NSRange(location: 0, length: result.length), withTemplate: ""
+        ) as NSString
+        return result as String
+    }
+
+    /// `body { background-color: ...; color: ...; }` regexes for `themeSwatchColors`. Anchored
+    /// to the start of a line (`^body`, multiline mode) so a compound selector like
+    /// `html body { ... }` -- a different, more specific rule -- never matches as if it were the
+    /// bare `body` rule; every bundled theme's own standalone `body {` rule starts at column 0.
+    private static let backgroundColorRegex = try? NSRegularExpression(
+        pattern: #"^body\s*\{[^}]*background-color:\s*([^;}\s]+)"#, options: [.caseInsensitive, .anchorsMatchLines]
+    )
+    private static let textColorRegex = try? NSRegularExpression(
+        pattern: #"^body\s*\{[^}]*(?<!background-)color:\s*([^;}\s]+)"#,
+        options: [.caseInsensitive, .anchorsMatchLines]
+    )
+
+    /// Parses a bundled theme's own `body { background-color: ...; color: ...; }` declaration
+    /// into a small swatch for the settings picker (issue #26), without a full CSS parser.
+    /// `color` is optional and defaults to black (the browser's own UA default for unset text
+    /// color) -- `GitHub2.css`'s `body` rule legitimately never sets one. Returns `nil` (never
+    /// throws) when a theme's `body` rule doesn't declare a background in a form this simple
+    /// regex can find -- e.g. `Solarized (Light).css`/`Solarized (Dark).css` declare `body`'s
+    /// background via a separate `html body { background-color: ... }` override rather than in
+    /// the `body` rule itself, so those two themes show no swatch (rule 3.3).
+    static func themeSwatchColors(cssFileName: String) -> (background: Color, text: Color)? {
+        guard let backgroundColorRegex, let css = HTMLComposer().loadStyleCSS(named: cssFileName) else { return nil }
+        guard let background = firstCaptureColor(backgroundColorRegex, in: css) else { return nil }
+        let text = textColorRegex.flatMap { firstCaptureColor($0, in: css) } ?? .black
+        return (background, text)
+    }
+
+    private static func firstCaptureColor(_ regex: NSRegularExpression, in css: String) -> Color? {
+        let nsCSS = css as NSString
+        guard let match = regex.firstMatch(in: css, range: NSRange(location: 0, length: nsCSS.length)),
+              match.numberOfRanges > 1
+        else { return nil }
+        let value = nsCSS.substring(with: match.range(at: 1)).trimmingCharacters(in: .whitespaces)
+        if let hexColor = PlatformColor(hex: value) {
+            return Color(hexColor)
+        }
+        if value.caseInsensitiveCompare("white") == .orderedSame {
+            return .white
+        }
+        if value.caseInsensitiveCompare("black") == .orderedSame {
+            return .black
+        }
+        return nil
     }
 
     // MARK: - Available Styles

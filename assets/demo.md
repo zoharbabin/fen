@@ -91,6 +91,26 @@ code blocks:
 >
 >     echo "inside a blockquote"
 
+## Alerts (GFM)
+
+A blockquote whose first line is a bare `[!TYPE]` marker renders as a
+titled, colored alert instead of a plain quote. There are 5 types:
+
+> [!NOTE]
+> Useful information that users should know, even when skimming content.
+
+> [!TIP]
+> Helpful advice for doing things better or more easily.
+
+> [!IMPORTANT]
+> Key information users need to know to achieve their goal.
+
+> [!WARNING]
+> Urgent info that needs immediate user attention to avoid problems.
+
+> [!CAUTION]
+> Advises about risks or negative outcomes of certain actions.
+
 ## Lists
 
 Unordered lists use asterisks, pluses, and hyphens interchangeably:

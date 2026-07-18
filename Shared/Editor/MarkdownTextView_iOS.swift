@@ -2,6 +2,7 @@
     import Highlightr
     import SwiftUI
     import UIKit
+    import UniformTypeIdentifiers
 
     /// UITextView-backed markdown editor for iOS with live syntax highlighting.
     struct MarkdownTextView: UIViewRepresentable {
@@ -17,6 +18,10 @@
         var scrollsPastEnd: Bool
         var scrollFraction: CGFloat = 0
         var isScrollSyncEnabled: Bool = false
+        /// The document's on-disk location, used to resolve where a pasted/dropped image's
+        /// sidecar folder belongs (issue #18). `nil` for an unsaved document -- that case
+        /// declines the paste/drop with an alert rather than guessing a location.
+        var documentURL: URL?
         var onScroll: ((CGFloat) -> Void)?
         var onTextChange: (() -> Void)?
 
@@ -57,7 +62,9 @@
 
             textView.text = text
             textView.delegate = context.coordinator
+            textView.pasteDelegate = context.coordinator
             context.coordinator.textView = textView
+            context.coordinator.documentURL = documentURL
 
             if scrollsPastEnd {
                 textView.contentInset.bottom = 300
@@ -128,6 +135,7 @@
             }
 
             context.coordinator.parent = self
+            context.coordinator.documentURL = documentURL
             if isScrollSyncEnabled {
                 context.coordinator.applyScrollFraction(scrollFraction, to: textView)
             }
@@ -161,10 +169,15 @@
             }
         }
 
-        class Coordinator: NSObject, UITextViewDelegate {
+        class Coordinator: NSObject, UITextViewDelegate, UITextPasteDelegate {
             var parent: MarkdownTextView
             weak var textView: UITextView?
             var themeName: String
+            /// The document's on-disk location (issue #18); see `MarkdownTextView.documentURL`'s
+            /// doc comment. Kept on the Coordinator (not read from `parent` at paste time) since
+            /// `textPasteConfigurationSupporting(_:transform:)`'s completion can fire
+            /// after `updateUIView` has already run again with a new `parent`.
+            var documentURL: URL?
             private var isApplyingExternalScroll = false
             private var lastAppliedScrollFraction: CGFloat?
             private var lastAppliedContentHeight: CGFloat?
@@ -327,6 +340,73 @@
                 parent.onTextChange?()
             }
 
+            // MARK: - Pasted/dropped image (issue #18)
+
+            /// Handles both paste and drag-drop of an image: `UITextDropping.h` documents that a
+            /// text control's own drop interaction routes dropped items through this same
+            /// `pasteDelegate` to produce the resulting string, so one method covers both gestures
+            /// -- no separate `UIDropInteraction`/`textDropDelegate` is needed (empirically
+            /// confirmed against the iOS 26.5 SDK headers, issue #18 Phase 3).
+            ///
+            /// Declines (via `setDefaultResult()`, letting UIKit's own default handling proceed)
+            /// for any item that isn't an image or whose bytes fail to write; on success, supplies
+            /// the Markdown link as this item's string result and lets UIKit insert it at the
+            /// correct location itself, rather than manipulating `textView.text` directly the way
+            /// the macOS `readSelection` override does -- UIKit already owns that splice for a
+            /// paste/drop dispatched through `UITextPasteItem`.
+            @MainActor func textPasteConfigurationSupporting(
+                _: UITextPasteConfigurationSupporting,
+                transform item: UITextPasteItem
+            ) {
+                guard let documentURL else {
+                    presentUnsavedDocumentAlert()
+                    item.setDefaultResult()
+                    return
+                }
+                let itemProvider = item.itemProvider
+                guard let typeIdentifier = itemProvider.registeredTypeIdentifiers.first(where: {
+                    UTType($0)?.conforms(to: .image) == true
+                }), let contentType = UTType(typeIdentifier) else {
+                    item.setDefaultResult()
+                    return
+                }
+
+                itemProvider.loadDataRepresentation(forTypeIdentifier: typeIdentifier) { data, _ in
+                    Task { @MainActor in
+                        guard let data,
+                              let relativePath = ImageSidecarWriter.write(
+                                  data: data, contentType: contentType, documentURL: documentURL
+                              ) else {
+                            item.setDefaultResult()
+                            return
+                        }
+                        let altText = (relativePath as NSString).lastPathComponent
+                        let insertion = MarkdownFormatting.insertImageLink(
+                            altText: altText,
+                            relativePath: relativePath,
+                            into: "",
+                            at: NSRange(location: 0, length: 0)
+                        ).text
+                        item.setResult(string: insertion)
+                    }
+                }
+            }
+
+            @MainActor private func presentUnsavedDocumentAlert() {
+                let alert = UIAlertController(
+                    title: "Can't Insert Image",
+                    message: "Save the document before inserting images.",
+                    preferredStyle: .alert
+                )
+                alert.addAction(UIAlertAction(title: "OK", style: .default))
+                UIApplication.shared.connectedScenes
+                    .compactMap { $0 as? UIWindowScene }
+                    .flatMap(\.windows)
+                    .first(where: \.isKeyWindow)?
+                    .rootViewController?
+                    .present(alert, animated: true)
+            }
+
             @objc func applyFormattingNotification(_ notification: Notification) {
                 guard let identifier = notification.object as? String,
                       let action = FormattingAction(identifier: identifier),
@@ -343,7 +423,7 @@
             /// height changed since the last build (word wrap makes a naive line-count fraction
             /// diverge from where a line actually sits once laid out).
             private func refreshAnchorsIfNeeded(textView: UITextView, totalHeight: CGFloat, visibleHeight: CGFloat) {
-                let text = textView.text
+                let text = textView.text ?? ""
                 guard text != anchorText || totalHeight != anchorHeight else { return }
                 anchorText = text
                 anchorHeight = totalHeight

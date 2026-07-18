@@ -31,8 +31,14 @@ struct PreviewThemeCoverageTests {
     @Test("Dark themes render a visibly darker body background than light themes", arguments: allThemes)
     @MainActor
     func darkThemesAreDarker(themeName: String) async throws {
+        // Pins appearance mode to the theme's own literal darkness so issue #25's
+        // system-following resolution (HTMLComposer.resolveEffectiveStyleName) is a no-op
+        // passthrough here -- this test is about each CSS file's own colors, not about
+        // appearance-following, which has its own dedicated coverage in
+        // PreviewAppearanceVerifyTest.swift.
         let webView = try await renderPreviewWebView(markdown: "# Hello") { prefs in
             prefs.htmlStyleName = themeName
+            prefs.previewAppearanceMode = themeName.contains("Dark") ? .dark : .light
         }
         let bg = try await webView.evaluateJavaScript("getComputedStyle(document.body).backgroundColor")
         guard let luma = luminance(fromRGBString: bg as? String ?? "") else {
@@ -75,11 +81,39 @@ struct PreviewThemeCoverageTests {
         #expect((sameLine as? Bool) == true, "Theme \(themeName): expected checkbox and item text on the same line")
     }
 
+    @Test("Each of the 5 alert types renders a visually distinct border color across every theme", arguments: allThemes)
+    @MainActor
+    func alertsRenderDistinctColorsAcrossThemes(themeName: String) async throws {
+        let types = ["note", "tip", "important", "warning", "caution"]
+        let markdown = types.map { "> [!\($0.uppercased())]\n> Body for \($0)." }.joined(separator: "\n\n")
+        var opts = MarkdownRenderer.Options()
+        opts.alerts = true
+        let webView = try await renderPreviewWebView(markdown: markdown, options: opts) { prefs in
+            prefs.htmlStyleName = themeName
+        }
+
+        var borderColors: Set<String> = []
+        for type in types {
+            let js = "getComputedStyle(document.querySelector('.markdown-alert-\(type)')).borderLeftColor"
+            let color = try await webView.evaluateJavaScript(js) as? String ?? ""
+            #expect(!color.isEmpty, "Theme \(themeName): expected a border-left-color for alert type \(type)")
+            borderColors.insert(color)
+        }
+        #expect(
+            borderColors.count == types.count,
+            "Theme \(themeName): expected all 5 alert types to have distinct border colors, got \(borderColors)"
+        )
+    }
+
     @Test("Mermaid picks the dark diagram theme only for themes named *Dark*", arguments: allThemes)
     @MainActor
     func mermaidThemeFollowsPreviewTheme(themeName: String) async throws {
+        // Same pin as darkThemesAreDarker above -- isolates this test from issue #25's
+        // appearance-resolution re-pairing so it keeps testing the literal theme's own Mermaid
+        // theme selection.
         let webView = try await renderPreviewWebView(markdown: "text") { prefs in
             prefs.htmlStyleName = themeName
+            prefs.previewAppearanceMode = themeName.contains("Dark") ? .dark : .light
             prefs.htmlMermaid = true
         }
         let mermaidTheme = try await webView.evaluateJavaScript("window.__fenMermaidTheme")

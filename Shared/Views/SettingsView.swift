@@ -143,6 +143,7 @@ struct MarkdownSettingsTab: View {
                 Toggle("Strikethrough", isOn: $prefs.extensionStrikethrough)
                 Toggle("Highlight", isOn: $prefs.extensionHighlight)
                 Toggle("Footnotes", isOn: $prefs.extensionFootnotes)
+                Toggle("Alerts", isOn: $prefs.extensionAlerts)
             }
 
             Section("Processing") {
@@ -164,13 +165,45 @@ struct MarkdownSettingsTab: View {
 struct RenderingSettingsTab: View {
     @Bindable private var prefs = Preferences.shared
 
+    private var lightStyles: [String] {
+        HTMLComposer.availablePreviewStyles().filter { !$0.contains("Dark") }
+    }
+
+    private var darkStyles: [String] {
+        HTMLComposer.availablePreviewStyles().filter { $0.contains("Dark") }
+    }
+
     var body: some View {
         Form {
             Section("Preview Style") {
                 Picker("CSS Theme", selection: $prefs.htmlStyleName) {
-                    ForEach(HTMLComposer.availablePreviewStyles(), id: \.self) { style in
-                        Text(style).tag(style)
+                    Section("Light") {
+                        ForEach(lightStyles, id: \.self) { style in
+                            themeRow(style).tag(style)
+                        }
                     }
+                    Section("Dark") {
+                        ForEach(darkStyles, id: \.self) { style in
+                            themeRow(style).tag(style)
+                        }
+                    }
+                }
+                Picker("Appearance", selection: $prefs.previewAppearanceMode) {
+                    Text("Follow System").tag(PreviewAppearanceMode.system)
+                    Text("Light").tag(PreviewAppearanceMode.light)
+                    Text("Dark").tag(PreviewAppearanceMode.dark)
+                }
+            }
+
+            Section("Custom CSS") {
+                Toggle("Layer custom CSS on the preview", isOn: $prefs.customCSSEnabled)
+                if prefs.customCSSEnabled {
+                    TextEditor(text: $prefs.customCSS)
+                        .font(.system(.body, design: .monospaced))
+                        .frame(minHeight: 120)
+                    Text("\(prefs.customCSS.count)/\(HTMLComposer.customCSSCharacterLimit)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
 
@@ -191,6 +224,7 @@ struct RenderingSettingsTab: View {
                     }
                     Toggle("Show line numbers in code blocks", isOn: $prefs.htmlLineNumbers)
                 }
+                Toggle("Show copy button on code blocks", isOn: $prefs.htmlCopyButton)
             }
 
             Section("Math & Diagrams") {
@@ -207,5 +241,18 @@ struct RenderingSettingsTab: View {
         #else
             .navigationTitle("Rendering")
         #endif
+    }
+
+    private func themeRow(_ style: String) -> some View {
+        HStack {
+            if let colors = HTMLComposer.themeSwatchColors(cssFileName: style) {
+                VStack(spacing: 0) {
+                    Rectangle().fill(colors.background).frame(width: 16, height: 8)
+                    Rectangle().fill(colors.text).frame(width: 16, height: 8)
+                }
+                .overlay(Rectangle().strokeBorder(.secondary, lineWidth: 0.5))
+            }
+            Text(style)
+        }
     }
 }

@@ -82,6 +82,12 @@ struct BundleResolutionTests {
         let prefs = Preferences()
         prefs.htmlMermaid = true
         prefs.htmlStyleName = "GitHub2 Dark"
+        // Pins appearance mode to the style's own literal darkness so issue #25's
+        // system-following resolution (HTMLComposer.resolveEffectiveStyleName) is a no-op
+        // passthrough here -- this test is about the literal style's Mermaid theme, not
+        // appearance-following, which has its own dedicated coverage in
+        // PreviewAppearanceVerifyTest.swift.
+        prefs.previewAppearanceMode = .dark
         let html = HTMLComposer().compose(title: nil, body: rendered.html, preferences: prefs)
         #expect(html.contains("__fenMermaidTheme = \"dark\""))
     }
@@ -93,6 +99,7 @@ struct BundleResolutionTests {
         let prefs = Preferences()
         prefs.htmlMermaid = true
         prefs.htmlStyleName = "GitHub2"
+        prefs.previewAppearanceMode = .light
         let html = HTMLComposer().compose(title: nil, body: rendered.html, preferences: prefs)
         #expect(html.contains("__fenMermaidTheme = \"default\""))
     }

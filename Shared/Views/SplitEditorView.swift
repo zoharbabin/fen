@@ -6,6 +6,7 @@ import SwiftUI
 /// The main split view containing the markdown editor and HTML preview side by side.
 public struct SplitEditorView: View {
     @Bindable var document: MarkdownDocument
+    @Environment(\.colorScheme) private var colorScheme
     #if os(macOS)
         @Environment(\.openDocument) private var openDocument
     #endif
@@ -18,6 +19,8 @@ public struct SplitEditorView: View {
     @State private var composer = HTMLComposer()
     @State private var scrollSync = ScrollSync()
     @State private var outline = DocumentOutline()
+    @State private var externalChangeController = ExternalChangeController()
+    @State private var autosaveController = AutosaveController()
     @State private var renderedHTML: String = ""
     @State private var renderTask: Task<Void, Never>?
     @State private var isOutlineVisible = false
@@ -65,13 +68,28 @@ public struct SplitEditorView: View {
         }
         .onAppear {
             editorOnRight = preferences.editorOnRight
+            preferences.systemPrefersDarkAppearance = colorScheme == .dark
             renderMarkdown()
+            externalChangeController.start(for: document)
+            autosaveController.start(for: document)
+        }
+        .onDisappear {
+            externalChangeController.stop()
+            autosaveController.stop()
         }
         .onChange(of: document.text) { _, _ in
             scheduleRender()
+            autosaveController.textDidChange()
         }
         .onChange(of: preferences.renderRevision) { _, _ in
             renderMarkdown()
+        }
+        .onChange(of: document.fileURL) { _, _ in
+            externalChangeController.start(for: document)
+            autosaveController.start(for: document)
+        }
+        .onChange(of: colorScheme) { _, newValue in
+            preferences.systemPrefersDarkAppearance = newValue == .dark
         }
         #if os(macOS)
         .onReceive(NotificationCenter.default.publisher(for: DocumentOutline.toggleOutlineNotification)) { _ in
@@ -147,6 +165,7 @@ public struct SplitEditorView: View {
             scrollsPastEnd: preferences.editorScrollsPastEnd,
             scrollFraction: scrollSync.editorScrollFraction,
             isScrollSyncEnabled: preferences.editorSyncScrolling,
+            documentURL: document.fileURL,
             onScroll: { fraction in
                 if preferences.editorSyncScrolling {
                     scrollSync.editorDidScroll(to: fraction)
@@ -328,8 +347,16 @@ public struct SplitEditorView: View {
     }
 
     private func renderMarkdown() {
+        // Per-document overrides (issue #27) only apply when front-matter detection itself is
+        // on -- otherwise the `---...---` block renders as literal content, and a `fen:` key
+        // inside it must not silently still drive rendering (rule 3.2).
+        let documentOverrides: DocumentPreviewOverrides = preferences.htmlDetectFrontMatter
+            ? .parse(frontMatter: renderer.peekFrontMatter(document.text))
+            : .none
+
         var options = MarkdownRenderer.Options.from(preferences: preferences)
         options.sourcePositions = true
+        options.renderTOC = documentOverrides.rendersTOC ?? options.renderTOC
         let result = renderer.render(document.text, options: options)
         sourceLineCount = document.text.components(separatedBy: .newlines).count
         sourceLineOffset = result.frontMatterLineCount
@@ -339,7 +366,8 @@ public struct SplitEditorView: View {
             body: result.html,
             preferences: preferences,
             sourceLineCount: sourceLineCount,
-            sourceLineOffset: sourceLineOffset
+            sourceLineOffset: sourceLineOffset,
+            documentOverrides: documentOverrides
         )
     }
 

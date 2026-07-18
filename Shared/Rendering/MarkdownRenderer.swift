@@ -18,6 +18,11 @@ public struct MarkdownRenderer: Sendable {
         /// extension exists there), so this is applied as a post-processing pass over the
         /// rendered HTML rather than a parser option -- see `applyHighlightMarkup`.
         public var highlight: Bool = false
+        /// `> [!NOTE]` / `[!TIP]` / `[!IMPORTANT]` / `[!WARNING]` / `[!CAUTION]` -> a styled
+        /// alert block. Not a cmark-gfm syntax extension (none exists there either -- see
+        /// issue #29), so this is applied as a post-processing pass over the rendered HTML,
+        /// following the same technique as `highlight` above -- see `applyAlertMarkup`.
+        public var alerts: Bool = true
         public var renderTOC: Bool = false
         public var detectFrontMatter: Bool = true
         /// Emits `data-sourcepos="startLine:col-endLine:col"` on block elements, which
@@ -40,6 +45,7 @@ public struct MarkdownRenderer: Sendable {
             opts.detectFrontMatter = preferences.htmlDetectFrontMatter
             opts.footnotes = preferences.extensionFootnotes
             opts.highlight = preferences.extensionHighlight
+            opts.alerts = preferences.extensionAlerts
             return opts
         }
     }
@@ -87,6 +93,15 @@ public struct MarkdownRenderer: Sendable {
         cmark_gfm_core_extensions_ensure_registered()
     }
 
+    /// Extracts and parses just the leading YAML front-matter block, without running a full
+    /// parse/render pass. Lets a caller (e.g. `SplitEditorView`, resolving issue #27's
+    /// per-document preview overrides) inspect front matter before deciding render options,
+    /// without paying for cmark twice per render. Returns `nil` if there's no front-matter
+    /// block or it doesn't parse as YAML.
+    public func peekFrontMatter(_ markdown: String) -> [String: Any]? {
+        extractFrontMatter(from: markdown).yaml
+    }
+
     /// Render markdown text to HTML with the given options.
     public func render(_ markdown: String, options: Options = Options()) -> RenderResult {
         var text = markdown
@@ -132,6 +147,10 @@ public struct MarkdownRenderer: Sendable {
 
         if options.highlight {
             html = applyHighlightMarkup(to: html)
+        }
+
+        if options.alerts {
+            html = applyAlertMarkup(to: html)
         }
 
         // Heading extraction always runs so RenderResult.headings is populated regardless of
@@ -234,6 +253,10 @@ public struct MarkdownRenderer: Sendable {
         result += nsHTML.substring(with: NSRange(location: cursor, length: nsHTML.length - cursor))
         return result
     }
+
+    // Alerts extension (> [!NOTE] etc. -> styled alert block, issue #29) lives in
+    // MarkdownRenderer+Alerts.swift, split out to keep this file under swiftlint's
+    // file/type length limits -- see that file for `applyAlertMarkup`.
 
     // MARK: - Heading Extraction & TOC Generation
 

@@ -1,0 +1,40 @@
+/* Copy-to-clipboard button on code blocks (issue #28). Colors use fixed rgba, not
+   prefers-color-scheme, for the same reason mermaid-zoom.css does: Fen's own themes set
+   body color/background directly rather than through a media query, so a hardcoded
+   light-mode-only palette would go illegible on dark themes. */
+
+.fen-code-block-container {
+  position: relative;
+  margin: 15px 0;
+}
+.fen-code-block-container pre {
+  margin: 0;
+}
+.fen-copy-button {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  width: auto;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.9);
+  color: #282828;
+  font-size: 12px;
+  line-height: 22px;
+  cursor: pointer;
+}
+.fen-code-block-container:hover .fen-copy-button {
+  opacity: 1;
+}
+.fen-copy-button:hover {
+  background: #fff;
+}
+.fen-copy-button.fen-copy-button-copied {
+  opacity: 1;
+  color: #1a7f37;
+}

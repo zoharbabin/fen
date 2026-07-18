@@ -1,6 +1,15 @@
 import Foundation
 import SwiftUI
 
+/// User-facing choice for which appearance the preview should render in (issue #25).
+/// `.system` means "follow `Preferences.systemPrefersDarkAppearance`"; `.light`/`.dark` pin
+/// the preview independent of the system setting.
+public enum PreviewAppearanceMode: String, CaseIterable, Sendable {
+    case system
+    case light
+    case dark
+}
+
 @Observable
 public final class Preferences {
     public nonisolated(unsafe) static let shared = Preferences()
@@ -42,6 +51,16 @@ public final class Preferences {
 
     var extensionSmartyPants: Bool = false {
         didSet { defaults.set(extensionSmartyPants, forKey: "extensionSmartyPants")
+            renderRevision += 1
+        }
+    }
+
+    /// Defaults on (unlike `extensionHighlight`'s default-off): the `> [!TYPE]` marker is
+    /// specific enough that accidental collision with real prose is effectively impossible,
+    /// the same reasoning `extensionTables`/`extensionAutolink`/`extensionStrikethrough`
+    /// already default on for -- see issue #29.
+    var extensionAlerts: Bool = true {
+        didSet { defaults.set(extensionAlerts, forKey: "extensionAlerts")
             renderRevision += 1
         }
     }
@@ -157,6 +176,40 @@ public final class Preferences {
         }
     }
 
+    /// Manual override for the preview's light/dark appearance (issue #25). `.system` (the
+    /// default) makes `HTMLComposer` follow `systemPrefersDarkAppearance` instead.
+    var previewAppearanceMode: PreviewAppearanceMode = .system {
+        didSet { defaults.set(previewAppearanceMode.rawValue, forKey: "previewAppearanceMode")
+            renderRevision += 1
+        }
+    }
+
+    /// Live system light/dark state, set by `SplitEditorView` from SwiftUI's
+    /// `@Environment(\.colorScheme)` -- not a user preference, so unlike every other property
+    /// in this file, this one is never written to `UserDefaults`: it should always reflect
+    /// the system's *current* appearance, never a stale persisted snapshot from a previous run.
+    var systemPrefersDarkAppearance: Bool = false {
+        didSet { renderRevision += 1 }
+    }
+
+    /// Whether `customCSS` is layered on top of the selected theme (issue #26). Kept separate
+    /// from the text itself so a user can author CSS, toggle it off to compare against the
+    /// bundled theme, and toggle back on without retyping.
+    var customCSSEnabled: Bool = false {
+        didSet { defaults.set(customCSSEnabled, forKey: "customCSSEnabled")
+            renderRevision += 1
+        }
+    }
+
+    /// User-authored CSS, layered last (after every bundled/extension style) so it wins the
+    /// cascade by source order alone (issue #26). Passed through `HTMLComposer.sanitizeCustomCSS`
+    /// before being inlined -- never trust this string directly.
+    var customCSS: String = "" {
+        didSet { defaults.set(customCSS, forKey: "customCSS")
+            renderRevision += 1
+        }
+    }
+
     var htmlDetectFrontMatter: Bool = true {
         didSet { defaults.set(htmlDetectFrontMatter, forKey: "htmlDetectFrontMatter")
             renderRevision += 1
@@ -205,6 +258,12 @@ public final class Preferences {
         }
     }
 
+    var htmlCopyButton: Bool = true {
+        didSet { defaults.set(htmlCopyButton, forKey: "htmlCopyButton")
+            renderRevision += 1
+        }
+    }
+
     var htmlMermaid: Bool = false {
         didSet { defaults.set(htmlMermaid, forKey: "htmlMermaid")
             renderRevision += 1
@@ -245,6 +304,8 @@ public final class Preferences {
         extensionHighlight = defaults.bool(forKey: "extensionHighlight")
         extensionFootnotes = defaults.object(forKey: "extensionFootnotes") != nil
             ? defaults.bool(forKey: "extensionFootnotes") : true
+        extensionAlerts = defaults.object(forKey: "extensionAlerts") != nil
+            ? defaults.bool(forKey: "extensionAlerts") : true
         extensionSmartyPants = defaults.bool(forKey: "extensionSmartyPants")
         markdownManualRender = defaults.bool(forKey: "markdownManualRender")
     }
@@ -285,6 +346,10 @@ public final class Preferences {
 
     private func loadHTMLDefaults(from defaults: UserDefaults) {
         htmlStyleName = defaults.string(forKey: "htmlStyleName") ?? "GitHub2"
+        previewAppearanceMode = defaults.string(forKey: "previewAppearanceMode")
+            .flatMap(PreviewAppearanceMode.init(rawValue:)) ?? .system
+        customCSSEnabled = defaults.bool(forKey: "customCSSEnabled")
+        customCSS = defaults.string(forKey: "customCSS") ?? ""
         htmlDetectFrontMatter = defaults.object(forKey: "htmlDetectFrontMatter") != nil
             ? defaults.bool(forKey: "htmlDetectFrontMatter") : true
         htmlTaskList = defaults.object(forKey: "htmlTaskList") != nil
@@ -296,6 +361,8 @@ public final class Preferences {
             ? defaults.bool(forKey: "htmlSyntaxHighlighting") : true
         htmlHighlightingThemeName = defaults.string(forKey: "htmlHighlightingThemeName") ?? "github"
         htmlLineNumbers = defaults.bool(forKey: "htmlLineNumbers")
+        htmlCopyButton = defaults.object(forKey: "htmlCopyButton") != nil
+            ? defaults.bool(forKey: "htmlCopyButton") : true
         htmlMermaid = defaults.bool(forKey: "htmlMermaid")
         htmlRendersTOC = defaults.bool(forKey: "htmlRendersTOC")
     }
