@@ -39,8 +39,11 @@ import Testing
 
             #expect(htmlA.contains("Alpha document"))
             #expect(htmlB.contains("Beta document"))
-            #expect(!htmlA.contains("Beta"), "run A's output must never reference batch B's content")
-            #expect(!htmlB.contains("Alpha"), "run B's output must never reference batch A's content")
+            // Checks for the specific heading text, not a bare "Beta"/"Alpha" substring -- the
+            // vendored highlight.min.js this composes in by default (rule 5.1, issue #31)
+            // contains "Beta" as a language keyword, unrelated to any cross-document leak.
+            #expect(!htmlA.contains("Beta document"), "run A's output must never reference batch B's content")
+            #expect(!htmlB.contains("Alpha document"), "run B's output must never reference batch A's content")
         }
     }
 #endif
