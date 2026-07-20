@@ -43,6 +43,7 @@ struct FenApp: App {
 
         findCommands()
         formattingCommands()
+        copyCommands()
         exportHTMLCommands()
         exportPDFCommands()
         printCommands()
