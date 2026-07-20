@@ -7,23 +7,23 @@ import Foundation
 #endif
 
 public extension Notification.Name {
-    /// Posted by macOS's "Copy as HTML" menu command (`macOS/CopyCommands.swift`) to ask the
+    /// Posted by macOS's "Copy as Raw HTML" menu command (`macOS/CopyCommands.swift`) to ask the
     /// focused `SplitEditorView` to perform the copy -- mirrors `.exportToHTML` (issue #31).
-    static let copyAsHTML = Notification.Name("copyAsHTML")
-    /// Posted by macOS's "Copy as Rich Text" menu command -- mirrors `.copyAsHTML`.
-    static let copyAsRichText = Notification.Name("copyAsRichText")
+    static let copyAsRawHTML = Notification.Name("copyAsRawHTML")
+    /// Posted by macOS's "Copy as Rich Text Formatted" menu command -- mirrors `.copyAsRawHTML`.
+    static let copyAsRichTextFormatted = Notification.Name("copyAsRichTextFormatted")
 }
 
 /// Puts a document's rendered output directly on the system pasteboard (issue #33) -- "Copy as
-/// HTML" and "Copy as Rich Text" skip the file-export round trip `DocumentHTMLExporter` (issue
-/// #31) otherwise requires. Composes via that same exporter's `.selfContained` mode (the only
-/// mode that makes sense for a clipboard payload: there's no destination directory to resolve a
-/// `linkedAssets` folder against, and every embedded image needs to travel with the copied
-/// content as one self-contained blob). Holds no stored state: both methods are pure functions
-/// of their arguments, so two concurrent calls composing different documents never share or
-/// corrupt each other's *composed* output (rule 1.1) -- the final pasteboard write itself targets
-/// the one OS-owned general pasteboard, the same shared resource every app's copy action writes
-/// to, not state Fen owns or could isolate away.
+/// Raw HTML" and "Copy as Rich Text Formatted" skip the file-export round trip
+/// `DocumentHTMLExporter` (issue #31) otherwise requires. Composes via that same exporter's
+/// `.selfContained` mode (the only mode that makes sense for a clipboard payload: there's no
+/// destination directory to resolve a `linkedAssets` folder against, and every embedded image
+/// needs to travel with the copied content as one self-contained blob). Holds no stored state:
+/// both methods are pure functions of their arguments, so two concurrent calls composing
+/// different documents never share or corrupt each other's *composed* output (rule 1.1) -- the
+/// final pasteboard write itself targets the one OS-owned general pasteboard, the same shared
+/// resource every app's copy action writes to, not state Fen owns or could isolate away.
 public struct ClipboardExporter: Sendable {
     /// Matches `ExportAssetResolver`'s own `<img src="...">` pattern (issue #31) -- reused here,
     /// not duplicated, to find any reference `.selfContained` composition left un-inlined (an
@@ -40,7 +40,7 @@ public struct ClipboardExporter: Sendable {
     ///
     /// Not `private`: `ClipboardExporterIsolationTests`/`ClipboardExporterTests` (issue #33) call
     /// this directly to assert on pure composition output, without racing the one real,
-    /// process-wide OS pasteboard `copyAsHTML`/`copyAsRichText` write to.
+    /// process-wide OS pasteboard `copyAsRawHTML`/`copyAsRichTextFormatted` write to.
     func composeHTML(markdown: String, documentURL: URL?, preferences: Preferences) -> String {
         DocumentHTMLExporter().export(
             markdown: markdown, documentURL: documentURL, preferences: preferences, mode: .selfContained
@@ -65,7 +65,7 @@ public struct ClipboardExporter: Sendable {
 
     /// Converts `html` to an `NSAttributedString` via its rich-text HTML importer, or `nil` if
     /// the conversion produces no usable content (rule 3: a malformed document degrades to no
-    /// rich-text representation, rather than crashing "Copy as Rich Text").
+    /// rich-text representation, rather than crashing "Copy as Rich Text Formatted").
     ///
     /// Not `private`: `ClipboardExporterTests` calls this directly to prove a malformed document
     /// degrades to `nil` rather than throwing.
@@ -80,20 +80,22 @@ public struct ClipboardExporter: Sendable {
     }
 
     #if os(macOS)
-        /// Writes composed self-contained HTML to the general pasteboard as `.html`, plus a
-        /// `.string` fallback (the rendered plain text) for apps that only understand plain text.
-        public func copyAsHTML(markdown: String, documentURL: URL?, preferences: Preferences) {
+        /// Writes composed self-contained HTML to the general pasteboard as plain text only --
+        /// deliberately no `.html` type. Declaring `.html` would let any app that prefers a rich
+        /// paste (Mail, Word, Teams, Slack) render the markup instead of showing it, defeating
+        /// the entire point of "Copy as Raw HTML": pasting the literal `<tags>` as text,
+        /// everywhere, every time.
+        public func copyAsRawHTML(markdown: String, documentURL: URL?, preferences: Preferences) {
             let html = composeHTML(markdown: markdown, documentURL: documentURL, preferences: preferences)
             let pasteboard = NSPasteboard.general
             pasteboard.clearContents()
-            pasteboard.setString(html, forType: .html)
-            pasteboard.setString(plainText(fromComposedHTML: html, markdown: markdown), forType: .string)
+            pasteboard.setString(html, forType: .string)
         }
 
         /// Writes composed HTML's rich-text (`.rtf`) conversion to the general pasteboard, plus
-        /// the same `.html`/`.string` fallbacks `copyAsHTML` writes -- an app that doesn't
-        /// understand `.rtf` still gets the HTML or plain text.
-        public func copyAsRichText(markdown: String, documentURL: URL?, preferences: Preferences) {
+        /// an `.html` type for apps that prefer it and a rendered-plain-text `.string` fallback
+        /// for apps that understand neither.
+        public func copyAsRichTextFormatted(markdown: String, documentURL: URL?, preferences: Preferences) {
             let html = composeHTML(markdown: markdown, documentURL: documentURL, preferences: preferences)
             let strippedHTML = strippingNonDataImages(from: html)
             let attributed = attributedString(from: strippedHTML)
@@ -106,23 +108,18 @@ public struct ClipboardExporter: Sendable {
             pasteboard.setString(attributed?.string ?? markdown, forType: .string)
         }
     #else
-        /// iOS half of `copyAsHTML` -- same composition and fallback, `UIPasteboard.general` in
+        /// iOS half of `copyAsRawHTML` -- same plain-text-only write, `UIPasteboard.general` in
         /// place of `NSPasteboard.general`.
-        public func copyAsHTML(markdown: String, documentURL: URL?, preferences: Preferences) {
+        public func copyAsRawHTML(markdown: String, documentURL: URL?, preferences: Preferences) {
             let html = composeHTML(markdown: markdown, documentURL: documentURL, preferences: preferences)
-            UIPasteboard.general.items = [
-                [
-                    UTType.html.identifier: html,
-                    UTType.utf8PlainText.identifier: plainText(fromComposedHTML: html, markdown: markdown),
-                ],
-            ]
+            UIPasteboard.general.items = [[UTType.utf8PlainText.identifier: html]]
         }
 
-        /// iOS half of `copyAsRichText` -- same rich-text conversion and fallbacks,
+        /// iOS half of `copyAsRichTextFormatted` -- same rich-text conversion and fallbacks,
         /// `UIPasteboard.general` in place of `NSPasteboard.general`. `UIPasteboard` has no
         /// dedicated RTF UTType constant, so `.rtf`'s own identifier is used directly, matching
         /// how RTF content is conventionally declared on iOS's pasteboard.
-        public func copyAsRichText(markdown: String, documentURL: URL?, preferences: Preferences) {
+        public func copyAsRichTextFormatted(markdown: String, documentURL: URL?, preferences: Preferences) {
             let html = composeHTML(markdown: markdown, documentURL: documentURL, preferences: preferences)
             let attributed = attributedString(from: strippingNonDataImages(from: html))
             var item: [String: Any] = [
@@ -144,13 +141,5 @@ public struct ClipboardExporter: Sendable {
             from: NSRange(location: 0, length: attributed.length),
             documentAttributes: [.documentType: NSAttributedString.DocumentType.rtf]
         )
-    }
-
-    /// Plain-text fallback for "Copy as HTML" -- `composedHTML`'s own rich-text conversion,
-    /// stripped to its `.string` (the actual rendered plain text, not raw Markdown source), or
-    /// the raw Markdown itself if that conversion fails (rule 3: never leave `.string` empty
-    /// just because the richer representations failed).
-    private func plainText(fromComposedHTML composedHTML: String, markdown: String) -> String {
-        attributedString(from: strippingNonDataImages(from: composedHTML))?.string ?? markdown
     }
 }

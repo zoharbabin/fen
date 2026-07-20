@@ -22,4 +22,4 @@ Fen is built and maintained by Zohar Babin (https://zoharbabin.com/), CSO at Kal
 
 ## Where Fen is headed
 
-Shipped: a formatting toolbar, default-`.md`-editor system integration (Finder icon, Open Recent, session restore), and export & printing (PDF/HTML export, native printing, Copy as HTML/Rich Text, and a `fen-export` command-line tool). Longer-term ("the knowledge suite"): multi-file workspaces, `[[wiki-link]]` backlinks, local full-text search, a lightweight tagging/ontology layer, and a graph view — turning isolated Markdown files into a connected, searchable knowledge base.
+Shipped: a formatting toolbar, default-`.md`-editor system integration (Finder icon, Open Recent, session restore), and export & printing (PDF/HTML export, native printing, Copy as Raw HTML/Rich Text Formatted, and a `fen-export` command-line tool). Longer-term ("the knowledge suite"): multi-file workspaces, `[[wiki-link]]` backlinks, local full-text search, a lightweight tagging/ontology layer, and a graph view — turning isolated Markdown files into a connected, searchable knowledge base.

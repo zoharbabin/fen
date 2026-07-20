@@ -3,8 +3,8 @@ import Foundation
 import Testing
 
 /// Proves issue #33 rule 3 (resiliency): a composed HTML string that fails rich-text conversion
-/// degrades to no rich-text representation rather than crashing "Copy as Rich Text", and every
-/// pasteboard representation still gets a usable plain-text fallback.
+/// degrades to no rich-text representation rather than crashing "Copy as Rich Text Formatted",
+/// and every pasteboard representation still gets a usable plain-text fallback.
 struct ClipboardExporterTests {
     @Test @MainActor
     func emptyHTMLProducesAnEmptyAttributedStringRatherThanThrowing() {
