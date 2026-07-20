@@ -20,6 +20,10 @@ let package = Package(
             name: "FeniOS",
             targets: ["FenIOS"]
         ),
+        .executable(
+            name: "fen-export",
+            targets: ["FenExportCLI"]
+        ),
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-cmark.git", from: "0.4.0"),
@@ -56,6 +60,11 @@ let package = Package(
             name: "FenIOS",
             dependencies: ["FenCore"],
             path: "iOS"
+        ),
+        .executableTarget(
+            name: "FenExportCLI",
+            dependencies: ["FenCore"],
+            path: "CLI/FenExportCLI"
         ),
         .testTarget(
             name: "FenTests",
