@@ -195,6 +195,22 @@ struct RenderingSettingsTab: View {
                 }
             }
 
+            Section("Print / PDF Theme") {
+                Picker("Theme", selection: $prefs.printStyleName) {
+                    Text("Same as Preview").tag(String?.none)
+                    Section("Light") {
+                        ForEach(lightStyles, id: \.self) { style in
+                            themeRow(style).tag(String?.some(style))
+                        }
+                    }
+                    Section("Dark") {
+                        ForEach(darkStyles, id: \.self) { style in
+                            themeRow(style).tag(String?.some(style))
+                        }
+                    }
+                }
+            }
+
             Section("Custom CSS") {
                 Toggle("Layer custom CSS on the preview", isOn: $prefs.customCSSEnabled)
                 if prefs.customCSSEnabled {

@@ -176,6 +176,14 @@ public final class Preferences {
         }
     }
 
+    /// Overrides `htmlStyleName` for Print… and Export to PDF… only (issue #82) -- `nil` (the
+    /// default) means "follow whatever `htmlStyleName` currently is," so printing/exporting
+    /// behaves exactly as before for anyone who never touches this setting. Lets a document be
+    /// previewed in a dark theme but printed/exported with a print-friendly light one.
+    var printStyleName: String? {
+        didSet { defaults.set(printStyleName, forKey: "printStyleName") }
+    }
+
     /// Manual override for the preview's light/dark appearance (issue #25). `.system` (the
     /// default) makes `HTMLComposer` follow `systemPrefersDarkAppearance` instead.
     var previewAppearanceMode: PreviewAppearanceMode = .system {
@@ -346,6 +354,7 @@ public final class Preferences {
 
     private func loadHTMLDefaults(from defaults: UserDefaults) {
         htmlStyleName = defaults.string(forKey: "htmlStyleName") ?? "GitHub2"
+        printStyleName = defaults.string(forKey: "printStyleName")
         previewAppearanceMode = defaults.string(forKey: "previewAppearanceMode")
             .flatMap(PreviewAppearanceMode.init(rawValue:)) ?? .system
         customCSSEnabled = defaults.bool(forKey: "customCSSEnabled")
