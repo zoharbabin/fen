@@ -6,6 +6,12 @@ import WebKit
     import UIKit
 #endif
 
+public extension Notification.Name {
+    /// Posted by macOS's "Print…" menu command (`macOS/PrintCommands.swift`) to ask the focused
+    /// `SplitEditorView` to present the system print panel -- mirrors `.exportToPDF` (issue #32).
+    static let printDocument = Notification.Name("printDocument")
+}
+
 /// Renders composed print-ready HTML into a paginated PDF via each platform's native print
 /// pipeline (issue #30) -- `WKWebView.createPDF` produces one continuous, un-paginated page and
 /// ignores CSS page-break rules, so this drives the same print-layout engine `NSPrintOperation`
@@ -86,6 +92,59 @@ public final class PDFRenderer {
             operation.showsPrintPanel = false
             operation.showsProgressPanel = false
 
+            let success = await runModalPrintOperation(operation, webView: webView)
+
+            guard success else {
+                try? FileManager.default.removeItem(at: destinationURL)
+                throw PDFRenderError.renderFailed
+            }
+        }
+
+        /// Presents the system print panel for `html` -- issue #32's macOS half. Builds the same
+        /// offscreen `WKWebView` + `NSPrintInfo` as `renderPDF`, but shows the print panel and
+        /// progress panel instead of writing straight to a file, so the user picks a printer (or
+        /// "Save as PDF…") from the panel itself; that write path is the OS's own, not this
+        /// method's, so no `jobSavingURL`/`jobDisposition` is set here.
+        public func printDocument(
+            html: String,
+            baseDirectory: URL?,
+            loadTimeout: Duration = .seconds(10)
+        ) async throws {
+            let webView = try await loadOffscreenWebView(
+                html: html, baseDirectory: baseDirectory, loadTimeout: loadTimeout
+            )
+
+            let printInfo = NSPrintInfo()
+            printInfo.paperSize = Self.pageSize
+            printInfo.topMargin = Self.margin
+            printInfo.bottomMargin = Self.margin
+            printInfo.leftMargin = Self.margin
+            printInfo.rightMargin = Self.margin
+            printInfo.orientation = .portrait
+
+            let operation = webView.printOperation(with: printInfo)
+            operation.showsPrintPanel = true
+            operation.showsProgressPanel = true
+
+            guard await runModalPrintOperation(operation, webView: webView) else {
+                throw PDFRenderError.renderFailed
+            }
+        }
+
+        /// Runs `operation` against a hidden window hosting `webView`, serialized by the
+        /// process-wide `PrintOperationGate` -- the shared "load offscreen webview, build an
+        /// `NSPrintOperation`, run it via the gate" logic both `renderPDF` (panel hidden) and
+        /// `printDocument` (panel shown) call, rather than each duplicating it (issue #32 rule
+        /// 5.1). `WKWebView`'s print implementation needs its operation driven through
+        /// `runModal(for:delegate:didRun:contextInfo:)` against a real (if offscreen) window --
+        /// plain `NSPrintOperation.run()` hangs indefinitely for a WebKit-backed print view, even
+        /// inside a running `NSApplication`, confirmed by a local repro before writing this.
+        ///
+        /// Not `private`: `PrintIsolationTests`/`PrintControllerTests` (issue #32 rules 1.1/3.1)
+        /// drive this directly with `showsPrintPanel = false` and `jobDisposition = .cancel`, the
+        /// same mechanism AppKit itself uses to skip UI -- a real `showsPrintPanel = true` run
+        /// would pop an actual, unattended dialog and hang a headless test forever.
+        func runModalPrintOperation(_ operation: NSPrintOperation, webView: WKWebView) async -> Bool {
             let hiddenWindow = NSWindow(
                 contentRect: CGRect(origin: .zero, size: Self.pageSize),
                 styleMask: [.borderless],
@@ -112,11 +171,7 @@ public final class PDFRenderer {
             }
             activeRunDelegate = nil
             await Self.printOperationGate.release()
-
-            guard success else {
-                try? FileManager.default.removeItem(at: destinationURL)
-                throw PDFRenderError.renderFailed
-            }
+            return success
         }
     #else
         /// Renders `html` into paginated PDF `Data` via `UIPrintPageRenderer` fed by the web
@@ -147,13 +202,43 @@ public final class PDFRenderer {
                 }
             }
         }
+
+        /// Builds a `UIPrintInteractionController` ready to present for `html` -- issue #32's iOS
+        /// half. Unlike `renderPDFData`'s manual `UIPrintPageRenderer`/`UIGraphicsPDFRenderer`
+        /// pagination, `UIPrintInteractionController` paginates live from the web view's own print
+        /// formatter, so this needs no page-rendering loop. Presenting the returned controller
+        /// (`present(animated:completionHandler:)` on iPhone, `present(from:in:animated:completionHandler:)`
+        /// anchored to a rect on iPad) is the caller's responsibility, since that's a UI concern
+        /// this renderer has no view hierarchy to participate in.
+        public func makePrintInteractionController(
+            html: String,
+            baseDirectory: URL?,
+            documentName: String,
+            loadTimeout: Duration = .seconds(10)
+        ) async throws -> UIPrintInteractionController {
+            let webView = try await loadOffscreenWebView(
+                html: html, baseDirectory: baseDirectory, loadTimeout: loadTimeout
+            )
+
+            let printInfo = UIPrintInfo(dictionary: nil)
+            printInfo.outputType = .general
+            printInfo.jobName = documentName
+
+            let controller = UIPrintInteractionController()
+            controller.printInfo = printInfo
+            controller.printFormatter = webView.viewPrintFormatter()
+            return controller
+        }
     #endif
 
     /// Loads `html` into an offscreen `WKWebView` through `PreviewSchemeHandler` (the same local
     /// asset-access pipeline the live preview uses, issue #30 rule 2.2), bounded by
     /// `loadTimeout` so a pathological document that never fires `didFinish` fails the export
     /// rather than hanging it forever (rule 3.2).
-    private func loadOffscreenWebView(
+    ///
+    /// Not `private`: `PrintIsolationTests`/`PrintControllerTests` (issue #32) build their own
+    /// offscreen web view through this to drive `runModalPrintOperation` directly.
+    func loadOffscreenWebView(
         html: String,
         baseDirectory: URL?,
         loadTimeout: Duration
