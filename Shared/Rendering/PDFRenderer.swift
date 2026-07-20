@@ -105,10 +105,21 @@ public final class PDFRenderer {
         /// progress panel instead of writing straight to a file, so the user picks a printer (or
         /// "Save as PDF…") from the panel itself; that write path is the OS's own, not this
         /// method's, so no `jobSavingURL`/`jobDisposition` is set here.
+        ///
+        /// Deliberately does not throw on a `false` result: AppKit's `runModal` reports the same
+        /// `false` both when the user clicks Cancel and when the job genuinely fails, with no way
+        /// to tell the two apart from this callback -- and for a genuine failure, the print panel
+        /// itself is already the UI of record (it presents its own error sheet), so surfacing a
+        /// second, ambiguous "Print Failed" alert on top would misfire on every ordinary cancel.
+        ///
+        /// `showsPrintPanel` defaults to `true` for real callers; `PrintControllerTests` (rule
+        /// 3.1) passes `false` with a `.cancel` disposition to prove a cancelled print doesn't
+        /// throw, without popping a real, unattended system panel.
         public func printDocument(
             html: String,
             baseDirectory: URL?,
-            loadTimeout: Duration = .seconds(10)
+            loadTimeout: Duration = .seconds(10),
+            showsPrintPanel: Bool = true
         ) async throws {
             let webView = try await loadOffscreenWebView(
                 html: html, baseDirectory: baseDirectory, loadTimeout: loadTimeout
@@ -121,14 +132,15 @@ public final class PDFRenderer {
             printInfo.leftMargin = Self.margin
             printInfo.rightMargin = Self.margin
             printInfo.orientation = .portrait
+            if !showsPrintPanel {
+                printInfo.jobDisposition = .cancel
+            }
 
             let operation = webView.printOperation(with: printInfo)
-            operation.showsPrintPanel = true
-            operation.showsProgressPanel = true
+            operation.showsPrintPanel = showsPrintPanel
+            operation.showsProgressPanel = showsPrintPanel
 
-            guard await runModalPrintOperation(operation, webView: webView) else {
-                throw PDFRenderError.renderFailed
-            }
+            _ = await runModalPrintOperation(operation, webView: webView)
         }
 
         /// Runs `operation` against a hidden window hosting `webView`, serialized by the
