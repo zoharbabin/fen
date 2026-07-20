@@ -44,6 +44,17 @@ struct PrintControllerTests {
         }
 
         @Test @MainActor
+        func cancellingThePrintPanelDoesNotThrow() async throws {
+            // Regression test: `PDFRenderer.printDocument` used to throw `.renderFailed`
+            // whenever `runModal`'s `success` callback reported `false` -- which AppKit does
+            // identically for a deliberate Cancel click and for a genuine failure, so cancelling
+            // an ordinary print job surfaced a spurious "Print Failed" alert to the user.
+            try await PDFRenderer().printDocument(
+                html: "<html><body>Cancelled</body></html>", baseDirectory: nil, showsPrintPanel: false
+            )
+        }
+
+        @Test @MainActor
         func cancellingWritesNoFileToDisk() async throws {
             let tempRoot = FileManager.default.temporaryDirectory
                 .appendingPathComponent("PrintControllerTests-\(UUID().uuidString)")
