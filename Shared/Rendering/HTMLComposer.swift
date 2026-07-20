@@ -298,14 +298,19 @@ public struct HTMLComposer: Sendable {
     /// highlighting, since a PDF/printout has no live preference toggle to react to), plus
     /// `print.css`'s break-avoidance rules so content never gets sliced across a page boundary.
     /// Page margins come from `NSPrintInfo`/`UIPrintPageRenderer` (the platform print pipeline),
-    /// not CSS, so the two never double up.
+    /// not CSS, so the two never double up. Uses `preferences.printStyleName` in place of
+    /// `htmlStyleName` when set (issue #82), so a document can be previewed in one theme but
+    /// printed/exported in another -- e.g. a dark on-screen preview with a light printout.
     public func composeForPrint(
         title: String?,
         body: String,
         preferences: Preferences
     ) -> String {
         var (styleTags, scriptTags) = exportStyleAndScriptTags(
-            preferences: preferences, includeStyles: true, includeHighlighting: true
+            preferences: preferences,
+            includeStyles: true,
+            includeHighlighting: true,
+            styleNameOverride: preferences.printStyleName
         )
         if let printCSS = loadExtensionFile(named: "print", ext: "css") {
             styleTags.append(inlineStyle(printCSS))
@@ -317,16 +322,19 @@ public struct HTMLComposer: Sendable {
 
     /// Shared style/script-tag assembly for `composeForExport` and `composeForPrint` (rule 5.1)
     /// -- the theme stylesheet, optional syntax highlighting, and optional user custom CSS every
-    /// non-live-preview HTML document needs.
+    /// non-live-preview HTML document needs. `styleNameOverride` lets `composeForPrint` substitute
+    /// `printStyleName` for `htmlStyleName` (issue #82); `composeForExport` never passes one, since
+    /// HTML export has no separate theme setting.
     private func exportStyleAndScriptTags(
         preferences: Preferences,
         includeStyles: Bool,
-        includeHighlighting: Bool
+        includeHighlighting: Bool,
+        styleNameOverride: String? = nil
     ) -> (styleTags: [String], scriptTags: [String]) {
         var styleTags: [String] = []
         var scriptTags: [String] = []
 
-        if includeStyles, let css = loadStyleCSS(named: preferences.htmlStyleName) {
+        if includeStyles, let css = loadStyleCSS(named: styleNameOverride ?? preferences.htmlStyleName) {
             styleTags.append(inlineStyle(css))
         }
 
