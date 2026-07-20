@@ -285,6 +285,44 @@ public struct HTMLComposer: Sendable {
         includeStyles: Bool,
         includeHighlighting: Bool
     ) -> String {
+        let (styleTags, scriptTags) = exportStyleAndScriptTags(
+            preferences: preferences, includeStyles: includeStyles, includeHighlighting: includeHighlighting
+        )
+        return htmlDocument(
+            title: title, body: body, styleTags: styleTags, scriptTags: scriptTags, includeViewportMeta: false
+        )
+    }
+
+    /// Compose HTML for paginated PDF export (issue #30) or printing (issue #32) -- the same
+    /// style/script assembly `composeForExport` uses (always with styles and syntax
+    /// highlighting, since a PDF/printout has no live preference toggle to react to), plus
+    /// `print.css`'s break-avoidance rules so content never gets sliced across a page boundary.
+    /// Page margins come from `NSPrintInfo`/`UIPrintPageRenderer` (the platform print pipeline),
+    /// not CSS, so the two never double up.
+    public func composeForPrint(
+        title: String?,
+        body: String,
+        preferences: Preferences
+    ) -> String {
+        var (styleTags, scriptTags) = exportStyleAndScriptTags(
+            preferences: preferences, includeStyles: true, includeHighlighting: true
+        )
+        if let printCSS = loadExtensionFile(named: "print", ext: "css") {
+            styleTags.append(inlineStyle(printCSS))
+        }
+        return htmlDocument(
+            title: title, body: body, styleTags: styleTags, scriptTags: scriptTags, includeViewportMeta: false
+        )
+    }
+
+    /// Shared style/script-tag assembly for `composeForExport` and `composeForPrint` (rule 5.1)
+    /// -- the theme stylesheet, optional syntax highlighting, and optional user custom CSS every
+    /// non-live-preview HTML document needs.
+    private func exportStyleAndScriptTags(
+        preferences: Preferences,
+        includeStyles: Bool,
+        includeHighlighting: Bool
+    ) -> (styleTags: [String], scriptTags: [String]) {
         var styleTags: [String] = []
         var scriptTags: [String] = []
 
@@ -309,13 +347,7 @@ public struct HTMLComposer: Sendable {
             styleTags.append(inlineStyle(Self.sanitizeCustomCSS(preferences.customCSS)))
         }
 
-        return htmlDocument(
-            title: title,
-            body: body,
-            styleTags: styleTags,
-            scriptTags: scriptTags,
-            includeViewportMeta: false
-        )
+        return (styleTags, scriptTags)
     }
 
     // MARK: - Resource Loading

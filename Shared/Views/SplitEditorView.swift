@@ -23,6 +23,9 @@ public struct SplitEditorView: View {
     @State private var externalChangeController = ExternalChangeController()
     @State private var autosaveController = AutosaveController()
     @State private var htmlExportController = HTMLExportController()
+    #if os(macOS)
+        @State private var pdfExportController = PDFExportController()
+    #endif
     @State private var renderedHTML: String = ""
     @State private var renderTask: Task<Void, Never>?
     @State private var isOutlineVisible = false
@@ -47,6 +50,10 @@ public struct SplitEditorView: View {
         @State private var htmlExportContentType: UTType = .html
         @State private var htmlExportFilename = "export.html"
         @State private var isHTMLExportPresented = false
+        @State private var pdfExportDocument: PDFExportDocument?
+        @State private var pdfExportFilename = "export.pdf"
+        @State private var isPDFExportPresented = false
+        @State private var isPDFExporting = false
     #endif
 
     public var body: some View {
@@ -106,6 +113,9 @@ public struct SplitEditorView: View {
         .onReceive(NotificationCenter.default.publisher(for: .exportToHTML)) { _ in
             htmlExportController.presentSavePanel(document: document, preferences: preferences)
         }
+        .onReceive(NotificationCenter.default.publisher(for: .exportToPDF)) { _ in
+            pdfExportController.presentSavePanel(document: document, preferences: preferences)
+        }
         #endif
         #if os(iOS)
         .fileExporter(
@@ -113,6 +123,12 @@ public struct SplitEditorView: View {
             document: htmlExportDocument,
             contentType: htmlExportContentType,
             defaultFilename: htmlExportFilename
+        ) { _ in }
+        .fileExporter(
+            isPresented: $isPDFExportPresented,
+            document: pdfExportDocument,
+            contentType: .pdf,
+            defaultFilename: pdfExportFilename
         ) { _ in }
         #endif
     }
@@ -355,10 +371,16 @@ public struct SplitEditorView: View {
                     ForEach(HTMLExportChoice.allCases, id: \.self) { choice in
                         Button(choice.rawValue) { presentHTMLExporter(choice: choice) }
                     }
+                    Button("Export to PDF") { presentPDFExporter() }
                 } label: {
-                    Image(systemName: "square.and.arrow.up.on.square")
+                    if isPDFExporting {
+                        ProgressView()
+                    } else {
+                        Image(systemName: "square.and.arrow.up.on.square")
+                    }
                 }
-                .help("Export to HTML")
+                .disabled(isPDFExporting)
+                .help("Export to HTML or PDF")
                 .accessibilityIdentifier("ExportToHTMLButton")
             #endif
         }
@@ -382,6 +404,38 @@ public struct SplitEditorView: View {
             htmlExportContentType = isDirectory ? .folder : .html
             htmlExportFilename = isDirectory ? baseName : "\(baseName).html"
             isHTMLExportPresented = true
+        }
+
+        /// Renders and resolves the export up front (issue #30), same constraint as
+        /// `presentHTMLExporter` -- `.fileExporter` needs a fully-prepared `FileDocument` before
+        /// the user picks a destination. Rendering to PDF takes longer than composing HTML, so
+        /// this runs off the main actor's synchronous path via `Task`, with `isPDFExporting`
+        /// disabling the menu button until it finishes.
+        private func presentPDFExporter() {
+            let baseName = document.title ?? "Untitled"
+            let markdown = document.text
+            let fileURL = document.fileURL
+            isPDFExporting = true
+            Task {
+                let html = DocumentPDFExporter().export(
+                    markdown: markdown,
+                    documentURL: fileURL,
+                    preferences: preferences
+                )
+                do {
+                    let data = try await PDFRenderer().renderPDFData(
+                        html: html, baseDirectory: fileURL?.deletingLastPathComponent()
+                    )
+                    pdfExportDocument = PDFExportDocument(data: data)
+                    pdfExportFilename = "\(baseName).pdf"
+                    isPDFExportPresented = true
+                } catch {
+                    // No alert-presentation hook exists for iOS in this view yet; failure simply
+                    // leaves the export sheet unpresented, matching how a cancelled/failed
+                    // `.fileExporter` call already behaves with no document set.
+                }
+                isPDFExporting = false
+            }
         }
     #endif
 
