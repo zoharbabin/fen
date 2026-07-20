@@ -5,10 +5,10 @@ import Testing
 
 /// Proves issue #33 rule 2.3: `ClipboardExporter` never lets `NSAttributedString`'s HTML-to-
 /// rich-text importer fetch a remaining remote `<img>` reference. Unlike `ExportAssetResolver`
-/// (issue #31), which never itself performs a fetch, the importer used for "Copy as Rich Text"
-/// is an OS API that fetches on its own for any `http`/`https` `src` it's handed directly --
-/// confirmed by a local repro before this file was written. `strippingNonDataImages` is the one
-/// guard between composed HTML and that importer.
+/// (issue #31), which never itself performs a fetch, the importer used for "Copy as Rich Text
+/// Formatted" is an OS API that fetches on its own for any `http`/`https` `src` it's handed
+/// directly -- confirmed by a local repro before this file was written. `strippingNonDataImages`
+/// is the one guard between composed HTML and that importer.
 struct ClipboardExporterSecurityTests {
     private func sourceOfClipboardExporter() throws -> String {
         let sourceURL = URL(fileURLWithPath: #filePath)

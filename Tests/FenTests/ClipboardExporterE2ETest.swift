@@ -5,41 +5,43 @@ import Testing
     import AppKit
 #endif
 
-/// End-to-end test for issue #33: drives the real "Copy as HTML" / "Copy as Rich Text" flow --
-/// `ClipboardExporter.copyAsHTML`/`copyAsRichText` -- against a fixture document, then asserts
-/// the actual pasteboard contents, mirroring `ExportHTMLE2ETest`'s shape of exercising every
-/// step with real production types rather than calling composition helpers directly (that's
-/// already covered by `ClipboardExporterTests`/`ClipboardExporterIsolationTests`).
-@Suite("Copying a document as HTML or rich text writes real pasteboard content")
+/// End-to-end test for issue #33: drives the real "Copy as Raw HTML" / "Copy as Rich Text
+/// Formatted" flow -- `ClipboardExporter.copyAsRawHTML`/`copyAsRichTextFormatted` -- against a
+/// fixture document, then asserts the actual pasteboard contents, mirroring `ExportHTMLE2ETest`'s
+/// shape of exercising every step with real production types rather than calling composition
+/// helpers directly (that's already covered by
+/// `ClipboardExporterTests`/`ClipboardExporterIsolationTests`).
+@Suite("Copying a document as raw HTML or rich text writes real pasteboard content")
 struct ClipboardExporterE2ETest {
     #if os(macOS)
         @Test @MainActor
-        func copyAsHTMLWritesHTMLAndPlainTextToTheGeneralPasteboard() throws {
+        func copyAsRawHTMLWritesOnlyPlainTextWithLiteralMarkupToTheGeneralPasteboard() throws {
             let preferences =
                 try Preferences(defaults: #require(UserDefaults(suiteName: "clipboard.e2e.\(UUID().uuidString)")))
 
-            ClipboardExporter().copyAsHTML(
+            ClipboardExporter().copyAsRawHTML(
                 markdown: "---\ntitle: Notes\n---\n\n# Title\n\nSome **bold** text.",
                 documentURL: nil,
                 preferences: preferences
             )
 
             let pasteboard = NSPasteboard.general
-            let html = pasteboard.string(forType: .html)
             let plain = pasteboard.string(forType: .string)
 
-            #expect(html?.contains("<title>Notes</title>") == true)
-            #expect(html?.contains("<strong>bold</strong>") == true)
-            #expect(plain?.contains("Title") == true)
-            #expect(plain?.contains("bold") == true)
+            // No `.html` type: declaring one would let a rich-paste-preferring app (Mail, Word,
+            // Teams) render the markup instead of showing it as literal text -- the entire point
+            // of "Copy as Raw HTML" is that the tags themselves are what gets pasted, everywhere.
+            #expect(pasteboard.string(forType: .html) == nil)
+            #expect(plain?.contains("<title>Notes</title>") == true)
+            #expect(plain?.contains("<strong>bold</strong>") == true)
         }
 
         @Test @MainActor
-        func copyAsRichTextWritesRTFHTMLAndPlainTextToTheGeneralPasteboard() throws {
+        func copyAsRichTextFormattedWritesRTFHTMLAndPlainTextToTheGeneralPasteboard() throws {
             let preferences =
                 try Preferences(defaults: #require(UserDefaults(suiteName: "clipboard.e2e.\(UUID().uuidString)")))
 
-            ClipboardExporter().copyAsRichText(
+            ClipboardExporter().copyAsRichTextFormatted(
                 markdown: "---\ntitle: Notes\n---\n\n# Title\n\nSome **bold** text.",
                 documentURL: nil,
                 preferences: preferences
@@ -63,7 +65,7 @@ struct ClipboardExporterE2ETest {
         }
 
         @Test @MainActor
-        func copyAsRichTextOmitsRTFButStillWritesFallbacksWhenAnImageReferenceIsRemote() throws {
+        func copyAsRichTextFormattedOmitsRTFButStillWritesFallbacksWhenAnImageReferenceIsRemote() throws {
             let preferences =
                 try Preferences(defaults: #require(UserDefaults(suiteName: "clipboard.e2e.\(UUID().uuidString)")))
 
@@ -71,7 +73,7 @@ struct ClipboardExporterE2ETest {
             // 2.3), then gets stripped by ClipboardExporter before rich-text conversion (rule
             // 2.3) -- this proves the full pipeline still produces usable fallbacks even though
             // no image makes it into the rich-text representation.
-            ClipboardExporter().copyAsRichText(
+            ClipboardExporter().copyAsRichTextFormatted(
                 markdown: "# Title\n\n![remote](http://example.com/photo.png)\n\nSome text.",
                 documentURL: nil,
                 preferences: preferences
