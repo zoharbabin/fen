@@ -111,6 +111,16 @@ public struct SplitEditorView: View {
                 .onReceive(NotificationCenter.default.publisher(for: .printDocument)) { _ in
                     printController.printDocument(document: document, preferences: preferences)
                 }
+                .onReceive(NotificationCenter.default.publisher(for: .copyAsHTML)) { _ in
+                    ClipboardExporter().copyAsHTML(
+                        markdown: document.text, documentURL: document.fileURL, preferences: preferences
+                    )
+                }
+                .onReceive(NotificationCenter.default.publisher(for: .copyAsRichText)) { _ in
+                    ClipboardExporter().copyAsRichText(
+                        markdown: document.text, documentURL: document.fileURL, preferences: preferences
+                    )
+                }
         #else
             let withReceivers = withChangeHandlers
         #endif
@@ -411,6 +421,8 @@ public struct SplitEditorView: View {
                 }
                 Button("Export to PDF") { presentPDFExporter() }
                 Button("Print…") { presentPrint() }
+                Button("Copy as HTML") { copyAsHTML() }
+                Button("Copy as Rich Text") { copyAsRichText() }
             } label: {
                 if isPDFExporting || isPrinting {
                     ProgressView()
@@ -419,7 +431,7 @@ public struct SplitEditorView: View {
                 }
             }
             .disabled(isPDFExporting || isPrinting)
-            .help("Export to HTML, PDF, or print")
+            .help("Export to HTML, PDF, copy, or print")
             .accessibilityIdentifier("ExportToHTMLButton")
             .background(PrintAnchorView(anchorView: $printAnchorView))
         }
@@ -514,6 +526,23 @@ public struct SplitEditorView: View {
                 }
                 isPrinting = false
             }
+        }
+
+        /// iOS's half of "Copy as HTML" (issue #33) -- synchronous, unlike `presentPDFExporter`/
+        /// `presentPrint`, since `ClipboardExporter.copyAsHTML` composes self-contained HTML and
+        /// writes it directly to `UIPasteboard.general` with no PDF render or system UI in the
+        /// way.
+        private func copyAsHTML() {
+            ClipboardExporter().copyAsHTML(
+                markdown: document.text, documentURL: document.fileURL, preferences: preferences
+            )
+        }
+
+        /// iOS's half of "Copy as Rich Text" -- mirrors `copyAsHTML`.
+        private func copyAsRichText() {
+            ClipboardExporter().copyAsRichText(
+                markdown: document.text, documentURL: document.fileURL, preferences: preferences
+            )
         }
     #endif
 
