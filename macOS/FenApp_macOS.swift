@@ -45,6 +45,7 @@ struct FenApp: App {
         formattingCommands()
         exportHTMLCommands()
         exportPDFCommands()
+        printCommands()
 
         CommandGroup(after: .sidebar) {
             Section {
