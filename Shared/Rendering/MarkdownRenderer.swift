@@ -279,7 +279,6 @@ public struct MarkdownRenderer: Sendable {
         guard !matches.isEmpty else { return (html, "", []) }
 
         var usedSlugs: [String: Int] = [:]
-        var toc = "<ul>\n"
         var updatedHTML = ""
         var cursor = 0
         var headings: [Heading] = []
@@ -298,7 +297,6 @@ public struct MarkdownRenderer: Sendable {
             let slug = uniqueSlug(for: plainText, usedSlugs: &usedSlugs)
 
             updatedHTML += "<h\(level) id=\"\(slug)\"\(attributes)>\(content)</h\(level)>"
-            toc += "<li class=\"toc-h\(level)\"><a href=\"#\(slug)\">\(plainText)</a></li>\n"
             headings.append(Heading(
                 level: Int(level) ?? 1,
                 text: plainText,
@@ -309,9 +307,46 @@ public struct MarkdownRenderer: Sendable {
             cursor = match.range.location + match.range.length
         }
         updatedHTML += nsHTML.substring(with: NSRange(location: cursor, length: nsHTML.length - cursor))
-        toc += "</ul>"
 
-        return (updatedHTML, toc, headings)
+        return (updatedHTML, nestedTOCHTML(for: headings), headings)
+    }
+
+    /// Builds the `[TOC]` marker's replacement HTML as `<ul>`s nested by heading level, mirroring
+    /// the hierarchy `DocumentOutlineSidebar` shows. The prior approach emitted a single flat
+    /// `<ul>` of sibling `<li>`s carrying only a `toc-hN` class as a depth hint, which rendered
+    /// with no visible structure since no theme styles that class.
+    ///
+    /// `<ul>`/`<li>` get inline `margin: 0; padding: 0` (only `<ul>` keeps a left indent) rather
+    /// than relying on a theme's list CSS: every theme sets a per-`<li>` margin for ordinary
+    /// Markdown lists, and margins between a nested `<ul>`'s last item and its parent `<li>`'s
+    /// boundary collapse differently than a plain sibling-to-sibling margin, visibly widening the
+    /// gap around any `<li>` that has a nested child. Zeroing both margin and padding leaves
+    /// line-height alone as the only spacing, which is uniform regardless of nesting.
+    private func nestedTOCHTML(for headings: [Heading]) -> String {
+        guard !headings.isEmpty else { return "" }
+
+        let ulStyle = #" style="margin: 0; padding: 0 0 0 1.2em;""#
+        let liStyle = #" style="margin: 0; padding: 0;""#
+
+        var toc = ""
+        var openLevels: [Int] = []
+
+        for heading in headings {
+            while let deepest = openLevels.last, heading.level < deepest {
+                toc += "</li></ul>\n"
+                openLevels.removeLast()
+            }
+            if let deepest = openLevels.last, heading.level == deepest {
+                toc += "</li>\n"
+            } else {
+                toc += "<ul\(ulStyle)>\n"
+                openLevels.append(heading.level)
+            }
+            toc += "<li class=\"toc-h\(heading.level)\"\(liStyle)><a href=\"#\(heading.slug)\">\(heading.text)</a>"
+        }
+        toc += String(repeating: "</li></ul>\n", count: openLevels.count)
+
+        return toc
     }
 
     /// Parses the 1-based start line out of a `data-sourcepos="startLine:col-endLine:col"`

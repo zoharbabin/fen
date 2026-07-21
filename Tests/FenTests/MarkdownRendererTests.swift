@@ -113,6 +113,35 @@ struct MarkdownRendererTests {
         #expect(!result.html.contains("[TOC]"))
     }
 
+    @Test("TOC nests sub-headings inside their parent's <li>, not as flat siblings")
+    func tocNestsByHeadingLevel() {
+        let md = """
+        [TOC]
+
+        # First
+        ## Nested Under First
+        # Second
+        """
+        var opts = MarkdownRenderer.Options()
+        opts.renderTOC = true
+        let result = renderer.render(md, options: opts)
+
+        // A nested list is the child of the preceding <li>, so "Nested Under First"'s <ul>
+        // must open before "First"'s <li> closes -- a flat list would close it first.
+        guard let firstAnchor = result.html.range(of: ##"<a href="#first">First</a>"##),
+              let nestedUL = result.html.range(of: "<ul", range: firstAnchor.upperBound ..< result.html.endIndex),
+              let firstLIClose = result.html.range(
+                  of: "</li>",
+                  range: firstAnchor.upperBound ..< result.html.endIndex
+              ) else {
+            Issue.record("Expected to find First's <li> followed by a nested <ul>")
+            return
+        }
+        #expect(nestedUL.lowerBound < firstLIClose.lowerBound)
+        #expect(result.html.contains(##"class="toc-h2""##))
+        #expect(result.html.contains(##"<a href="#nested-under-first">Nested Under First</a>"##))
+    }
+
     @Test("TOC links target the id actually present on the matching heading")
     func tocLinksMatchHeadingIDs() throws {
         let md = """
