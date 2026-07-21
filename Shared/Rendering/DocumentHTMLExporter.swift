@@ -34,8 +34,17 @@ public struct DocumentHTMLExporter: Sendable {
         mode: ExportAssetMode
     ) -> Result {
         let renderer = MarkdownRenderer()
+        // Per-document overrides (issue #85, mirrors SplitEditorView.renderMarkdown's issue #27
+        // pattern) only apply when front-matter detection itself is on -- otherwise the
+        // `---...---` block renders as literal content, and a `fen:` key inside it must not
+        // silently still drive export output (rule 3.2).
+        let documentOverrides: DocumentPreviewOverrides = preferences.htmlDetectFrontMatter
+            ? .parse(frontMatter: renderer.peekFrontMatter(markdown))
+            : .none
+
         var options = MarkdownRenderer.Options.from(preferences: preferences)
         options.sourcePositions = false
+        options.renderTOC = documentOverrides.rendersTOC ?? options.renderTOC
         let rendered = renderer.render(markdown, options: options)
 
         let composed = HTMLComposer().composeForExport(
@@ -43,7 +52,8 @@ public struct DocumentHTMLExporter: Sendable {
             body: rendered.html,
             preferences: preferences,
             includeStyles: true,
-            includeHighlighting: true
+            includeHighlighting: true,
+            documentOverrides: documentOverrides
         )
 
         guard let documentDirectory = documentURL?.deletingLastPathComponent() else {
