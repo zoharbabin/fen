@@ -21,6 +21,7 @@ on:
 
 permissions:
   contents: write
+  actions: write
 
 jobs:
   build:
@@ -139,3 +140,14 @@ jobs:
         with:
           files: dist/Fen.app.zip
           generate_release_notes: true
+
+      # A release published by the GITHUB_TOKEN doesn't fire other workflows' `release`
+      # triggers -- GitHub Actions only lets GITHUB_TOKEN cascade-trigger `workflow_dispatch`
+      # (an anti-recursion safeguard), so pages.yml's `release: types: [published]` trigger
+      # never actually runs. Dispatch it directly instead, so the landing page's
+      # softwareVersion stays in sync with every release, not just ones deployed manually.
+      - name: Trigger landing page redeploy
+        if: ${{ startsWith(github.ref, 'refs/tags/') && env.MACOS_SIGN_IDENTITY != '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run pages.yml --repo "$GITHUB_REPOSITORY"

@@ -114,7 +114,7 @@ gh release create v0.1.0 Fen.app.zip --generate-notes
 
 The marketing version comes from the git tag (e.g. tag `v0.1.0` → version `0.1.0`). The build number is the commit count. Without a tag, the version is `0.0.0-dev`.
 
-The landing page's JSON-LD `softwareVersion` follows the same tag automatically: `site/index.html` carries a `__FEN_LATEST_VERSION__` placeholder, and `.github/workflows/pages.yml` substitutes in the latest release tag at deploy time (via `git describe --tags`), into a deploy-only copy of `site/` — never into the tracked file. That workflow now also triggers on `release: { types: [published] }`, so cutting a release redeploys the page even when nothing under `site/` changed.
+The landing page's JSON-LD `softwareVersion` follows the same tag automatically: `site/index.html` carries a `__FEN_LATEST_VERSION__` placeholder, and `.github/workflows/pages.yml` substitutes in the latest release tag at deploy time (via `git describe --tags`), into a deploy-only copy of `site/` — never into the tracked file. `release.yml` dispatches `pages.yml` directly after a successful publish (via `gh workflow run pages.yml`), so cutting a release redeploys the page even when nothing under `site/` changed — a plain `release: { types: [published] }` trigger on `pages.yml` wouldn't work here, since a release published by the workflow's own `GITHUB_TOKEN` can't cascade-trigger another workflow's `release` event (GitHub Actions only exempts `workflow_dispatch`/`repository_dispatch` from that anti-recursion safeguard).
 
 ## Verifying a build
 

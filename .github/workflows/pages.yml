@@ -5,8 +5,10 @@ on:
     branches: [master]
     paths:
       - site/**
-  release:
-    types: [published]
+  # release.yml dispatches this workflow directly after publishing a release --
+  # GITHUB_TOKEN can't cascade-trigger a `release` event on another workflow (only
+  # `workflow_dispatch`/`repository_dispatch` are exempt from that anti-recursion
+  # safeguard), so a `release: types: [published]` trigger here would never fire.
   workflow_dispatch:
 
 permissions:
