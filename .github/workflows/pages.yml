@@ -5,6 +5,8 @@ on:
     branches: [master]
     paths:
       - site/**
+  release:
+    types: [published]
   workflow_dispatch:
 
 permissions:
@@ -24,9 +26,23 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # need tags to find the latest release version
+
+      # Stamps the JSON-LD `softwareVersion` with the latest release tag at deploy
+      # time, into a copy of site/ -- never the tracked file -- so a new tag alone
+      # (via the `release` trigger above) keeps the site in sync without a commit.
+      - name: Stamp latest release version
+        run: |
+          mkdir -p /tmp/site-deploy
+          cp -R site/. /tmp/site-deploy/
+          VERSION="$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//')"
+          [ -n "$VERSION" ] || VERSION="0.0.0"
+          sed -i "s/__FEN_LATEST_VERSION__/${VERSION}/" /tmp/site-deploy/index.html
+
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: site
+          path: /tmp/site-deploy
       - id: deployment
         uses: actions/deploy-pages@v4
