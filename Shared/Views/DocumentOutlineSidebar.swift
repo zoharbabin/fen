@@ -44,7 +44,10 @@ struct DocumentOutlineSidebar: View {
             .padding(.leading, CGFloat(row.heading.level - 1) * 12)
         }
         .listStyle(.sidebar)
-        .frame(minWidth: 180, idealWidth: 220)
+        // `maxWidth` keeps the sidebar from expanding to fill available space (its default List
+        // sizing behavior) when there's no `HSplitView` divider constraining it, e.g. on iOS.
+        // On macOS, `HSplitView` reads these as the pane's drag-resize bounds.
+        .frame(minWidth: 140, idealWidth: 200, maxWidth: 320)
         .accessibilityIdentifier("OutlineSidebar")
     }
 }
