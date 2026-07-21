@@ -277,16 +277,22 @@ public struct HTMLComposer: Sendable {
         """
     }
 
-    /// Compose HTML suitable for export (optionally without styles/scripts).
+    /// Compose HTML suitable for export (optionally without styles/scripts). `documentOverrides`
+    /// (issue #85) lets a document's own `fen:` front matter substitute its theme for
+    /// `preferences.htmlStyleName`, mirroring `compose`'s own `documentOverrides` parameter.
     public func composeForExport(
         title: String?,
         body: String,
         preferences: Preferences,
         includeStyles: Bool,
-        includeHighlighting: Bool
+        includeHighlighting: Bool,
+        documentOverrides: DocumentPreviewOverrides = .none
     ) -> String {
         let (styleTags, scriptTags) = exportStyleAndScriptTags(
-            preferences: preferences, includeStyles: includeStyles, includeHighlighting: includeHighlighting
+            preferences: preferences,
+            includeStyles: includeStyles,
+            includeHighlighting: includeHighlighting,
+            documentOverrides: documentOverrides
         )
         return htmlDocument(
             title: title, body: body, styleTags: styleTags, scriptTags: scriptTags, includeViewportMeta: false
@@ -301,16 +307,19 @@ public struct HTMLComposer: Sendable {
     /// not CSS, so the two never double up. Uses `preferences.printStyleName` in place of
     /// `htmlStyleName` when set (issue #82), so a document can be previewed in one theme but
     /// printed/exported in another -- e.g. a dark on-screen preview with a light printout.
+    /// `documentOverrides` (issue #85) takes precedence over both when its `styleName` is set.
     public func composeForPrint(
         title: String?,
         body: String,
-        preferences: Preferences
+        preferences: Preferences,
+        documentOverrides: DocumentPreviewOverrides = .none
     ) -> String {
         var (styleTags, scriptTags) = exportStyleAndScriptTags(
             preferences: preferences,
             includeStyles: true,
             includeHighlighting: true,
-            styleNameOverride: preferences.printStyleName
+            styleNameOverride: preferences.printStyleName,
+            documentOverrides: documentOverrides
         )
         if let printCSS = loadExtensionFile(named: "print", ext: "css") {
             styleTags.append(inlineStyle(printCSS))
@@ -324,17 +333,21 @@ public struct HTMLComposer: Sendable {
     /// -- the theme stylesheet, optional syntax highlighting, and optional user custom CSS every
     /// non-live-preview HTML document needs. `styleNameOverride` lets `composeForPrint` substitute
     /// `printStyleName` for `htmlStyleName` (issue #82); `composeForExport` never passes one, since
-    /// HTML export has no separate theme setting.
+    /// HTML export has no separate theme setting. `documentOverrides.styleName` (issue #85), when
+    /// set, wins over both -- the same precedence `resolveEffectiveStyleName` already uses for
+    /// `compose` (rule 5.1: one theme-resolution order, not a second one here).
     private func exportStyleAndScriptTags(
         preferences: Preferences,
         includeStyles: Bool,
         includeHighlighting: Bool,
-        styleNameOverride: String? = nil
+        styleNameOverride: String? = nil,
+        documentOverrides: DocumentPreviewOverrides = .none
     ) -> (styleTags: [String], scriptTags: [String]) {
         var styleTags: [String] = []
         var scriptTags: [String] = []
 
-        if includeStyles, let css = loadStyleCSS(named: styleNameOverride ?? preferences.htmlStyleName) {
+        let resolvedStyleName = documentOverrides.styleName ?? styleNameOverride ?? preferences.htmlStyleName
+        if includeStyles, let css = loadStyleCSS(named: resolvedStyleName) {
             styleTags.append(inlineStyle(css))
         }
 

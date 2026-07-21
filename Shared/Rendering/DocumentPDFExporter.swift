@@ -22,14 +22,24 @@ public struct DocumentPDFExporter: Sendable {
     /// "linked assets" equivalent.
     public func export(markdown: String, documentURL: URL?, preferences: Preferences) -> String {
         let renderer = MarkdownRenderer()
+        // Per-document overrides (issue #85, mirrors SplitEditorView.renderMarkdown's issue #27
+        // pattern) only apply when front-matter detection itself is on -- otherwise the
+        // `---...---` block renders as literal content, and a `fen:` key inside it must not
+        // silently still drive export output (rule 3.2).
+        let documentOverrides: DocumentPreviewOverrides = preferences.htmlDetectFrontMatter
+            ? .parse(frontMatter: renderer.peekFrontMatter(markdown))
+            : .none
+
         var options = MarkdownRenderer.Options.from(preferences: preferences)
         options.sourcePositions = false
+        options.renderTOC = documentOverrides.rendersTOC ?? options.renderTOC
         let rendered = renderer.render(markdown, options: options)
 
         let composed = HTMLComposer().composeForPrint(
             title: rendered.title,
             body: rendered.html,
-            preferences: preferences
+            preferences: preferences,
+            documentOverrides: documentOverrides
         )
 
         guard let documentDirectory = documentURL?.deletingLastPathComponent() else {

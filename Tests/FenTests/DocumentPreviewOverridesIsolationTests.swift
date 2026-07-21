@@ -45,4 +45,23 @@ struct DocumentPreviewOverridesIsolationTests {
 
         #expect(htmlA != htmlB, "each document's compose call must reflect only its own override")
     }
+
+    /// Issue #85, rule 1.1: two `DocumentHTMLExporter.export` calls -- a stateless value type
+    /// (rule 1.1) -- exporting different documents with different `fen:` front matter never
+    /// leak one document's resolved override into the other's exported output.
+    @Test @MainActor
+    func twoExportsNeverShareResolvedOverrides() throws {
+        let markdownA = "---\nfen:\n  theme: GitHub2 Dark\n---\n# A"
+        let markdownB = "---\nfen:\n  theme: Clearness\n---\n# B"
+        let prefs = try Preferences(defaults: #require(UserDefaults(suiteName: "docoverrides.iso.\(UUID())")))
+        prefs.htmlStyleName = "GitHub"
+
+        let exporter = DocumentHTMLExporter()
+        let htmlA = exporter.export(markdown: markdownA, documentURL: nil, preferences: prefs, mode: .selfContained)
+            .html
+        let htmlB = exporter.export(markdown: markdownB, documentURL: nil, preferences: prefs, mode: .selfContained)
+            .html
+
+        #expect(htmlA != htmlB, "each export must reflect only its own document's front-matter override")
+    }
 }
