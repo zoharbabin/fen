@@ -41,9 +41,11 @@ If Fen ever charges for anything, we'll favor a one-time purchase over a subscri
 - **External change detection** — if a file you have open changes on disk (another app, `git checkout`, a sync conflict), Fen prompts you to reload it or keep your own edits
 - **Paste and drag-and-drop image insertion** — a pasted screenshot or dropped image file is written into a `<document>.assets` sidecar folder next to the document and linked automatically
 - **Dark-mode preview** that follows the system appearance automatically, alongside a full set of light/dark theme pairs
-- **Custom preview CSS**, plus per-document `fen:` front-matter overrides for theme and table-of-contents rendering
-- **Copy-to-clipboard buttons** on every rendered code block in the preview
-- **Syntax highlighting** in code blocks, **MathJax** for equations, and **Mermaid** for diagrams
+- **Custom preview CSS**, plus per-document `fen:` front-matter overrides for theme and table-of-contents rendering that apply consistently across preview, export, print, and the CLI
+- **Copy-to-clipboard buttons** on every rendered code block in the preview, plus **Copy as Raw HTML** and **Copy as Rich Text Formatted** for the whole document
+- **Syntax highlighting** in code blocks, **MathJax** for equations, and **Mermaid** for diagrams — rendered everywhere: preview, export, print, and the CLI
+- **Export to HTML or PDF, and Print…** — reuse the same rendering pipeline as the live preview
+- **`fen-export` command-line tool** for batch-converting Markdown files to HTML or PDF from a terminal or script
 - **Pure Swift + SwiftUI**, with a cross-platform core (macOS and iOS share `FenCore`) — no Objective-C, no CocoaPods
 - **Apple Silicon native**, built with Swift Package Manager
 - **Free and open source**, no telemetry, no account required
@@ -75,7 +77,7 @@ See [RELEASING.md](docs/RELEASING.md) for signing, notarization, and cutting a r
 ## Project layout
 
 ```
-Shared/        FenCore — cross-platform model, rendering, editor, preview
+Shared/        FenCore — cross-platform model, rendering, editor, preview, CLI export
 macOS/         macOS app target (DocumentGroup, menus, Settings)
 iOS/           iOS app target
 Tests/         Swift Testing test suite
