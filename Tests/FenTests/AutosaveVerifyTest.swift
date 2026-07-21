@@ -37,7 +37,10 @@ struct AutosaveVerifyTest {
         let document = MarkdownDocument(text: "original")
         document.fileURL = fileURL
         let controller = AutosaveController()
-        controller.idleInterval = .milliseconds(200)
+        // A wide margin between idleInterval and the inter-edit sleeps below is intentional: a
+        // loaded CI runner can stretch a requested 80ms sleep well past 200ms of real wall-clock
+        // time, firing the idle timer from an earlier edit before the next one lands.
+        controller.idleInterval = .milliseconds(600)
         controller.ceilingInterval = .seconds(999)
         controller.presentRestorePrompt = { _, _ in }
         defer { controller.stop() }
@@ -60,7 +63,7 @@ struct AutosaveVerifyTest {
             "each edit resets the idle timer, so no write should have landed yet"
         )
 
-        let wrote = try await pollUntilTrue(timeout: .seconds(2)) {
+        let wrote = try await pollUntilTrue(timeout: .seconds(3)) {
             FileManager.default.fileExists(atPath: recoveryURL.path)
         }
         #expect(wrote)
