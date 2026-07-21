@@ -246,7 +246,11 @@ public final class PDFRenderer {
     /// Loads `html` into an offscreen `WKWebView` through `PreviewSchemeHandler` (the same local
     /// asset-access pipeline the live preview uses, issue #30 rule 2.2), bounded by
     /// `loadTimeout` so a pathological document that never fires `didFinish` fails the export
-    /// rather than hanging it forever (rule 3.2).
+    /// rather than hanging it forever (rule 3.2). After `didFinish`, also polls for
+    /// `window.__fenRenderComplete` (issue #84) -- set by `HTMLComposer.renderCompletionTags`
+    /// once Mermaid's diagrams and MathJax's typesetting have both settled -- still bounded by
+    /// the same `loadTimeout`, so a page that never sets the flag degrades to "render with
+    /// whatever's on screen" rather than hanging the export forever.
     ///
     /// Not `private`: `PrintIsolationTests`/`PrintControllerTests` (issue #32) build their own
     /// offscreen web view through this to drive `runModalPrintOperation` directly.
@@ -269,6 +273,7 @@ public final class PDFRenderer {
         webView.navigationDelegate = delegate
         webView.load(URLRequest(url: PreviewSchemeHandler.previewURL))
 
+        let deadline = ContinuousClock.now + loadTimeout
         let timeoutTask = Task {
             try? await Task.sleep(for: loadTimeout)
             guard !Task.isCancelled else { return }
@@ -277,7 +282,26 @@ public final class PDFRenderer {
         defer { timeoutTask.cancel() }
 
         try await delegate.waitForFinish()
+        await waitForRenderCompletion(webView: webView, deadline: deadline)
         return webView
+    }
+
+    /// Polls `window.__fenRenderComplete` (set by `HTMLComposer.renderCompletionTags`, issue
+    /// #84) rather than sleeping a fixed guessed duration, per this repo's rule against
+    /// fixed-duration synchronization -- Mermaid/MathJax rendering time scales with diagram
+    /// count and complexity, so no single fixed sleep would be both fast for a simple document
+    /// and safe for a complex one. `undefined` (neither feature enabled, or a raw HTML string a
+    /// test fed directly to this method) is treated as already-complete, so this never delays a
+    /// document that never had the flag to begin with.
+    private func waitForRenderCompletion(webView: WKWebView, deadline: ContinuousClock.Instant) async {
+        while ContinuousClock.now < deadline {
+            let isComplete = await (try? webView
+                .evaluateJavaScript("window.__fenRenderComplete !== false") as? Bool) ?? true
+            if isComplete {
+                return
+            }
+            try? await Task.sleep(for: .milliseconds(50))
+        }
     }
 }
 

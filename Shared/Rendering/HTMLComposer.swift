@@ -321,10 +321,11 @@ public struct HTMLComposer: Sendable {
     }
 
     /// Shared style/script-tag assembly for `composeForExport` and `composeForPrint` (rule 5.1)
-    /// -- the theme stylesheet, optional syntax highlighting, and optional user custom CSS every
-    /// non-live-preview HTML document needs. `styleNameOverride` lets `composeForPrint` substitute
-    /// `printStyleName` for `htmlStyleName` (issue #82); `composeForExport` never passes one, since
-    /// HTML export has no separate theme setting.
+    /// -- the theme stylesheet, optional syntax highlighting, Mermaid/MathJax rendering (issue
+    /// #84), and optional user custom CSS every non-live-preview HTML document needs.
+    /// `styleNameOverride` lets `composeForPrint` substitute `printStyleName` for `htmlStyleName`
+    /// (issue #82); `composeForExport` never passes one, since HTML export has no separate theme
+    /// setting.
     private func exportStyleAndScriptTags(
         preferences: Preferences,
         includeStyles: Bool,
@@ -334,7 +335,8 @@ public struct HTMLComposer: Sendable {
         var styleTags: [String] = []
         var scriptTags: [String] = []
 
-        if includeStyles, let css = loadStyleCSS(named: styleNameOverride ?? preferences.htmlStyleName) {
+        let effectiveStyleName = styleNameOverride ?? preferences.htmlStyleName
+        if includeStyles, let css = loadStyleCSS(named: effectiveStyleName) {
             styleTags.append(inlineStyle(css))
         }
 
@@ -350,12 +352,47 @@ public struct HTMLComposer: Sendable {
             }
         }
 
+        scriptTags += mathJaxTags(preferences: preferences)
+
+        let mermaid = mermaidTags(preferences: preferences, effectiveStyleName: effectiveStyleName)
+        styleTags += mermaid.styles
+        scriptTags += mermaid.scripts
+
+        scriptTags += renderCompletionTags(preferences: preferences)
+
         if preferences.customCSSEnabled,
            !preferences.customCSS.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             styleTags.append(inlineStyle(Self.sanitizeCustomCSS(preferences.customCSS)))
         }
 
         return (styleTags, scriptTags)
+    }
+
+    /// A signal `PDFRenderer` waits on (issue #84) before rasterizing exported/printed HTML to
+    /// PDF, so Mermaid's and MathJax's async post-load rendering can't race the capture and be
+    /// caught half-drawn or blank. Returns no script at all when neither feature is enabled --
+    /// `window.__fenRenderComplete` stays `undefined`, which `PDFRenderer`'s wait treats as
+    /// already-complete, so a document using neither feature (or raw HTML fed directly into
+    /// `PDFRenderer` by a test, which never sees this script) never waits on a signal nobody
+    /// will ever set. Harmless when the composed HTML is opened directly in a browser (HTML
+    /// export) -- the flag is set and never read by anything there.
+    private func renderCompletionTags(preferences: Preferences) -> [String] {
+        guard preferences.htmlMermaid || preferences.htmlMathJax else { return [] }
+
+        let mermaidPromise = preferences.htmlMermaid
+            ? "(window.__fenMermaidReadyPromise || Promise.resolve())"
+            : "Promise.resolve()"
+        let mathJaxPromise = preferences.htmlMathJax
+            ? "((window.MathJax && window.MathJax.startup && window.MathJax.startup.promise) || Promise.resolve())"
+            : "Promise.resolve()"
+
+        let script = """
+        window.__fenRenderComplete = false;
+        Promise.all([\(mermaidPromise), \(mathJaxPromise)])
+            .then(function () { window.__fenRenderComplete = true; })
+            .catch(function () { window.__fenRenderComplete = true; });
+        """
+        return [inlineScript(script)]
     }
 
     // MARK: - Resource Loading

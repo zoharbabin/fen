@@ -190,9 +190,19 @@
     }
   };
 
-  if (typeof window.addEventListener != "undefined") {
-    window.addEventListener("load", init, false);
-  } else {
-    window.attachEvent("onload", init);
-  }
+  // Exposes when every diagram has finished rendering (or errored) -- issue #84's
+  // `HTMLComposer.renderCompletionTags` awaits this alongside MathJax's own completion
+  // promise before `PDFRenderer` captures the page, so export/print never races Mermaid's
+  // async `init()`.
+  window.__fenMermaidReadyPromise = new Promise(function (resolve) {
+    if (typeof window.addEventListener != "undefined") {
+      window.addEventListener("load", function () {
+        init().then(resolve, resolve);
+      }, false);
+    } else {
+      window.attachEvent("onload", function () {
+        init().then(resolve, resolve);
+      });
+    }
+  });
 })();
