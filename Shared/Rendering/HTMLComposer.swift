@@ -49,6 +49,7 @@ public struct HTMLComposer: Sendable {
 
         scriptTags += taskListTags(preferences: preferences)
         scriptTags.append(inlineScript(Self.listMarkerStartJS))
+        scriptTags.append(inlineScript(Self.listMarkerWhitespaceJS))
 
         let copyButton = copyButtonTags(preferences: preferences)
         styleTags += copyButton.styles
@@ -104,6 +105,34 @@ public struct HTMLComposer: Sendable {
     /// line at any non-1 zoom factor. A hanging indent never depends on that marker/line-box
     /// relationship, so it stays aligned regardless of zoom. Applied once here rather than
     /// duplicated across all seven theme files.
+    ///
+    /// `li > p:first-child { display: contents }` fixes a related bug: cmark-gfm wraps a "loose"
+    /// list item's content in `<p>` (any list with a blank line between items, or multi-block
+    /// item content). A block-level `<p>` can't share a line box with the inline-level `::before`
+    /// marker, so WebKit pushes the marker onto its own anonymous block above the text.
+    /// `display: contents` removes the paragraph's own box entirely (unlike `display: inline`,
+    /// which keeps its margins and doubles the gap between items when a second block follows),
+    /// so its text becomes a direct child of `li` and shares its line box with the marker --
+    /// matching the fix every theme already applies to task-list checkboxes
+    /// (`li > input[type="checkbox"] + p`), generalized to non-checkbox loose items. Later
+    /// paragraphs in a multi-paragraph item aren't `:first-child` and stay block, keeping normal
+    /// paragraph spacing.
+    ///
+    /// `li > :not(:first-child) { text-indent: 0 }` undoes an inheritance side effect: `text-indent`
+    /// is an inherited property, so `ol > li`/`ul > li`'s hanging `-1.8em` (needed on the marker's
+    /// own line) would otherwise leak into a nested blockquote/code-block/second paragraph and
+    /// shift its first line left by that same amount. Only the first child shares the marker's
+    /// line box and needs the hang; every later child starts its own line box and should render
+    /// at zero indent like it would outside a list.
+    ///
+    /// The `display: contents` rule above surfaces a further side effect that only CSS can't fix:
+    /// cmark-gfm emits a whitespace-only text node between `<li>` and a loose item's first `<p>`
+    /// (`<li>\n<p>text</p>...`). While that `<p>` was a block box, this whitespace sat at a
+    /// block boundary and collapsed away invisibly. Once `display: contents` removes the `<p>`'s
+    /// box, that whitespace becomes ordinary inline content sharing the marker's line box, so it
+    /// renders as a real leading space before the item's text. `listMarkerWhitespaceJS` below
+    /// strips it after load, the same "CSS can't select a text node, so a small script does it"
+    /// reasoning as `listMarkerStartJS`.
     private static let listMarkerCSS = """
     ol, ul { list-style: none; padding-left: 0; margin-left: 0; }
     ol { counter-reset: fen-ol; }
@@ -113,6 +142,8 @@ public struct HTMLComposer: Sendable {
     ul > li::before { content: '•'; display: inline-block; width: 1.8em; text-indent: 0; }
     li:has(> input[type="checkbox"]) { padding-left: 1.5em; text-indent: 0; }
     li:has(> input[type="checkbox"])::before { content: none; }
+    li > p:first-child { display: contents; }
+    li > :not(:first-child) { text-indent: 0; }
     """
 
     /// WebKit in this app doesn't resolve `attr(start type(<integer>))` inside `calc()`
@@ -124,6 +155,18 @@ public struct HTMLComposer: Sendable {
     document.querySelectorAll('ol[start]').forEach(function (ol) {
         var start = parseInt(ol.getAttribute('start'), 10);
         if (!isNaN(start)) { ol.style.counterReset = 'fen-ol ' + (start - 1); }
+    });
+    """
+
+    /// See the `display: contents` doc comment on `listMarkerCSS` above: removes the
+    /// whitespace-only text node cmark-gfm emits between `<li>` and a loose item's first `<p>`,
+    /// which `display: contents` turns into a visible leading space before the marker's text.
+    private static let listMarkerWhitespaceJS = """
+    document.querySelectorAll('li > p:first-child').forEach(function (p) {
+        var prev = p.previousSibling;
+        if (prev && prev.nodeType === Node.TEXT_NODE && /^\\s*$/.test(prev.textContent)) {
+            prev.remove();
+        }
     });
     """
 

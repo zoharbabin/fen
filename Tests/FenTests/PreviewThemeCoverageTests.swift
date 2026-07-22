@@ -81,6 +81,136 @@ struct PreviewThemeCoverageTests {
         #expect((sameLine as? Bool) == true, "Theme \(themeName): expected checkbox and item text on the same line")
     }
 
+    @Test("Loose bullet/ordered list marker stays inline with its item text across every theme", arguments: allThemes)
+    @MainActor
+    func looseListMarkerInlineAcrossThemes(themeName: String) async throws {
+        // A blank line between items (or, as here, a bold lead-in followed by more text) makes
+        // cmark-gfm treat the list as "loose" and wrap each item's content in <p>. Regression
+        // coverage for the bug where the ::before bullet/number ended up on its own line above
+        // that <p> instead of sharing a line box with it.
+        let markdown = """
+        - **Bold lead-in.** Rest of the first item's text.
+
+        - Second item.
+
+        1. **Bold lead-in.** Rest of the first item's text.
+
+        2. Second item.
+        """
+        let webView = try await renderPreviewWebView(markdown: markdown) { prefs in
+            prefs.htmlStyleName = themeName
+        }
+        let sameLineJS = """
+        (function () {
+            function markerAndTextShareLine(li) {
+                // The first paragraph is `display: contents` (see listMarkerCSS), so it generates
+                // no box of its own -- measure its first text node via a Range instead of the <p>.
+                var p = li.querySelector('p');
+                if (!p) { return false; }
+                var walker = document.createTreeWalker(p, NodeFilter.SHOW_TEXT);
+                var textNode = walker.nextNode();
+                if (!textNode) { return false; }
+                var range = document.createRange();
+                range.selectNodeContents(textNode);
+                var liTop = li.getBoundingClientRect().top;
+                var textTop = range.getBoundingClientRect().top;
+                return Math.abs(liTop - textTop) < 5;
+            }
+            var ulLi = document.querySelector('ul > li');
+            var olLi = document.querySelector('ol > li');
+            return JSON.stringify({
+                ul: ulLi ? markerAndTextShareLine(ulLi) : null,
+                ol: olLi ? markerAndTextShareLine(olLi) : null,
+            });
+        })();
+        """
+        let result = try await webView.evaluateJavaScript(sameLineJS)
+        let json = try #require(result as? String)
+        let data = try #require(json.data(using: .utf8))
+        let decoded = try JSONDecoder().decode([String: Bool?].self, from: data)
+        #expect(decoded["ul"] == true, "Theme \(themeName): expected <ul> marker and text on the same line")
+        #expect(decoded["ol"] == true, "Theme \(themeName): expected <ol> marker and text on the same line")
+    }
+
+    @Test("Loose list item text starts flush after the marker, with no leading whitespace", arguments: allThemes)
+    @MainActor
+    func looseListItemHasNoLeadingWhitespace(themeName: String) async throws {
+        // cmark-gfm emits a whitespace-only text node between <li> and a loose item's first <p>
+        // (`<li>\n<p>text</p>...`). While that <p> was a block box this collapsed away invisibly;
+        // `li > p:first-child { display: contents }` (see listMarkerCSS) turns it into ordinary
+        // inline content sharing the marker's line box, rendering as a real leading space unless
+        // listMarkerWhitespaceJS strips it. Regression coverage for that leading-space bug.
+        let markdown = """
+        - **Bold lead-in.** Rest of the first item's text.
+
+        - Second item.
+        """
+        let webView = try await renderPreviewWebView(markdown: markdown) { prefs in
+            prefs.htmlStyleName = themeName
+        }
+        let js = """
+        (function () {
+            var p = document.querySelector('ul > li > p');
+            // display: contents leaves the DOM tree (and any whitespace-only sibling text node
+            // right before p) untouched -- only p's own descendants participate in its box tree.
+            // So the whitespace to detect is p.previousSibling, not anything inside p.
+            var prev = p.previousSibling;
+            return JSON.stringify(prev && prev.nodeType === Node.TEXT_NODE ? prev.textContent : null);
+        })();
+        """
+        let result = try await webView.evaluateJavaScript(js)
+        let json = try #require(result as? String)
+        let data = try #require(json.data(using: .utf8))
+        let text = try JSONDecoder().decode(String?.self, from: data)
+        let message = "Theme \(themeName): expected no whitespace-only text node before item's <p>, " +
+            "got \(String(reflecting: text))"
+        #expect(text == nil || text?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false, "\(message)")
+    }
+
+    @Test("A nested blockquote inside a list item renders its text inside its own border, not left of it")
+    @MainActor
+    func nestedBlockquoteInListItemDoesNotInheritHangingIndent() async throws {
+        // `ol > li`/`ul > li`'s hanging `text-indent: -1.8em` (needed so the first line shares a
+        // line box with the ::before marker) is an inherited property. `text-indent` shifts where
+        // an element's text starts, not its border/padding box -- so without resetting it on later
+        // children, a nested blockquote's border renders in the right place while its own text
+        // drifts left by that same amount, ending up left of (rather than inside) the blockquote's
+        // border. Measures the actual rendered text via Range, not the blockquote's box, since the
+        // box position alone can't detect this class of bug.
+        let markdown = """
+        1. A list item with a nested blockquote:
+
+           > Quoted text inside a list item.
+        """
+        let webView = try await renderPreviewWebView(markdown: markdown) { prefs in
+            prefs.htmlStyleName = "GitHub2"
+        }
+        let js = """
+        (function () {
+            var li = document.querySelector('ol > li');
+            var bq = li.querySelector('blockquote');
+            var p = bq.querySelector('p');
+            var walker = document.createTreeWalker(p, NodeFilter.SHOW_TEXT);
+            var textNode = walker.nextNode();
+            var range = document.createRange();
+            range.selectNodeContents(textNode);
+            return JSON.stringify({
+                bqLeft: bq.getBoundingClientRect().left,
+                textLeft: range.getBoundingClientRect().left,
+            });
+        })();
+        """
+        let result = try await webView.evaluateJavaScript(js)
+        let json = try #require(result as? String)
+        let data = try #require(json.data(using: .utf8))
+        let decoded = try JSONDecoder().decode([String: Double].self, from: data)
+        let bqLeft = try #require(decoded["bqLeft"])
+        let textLeft = try #require(decoded["textLeft"])
+        let message = "Expected blockquote text (left: \(textLeft)) inside its border (left: \(bqLeft)), " +
+            "not drifted left of it from an inherited hanging indent"
+        #expect(textLeft >= bqLeft, "\(message)")
+    }
+
     @Test("Each of the 5 alert types renders a visually distinct border color across every theme", arguments: allThemes)
     @MainActor
     func alertsRenderDistinctColorsAcrossThemes(themeName: String) async throws {
