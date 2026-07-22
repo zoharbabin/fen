@@ -70,7 +70,7 @@ The **Release** workflow runs automatically: it tests, builds, signs, notarizes,
 
 ### Write the release notes by hand
 
-The workflow's `generate_release_notes: true` is a fallback, not the real changelog. This repo pushes straight to `master` with no PRs, so GitHub has nothing to summarize from and publishes a bare `**Full Changelog**: vX...vY` line with no content — check for that and treat it as an unfinished release, not a done one:
+The workflow's `generate_release_notes: true` is a fallback, not the real changelog. This repo merges every change through a PR, so GitHub can generate a "What's Changed" list of merged PR titles — but that list doesn't match this repo's own format and skips the *why* behind each change, so treat it as a draft to replace, not a done release. (If a release ever lands with no merged PRs since the last tag, GitHub instead publishes a bare `**Full Changelog**: vX...vY` line with no content — same rule applies: unfinished, not done.)
 
 ```sh
 gh release view v0.1.0 --json body -q .body
