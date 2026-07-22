@@ -63,17 +63,17 @@ struct PreviewAppearanceVerifyTest {
             "forcing dark must override a light system flag"
         )
 
-        let forcedLight = preferences(styleName: "GitHub2 Dark", mode: .light, systemDark: true)
+        let forcedLight = preferences(styleName: "GitHub2", mode: .light, systemDark: true)
         #expect(
             HTMLComposer.resolveEffectiveStyleName(preferences: forcedLight) == "GitHub2",
             "forcing light must override a dark system flag"
         )
     }
 
-    @Test("Selecting a style that already matches what's wanted is returned unchanged, not re-paired")
+    @Test("A theme family always resolves the same file regardless of what it was 'already' set to")
     @MainActor
-    func alreadyMatchingStyleIsReturnedUnchanged() {
-        let prefs = preferences(styleName: "GitHub2 Dark", mode: .dark, systemDark: false)
+    func familyNameResolvesConsistentlyForWantedPolarity() {
+        let prefs = preferences(styleName: "GitHub2", mode: .dark, systemDark: false)
         #expect(HTMLComposer.resolveEffectiveStyleName(preferences: prefs) == "GitHub2 Dark")
     }
 

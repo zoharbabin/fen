@@ -26,12 +26,12 @@ struct PreviewAppearanceIsolationTests {
 
     @Test @MainActor
     func stylePairingTableIsSharedImmutableStateNotPerInstanceState() throws {
-        // The pairing table is deliberately `static let` (rule 1.1's exemption for immutable
+        // The family table is deliberately `static let` (rule 1.1's exemption for immutable
         // shared state) -- proves it can never be mutated through the resolution path.
-        let before = HTMLComposer.styleAppearancePairs
+        let before = HTMLComposer.themeFamilies
         _ = try HTMLComposer.resolveEffectiveStyleName(preferences: Preferences(
             defaults: #require(UserDefaults(suiteName: "appearance.iso.table.\(UUID().uuidString)"))
         ))
-        #expect(HTMLComposer.styleAppearancePairs == before)
+        #expect(HTMLComposer.themeFamilies == before)
     }
 }

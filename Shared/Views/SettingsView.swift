@@ -165,27 +165,16 @@ struct MarkdownSettingsTab: View {
 struct RenderingSettingsTab: View {
     @Bindable private var prefs = Preferences.shared
 
-    private var lightStyles: [String] {
-        HTMLComposer.availablePreviewStyles().filter { !$0.contains("Dark") }
-    }
-
-    private var darkStyles: [String] {
-        HTMLComposer.availablePreviewStyles().filter { $0.contains("Dark") }
+    private var themeFamilyNames: [String] {
+        HTMLComposer.availableThemeFamilyNames()
     }
 
     var body: some View {
         Form {
             Section("Preview Style") {
-                Picker("CSS Theme", selection: $prefs.htmlStyleName) {
-                    Section("Light") {
-                        ForEach(lightStyles, id: \.self) { style in
-                            themeRow(style).tag(style)
-                        }
-                    }
-                    Section("Dark") {
-                        ForEach(darkStyles, id: \.self) { style in
-                            themeRow(style).tag(style)
-                        }
+                Picker("Theme", selection: $prefs.htmlStyleName) {
+                    ForEach(themeFamilyNames, id: \.self) { family in
+                        themeRow(family).tag(family)
                     }
                 }
                 Picker("Appearance", selection: $prefs.previewAppearanceMode) {
@@ -198,16 +187,15 @@ struct RenderingSettingsTab: View {
             Section("Print / PDF Theme") {
                 Picker("Theme", selection: $prefs.printStyleName) {
                     Text("Same as Preview").tag(String?.none)
-                    Section("Light") {
-                        ForEach(lightStyles, id: \.self) { style in
-                            themeRow(style).tag(String?.some(style))
-                        }
+                    ForEach(themeFamilyNames, id: \.self) { family in
+                        themeRow(family).tag(String?.some(family))
                     }
-                    Section("Dark") {
-                        ForEach(darkStyles, id: \.self) { style in
-                            themeRow(style).tag(String?.some(style))
-                        }
-                    }
+                }
+                Picker("Appearance", selection: $prefs.printAppearanceMode) {
+                    Text("Same as Preview").tag(PreviewAppearanceMode?.none)
+                    Text("Follow System").tag(PreviewAppearanceMode?.some(.system))
+                    Text("Light").tag(PreviewAppearanceMode?.some(.light))
+                    Text("Dark").tag(PreviewAppearanceMode?.some(.dark))
                 }
             }
 
@@ -259,16 +247,16 @@ struct RenderingSettingsTab: View {
         #endif
     }
 
-    private func themeRow(_ style: String) -> some View {
+    private func themeRow(_ family: String) -> some View {
         HStack {
-            if let colors = HTMLComposer.themeSwatchColors(cssFileName: style) {
+            if let colors = HTMLComposer.themeSwatchColors(forFamily: family) {
                 VStack(spacing: 0) {
                     Rectangle().fill(colors.background).frame(width: 16, height: 8)
                     Rectangle().fill(colors.text).frame(width: 16, height: 8)
                 }
                 .overlay(Rectangle().strokeBorder(.secondary, lineWidth: 0.5))
             }
-            Text(style)
+            Text(family)
         }
     }
 }

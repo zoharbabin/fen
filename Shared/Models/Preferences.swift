@@ -170,6 +170,11 @@ public final class Preferences {
 
     // MARK: - HTML / Preview
 
+    /// A theme *family* name (e.g. `"GitHub2"`), never an exact light/dark filename -- the
+    /// Appearance setting (`previewAppearanceMode`) determines which of a family's bundled CSS
+    /// files loads for the live preview (issue #98). `loadHTMLDefaults` normalizes any pre-#96
+    /// persisted value (which could be a dark-suffixed filename like `"GitHub2 Dark"`) to its
+    /// family name on load, so this property itself never needs to special-case that.
     var htmlStyleName: String = "GitHub2" {
         didSet { defaults.set(htmlStyleName, forKey: "htmlStyleName")
             renderRevision += 1
@@ -178,8 +183,10 @@ public final class Preferences {
 
     /// Overrides `htmlStyleName` for Print… and Export to PDF… only (issue #82) -- `nil` (the
     /// default) means "follow whatever `htmlStyleName` currently is," so printing/exporting
-    /// behaves exactly as before for anyone who never touches this setting. Lets a document be
-    /// previewed in a dark theme but printed/exported with a print-friendly light one.
+    /// behaves exactly as before for anyone who never touches this setting. Also a family name,
+    /// never an exact filename (issue #98). Polarity (light vs. dark) is controlled separately by
+    /// `printAppearanceMode`, so a document can be printed in a different theme *family* than the
+    /// preview, in a different polarity, or both.
     var printStyleName: String? {
         didSet { defaults.set(printStyleName, forKey: "printStyleName") }
     }
@@ -190,6 +197,15 @@ public final class Preferences {
         didSet { defaults.set(previewAppearanceMode.rawValue, forKey: "previewAppearanceMode")
             renderRevision += 1
         }
+    }
+
+    /// Overrides `previewAppearanceMode` for Print… and Export to PDF… only (issue #98) -- `nil`
+    /// (the default) means "follow whatever `previewAppearanceMode` currently is," mirroring
+    /// `printStyleName`'s own nil-means-follow-preview convention. Set independently, a user can
+    /// print/export light while previewing dark on screen (or vice versa) without touching the
+    /// live preview's appearance at all.
+    var printAppearanceMode: PreviewAppearanceMode? {
+        didSet { defaults.set(printAppearanceMode?.rawValue, forKey: "printAppearanceMode") }
     }
 
     /// Live system light/dark state, set by `SplitEditorView` from SwiftUI's
@@ -353,10 +369,16 @@ public final class Preferences {
     }
 
     private func loadHTMLDefaults(from defaults: UserDefaults) {
-        htmlStyleName = defaults.string(forKey: "htmlStyleName") ?? "GitHub2"
-        printStyleName = defaults.string(forKey: "printStyleName")
+        // Normalizes a pre-#96 persisted filename (e.g. "GitHub2 Dark") to its family name --
+        // htmlStyleName/printStyleName only ever hold family names from here on.
+        htmlStyleName = HTMLComposer.familyName(
+            forFileName: defaults.string(forKey: "htmlStyleName") ?? "GitHub2"
+        )
+        printStyleName = defaults.string(forKey: "printStyleName").map(HTMLComposer.familyName(forFileName:))
         previewAppearanceMode = defaults.string(forKey: "previewAppearanceMode")
             .flatMap(PreviewAppearanceMode.init(rawValue:)) ?? .system
+        printAppearanceMode = defaults.string(forKey: "printAppearanceMode")
+            .flatMap(PreviewAppearanceMode.init(rawValue:))
         customCSSEnabled = defaults.bool(forKey: "customCSSEnabled")
         customCSS = defaults.string(forKey: "customCSS") ?? ""
         htmlDetectFrontMatter = defaults.object(forKey: "htmlDetectFrontMatter") != nil

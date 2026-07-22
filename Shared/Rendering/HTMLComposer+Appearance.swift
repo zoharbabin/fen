@@ -3,39 +3,88 @@ import SwiftUI
 
 // MARK: - Appearance Resolution (issue #25), Custom CSS (issue #26), Available Styles
 
+/// One theme "family" a user picks from the CSS Theme / Print Theme pickers -- a single named
+/// choice that resolves to a light or dark bundled CSS file depending on `Preferences
+/// .previewAppearanceMode` (issue #98's redesign: Appearance is the *only* control for light/dark,
+/// so the theme picker itself never lists light/dark variants separately). `GitHub` has no dark
+/// counterpart and is deliberately given `darkFileName: nil` -- `resolvedFileName` falls back to
+/// `lightFileName` unchanged for that case (rule 3.1).
+public struct ThemeFamily: Sendable, Equatable {
+    public let name: String
+    public let lightFileName: String
+    public let darkFileName: String?
+}
+
 public extension HTMLComposer {
-    /// Maps each light style to its dark counterpart and vice versa, covering the 3 pairs that
-    /// already exist by filename convention. `GitHub` has no dark counterpart and is
-    /// deliberately absent -- `resolveEffectiveStyleName` falls back to the original name
-    /// unchanged for any style with no entry here (rule 3.1).
-    static let styleAppearancePairs: [String: String] = [
-        "Clearness": "Clearness Dark",
-        "Clearness Dark": "Clearness",
-        "GitHub2": "GitHub2 Dark",
-        "GitHub2 Dark": "GitHub2",
-        "Solarized (Light)": "Solarized (Dark)",
-        "Solarized (Dark)": "Solarized (Light)",
+    /// The 4 bundled theme families, covering all 7 `Styles/*.css` files. `Solarized`'s family
+    /// name deliberately differs from either of its filenames (`Solarized (Light)`/`Solarized
+    /// (Dark)`) -- every other family's name already matches its light filename, kept as-is so
+    /// existing persisted `htmlStyleName`/`printStyleName` values for those three normalize to
+    /// themselves for free.
+    static let themeFamilies: [ThemeFamily] = [
+        ThemeFamily(name: "Clearness", lightFileName: "Clearness", darkFileName: "Clearness Dark"),
+        ThemeFamily(name: "GitHub", lightFileName: "GitHub", darkFileName: nil),
+        ThemeFamily(name: "GitHub2", lightFileName: "GitHub2", darkFileName: "GitHub2 Dark"),
+        ThemeFamily(name: "Solarized", lightFileName: "Solarized (Light)", darkFileName: "Solarized (Dark)"),
     ]
 
-    /// Resolves which CSS file to actually load, given the user's selected `htmlStyleName`,
-    /// the manual appearance override, and the live system appearance. A style whose own
-    /// darkness (via the existing `.contains("Dark")` convention) already matches what's
-    /// wanted is returned unchanged; otherwise its pair is looked up. A style with no pair
-    /// (`GitHub`) is returned unchanged regardless of what's wanted (rule 3.1), and an
-    /// unrecognized style name is likewise returned unchanged (rule 3.2) -- this function
-    /// never fails, throws, or returns an empty string.
+    static func availableThemeFamilyNames() -> [String] {
+        themeFamilies.map(\.name).sorted()
+    }
+
+    /// Maps an exact bundled CSS filename (as stored in `DocumentPreviewOverrides.styleName`,
+    /// which always validates against `availablePreviewStyles()`) back to its family name, e.g.
+    /// `"GitHub2 Dark"` -> `"GitHub2"`. Also used to normalize legacy persisted
+    /// `htmlStyleName`/`printStyleName` values that predate this family model. A name that
+    /// already is a family name, or doesn't match any known filename, is returned unchanged
+    /// (rule 3.2) -- this function never fails, throws, or returns an empty string.
+    static func familyName(forFileName fileName: String) -> String {
+        themeFamilies.first { $0.lightFileName == fileName || $0.darkFileName == fileName }?.name ?? fileName
+    }
+
+    /// Resolves a family name to the concrete CSS filename for the wanted polarity. An
+    /// unrecognized family name is returned unchanged (rule 3.2), and a family with no dark
+    /// counterpart (`GitHub`) always resolves to its light file (rule 3.1).
+    static func resolvedFileName(forFamily family: String, wantsDark: Bool) -> String {
+        guard let entry = themeFamilies.first(where: { $0.name == family }) else { return family }
+        if wantsDark, let darkFileName = entry.darkFileName {
+            return darkFileName
+        }
+        return entry.lightFileName
+    }
+
+    /// Resolves which CSS file to actually load, given the user's selected theme family, an
+    /// optional family override (`Preferences.printStyleName` for `composeForPrint`), a
+    /// document's own `fen:` front-matter override (an exact filename, converted to its family
+    /// first), and the live/manual appearance state -- all three of `compose`, `composeForExport`,
+    /// and `composeForPrint` share this one resolution path (issue #98), so a shared family
+    /// (e.g. picking the same "GitHub2" for both) always renders identically. `appearanceOverride`
+    /// (`Preferences.printAppearanceMode` for `composeForPrint`) lets print/export use their own
+    /// light/dark polarity independent of the live preview's `previewAppearanceMode` -- issue #98
+    /// intentionally keeps this a *per-purpose* override, not a single shared setting, since a
+    /// user may want a dark on-screen preview but a light printout without touching either.
     static func resolveEffectiveStyleName(
         preferences: Preferences,
+        familyOverride: String? = nil,
+        appearanceOverride: PreviewAppearanceMode? = nil,
         documentOverrides: DocumentPreviewOverrides = .none
     ) -> String {
-        let wantsDark: Bool = switch preferences.previewAppearanceMode {
+        let wantsDark: Bool = switch appearanceOverride ?? preferences.previewAppearanceMode {
         case .system: preferences.systemPrefersDarkAppearance
         case .light: false
         case .dark: true
         }
-        let styleName = documentOverrides.styleName ?? preferences.htmlStyleName
-        guard styleName.contains("Dark") != wantsDark else { return styleName }
-        return styleAppearancePairs[styleName] ?? styleName
+        let family = documentOverrides.styleName.map(familyName(forFileName:))
+            ?? familyOverride
+            ?? preferences.htmlStyleName
+        return resolvedFileName(forFamily: family, wantsDark: wantsDark)
+    }
+
+    /// Swatch colors for a theme family's row in the settings picker -- always drawn from the
+    /// family's light file, since the picker no longer shows light/dark as separate rows.
+    static func themeSwatchColors(forFamily family: String) -> (background: Color, text: Color)? {
+        guard let entry = themeFamilies.first(where: { $0.name == family }) else { return nil }
+        return themeSwatchColors(cssFileName: entry.lightFileName)
     }
 
     /// The largest custom CSS contribution `compose`/`composeForExport` will inline, regardless
