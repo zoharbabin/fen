@@ -1,6 +1,7 @@
 ---
 title: Fen Markdown Reference & Test Suite
 author: Fen
+fen: { toc: true }
 ---
 
 # Fen Markdown Reference & Test Suite
@@ -207,7 +208,7 @@ instead of navigating this preview.
 | Task lists    | On      | See above                           |
 | Mermaid       | Off     | Preferences → Rendering             |
 | SmartyPants   | Off     | Preferences → Markdown              |
-| Render TOC    | Off     | Preferences → Rendering             |
+| Render TOC    | On      | This document's `fen: { toc: true }` front matter |
 
 ## Strikethrough (GFM)
 
@@ -242,8 +243,10 @@ front matter** is enabled in Preferences → Rendering (on by default).
 ## Table of Contents
 
 The `[TOC]` marker near the top of this document is replaced with a
-generated table of contents when **Renders TOC** is enabled in
-Preferences → Rendering (off by default).
+generated table of contents when TOC rendering is on -- either the
+**Renders TOC** toggle in Preferences → Rendering (off by default), or,
+as this document does, a per-document `fen: { toc: true }` key in its
+own front matter, which overrides the global preference.
 
 ## Smart Punctuation
 
