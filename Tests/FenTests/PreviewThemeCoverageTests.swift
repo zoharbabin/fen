@@ -18,7 +18,8 @@ struct PreviewThemeCoverageTests {
     @MainActor
     func themeAppliesBackground(themeName: String) async throws {
         let webView = try await renderPreviewWebView(markdown: "# Hello") { prefs in
-            prefs.htmlStyleName = themeName
+            prefs.htmlStyleName = HTMLComposer.familyName(forFileName: themeName)
+            prefs.previewAppearanceMode = themeName.contains("Dark") ? .dark : .light
         }
         let bg = try await webView.evaluateJavaScript("getComputedStyle(document.body).backgroundColor")
         let value = bg as? String ?? ""
@@ -37,7 +38,7 @@ struct PreviewThemeCoverageTests {
         // appearance-following, which has its own dedicated coverage in
         // PreviewAppearanceVerifyTest.swift.
         let webView = try await renderPreviewWebView(markdown: "# Hello") { prefs in
-            prefs.htmlStyleName = themeName
+            prefs.htmlStyleName = HTMLComposer.familyName(forFileName: themeName)
             prefs.previewAppearanceMode = themeName.contains("Dark") ? .dark : .light
         }
         let bg = try await webView.evaluateJavaScript("getComputedStyle(document.body).backgroundColor")
@@ -65,7 +66,8 @@ struct PreviewThemeCoverageTests {
         var opts = MarkdownRenderer.Options()
         opts.taskList = true
         let webView = try await renderPreviewWebView(markdown: markdown, options: opts) { prefs in
-            prefs.htmlStyleName = themeName
+            prefs.htmlStyleName = HTMLComposer.familyName(forFileName: themeName)
+            prefs.previewAppearanceMode = themeName.contains("Dark") ? .dark : .light
         }
         let sameLineJS = """
         (function () {
@@ -98,7 +100,8 @@ struct PreviewThemeCoverageTests {
         2. Second item.
         """
         let webView = try await renderPreviewWebView(markdown: markdown) { prefs in
-            prefs.htmlStyleName = themeName
+            prefs.htmlStyleName = HTMLComposer.familyName(forFileName: themeName)
+            prefs.previewAppearanceMode = themeName.contains("Dark") ? .dark : .light
         }
         let sameLineJS = """
         (function () {
@@ -146,7 +149,8 @@ struct PreviewThemeCoverageTests {
         - Second item.
         """
         let webView = try await renderPreviewWebView(markdown: markdown) { prefs in
-            prefs.htmlStyleName = themeName
+            prefs.htmlStyleName = HTMLComposer.familyName(forFileName: themeName)
+            prefs.previewAppearanceMode = themeName.contains("Dark") ? .dark : .light
         }
         let js = """
         (function () {
@@ -219,7 +223,8 @@ struct PreviewThemeCoverageTests {
         var opts = MarkdownRenderer.Options()
         opts.alerts = true
         let webView = try await renderPreviewWebView(markdown: markdown, options: opts) { prefs in
-            prefs.htmlStyleName = themeName
+            prefs.htmlStyleName = HTMLComposer.familyName(forFileName: themeName)
+            prefs.previewAppearanceMode = themeName.contains("Dark") ? .dark : .light
         }
 
         var borderColors: Set<String> = []
@@ -242,7 +247,7 @@ struct PreviewThemeCoverageTests {
         // appearance-resolution re-pairing so it keeps testing the literal theme's own Mermaid
         // theme selection.
         let webView = try await renderPreviewWebView(markdown: "text") { prefs in
-            prefs.htmlStyleName = themeName
+            prefs.htmlStyleName = HTMLComposer.familyName(forFileName: themeName)
             prefs.previewAppearanceMode = themeName.contains("Dark") ? .dark : .light
             prefs.htmlMermaid = true
         }

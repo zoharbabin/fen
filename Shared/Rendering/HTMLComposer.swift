@@ -348,8 +348,11 @@ public struct HTMLComposer: Sendable {
     /// `print.css`'s break-avoidance rules so content never gets sliced across a page boundary.
     /// Page margins come from `NSPrintInfo`/`UIPrintPageRenderer` (the platform print pipeline),
     /// not CSS, so the two never double up. Uses `preferences.printStyleName` in place of
-    /// `htmlStyleName` when set (issue #82), so a document can be previewed in one theme but
-    /// printed/exported in another -- e.g. a dark on-screen preview with a light printout.
+    /// `htmlStyleName` when set (issue #82), so a document can be previewed in one theme family
+    /// but printed/exported in another; likewise `preferences.printAppearanceMode` in place of
+    /// `previewAppearanceMode` when set (issue #98), so print/export can use a different
+    /// light/dark polarity than the live preview -- e.g. a dark on-screen preview with a light
+    /// printout -- without the user having to flip Appearance back and forth.
     /// `documentOverrides` (issue #85) takes precedence over both when its `styleName` is set.
     public func composeForPrint(
         title: String?,
@@ -362,6 +365,7 @@ public struct HTMLComposer: Sendable {
             includeStyles: true,
             includeHighlighting: true,
             styleNameOverride: preferences.printStyleName,
+            appearanceOverride: preferences.printAppearanceMode,
             documentOverrides: documentOverrides
         )
         if let printCSS = loadExtensionFile(named: "print", ext: "css") {
@@ -374,23 +378,30 @@ public struct HTMLComposer: Sendable {
 
     /// Shared style/script-tag assembly for `composeForExport` and `composeForPrint` (rule 5.1)
     /// -- the theme stylesheet, optional syntax highlighting, Mermaid/MathJax rendering (issue
-    /// #84), and optional user custom CSS every non-live-preview HTML document needs.
-    /// `styleNameOverride` lets `composeForPrint` substitute `printStyleName` for `htmlStyleName`
-    /// (issue #82); `composeForExport` never passes one, since HTML export has no separate theme
-    /// setting. `documentOverrides.styleName` (issue #85), when set, wins over both -- the same
-    /// precedence `resolveEffectiveStyleName` already uses for `compose` (rule 5.1: one
-    /// theme-resolution order, not a second one here).
+    /// #84), and optional user custom CSS every non-live-preview HTML document needs. Resolves
+    /// the theme through the same `resolveEffectiveStyleName` `compose` uses (issue #98).
+    /// `styleNameOverride`/`appearanceOverride` let `composeForPrint` substitute `printStyleName`/
+    /// `printAppearanceMode` for `htmlStyleName`/`previewAppearanceMode` (issues #82, #98);
+    /// `composeForExport` never passes either, since HTML export has no separate theme or
+    /// appearance setting. `documentOverrides.styleName` (issue #85), when set, still wins over
+    /// both style overrides.
     private func exportStyleAndScriptTags(
         preferences: Preferences,
         includeStyles: Bool,
         includeHighlighting: Bool,
         styleNameOverride: String? = nil,
+        appearanceOverride: PreviewAppearanceMode? = nil,
         documentOverrides: DocumentPreviewOverrides = .none
     ) -> (styleTags: [String], scriptTags: [String]) {
         var styleTags: [String] = []
         var scriptTags: [String] = []
 
-        let effectiveStyleName = documentOverrides.styleName ?? styleNameOverride ?? preferences.htmlStyleName
+        let effectiveStyleName = Self.resolveEffectiveStyleName(
+            preferences: preferences,
+            familyOverride: styleNameOverride,
+            appearanceOverride: appearanceOverride,
+            documentOverrides: documentOverrides
+        )
         if includeStyles, let css = loadStyleCSS(named: effectiveStyleName) {
             styleTags.append(inlineStyle(css))
         }

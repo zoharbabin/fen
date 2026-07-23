@@ -81,7 +81,7 @@ struct BundleResolutionTests {
         let rendered = renderer.render("# Hello")
         let prefs = Preferences()
         prefs.htmlMermaid = true
-        prefs.htmlStyleName = "GitHub2 Dark"
+        prefs.htmlStyleName = "GitHub2"
         // Pins appearance mode to the style's own literal darkness so issue #25's
         // system-following resolution (HTMLComposer.resolveEffectiveStyleName) is a no-op
         // passthrough here -- this test is about the literal style's Mermaid theme, not
