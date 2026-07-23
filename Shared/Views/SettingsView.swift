@@ -222,8 +222,8 @@ struct RenderingSettingsTab: View {
                 Toggle("Enable syntax highlighting", isOn: $prefs.htmlSyntaxHighlighting)
                 if prefs.htmlSyntaxHighlighting {
                     Picker("Highlighting theme", selection: $prefs.htmlHighlightingThemeName) {
-                        ForEach(HTMLComposer.availableHighlightingThemes(), id: \.self) { theme in
-                            Text(theme).tag(theme)
+                        ForEach(HTMLComposer.availableHighlightThemeFamilyNames(), id: \.self) { family in
+                            Text(family).tag(family)
                         }
                     }
                     Toggle("Show line numbers in code blocks", isOn: $prefs.htmlLineNumbers)

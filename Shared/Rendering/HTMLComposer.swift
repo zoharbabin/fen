@@ -194,12 +194,19 @@ public struct HTMLComposer: Sendable {
     .markdown-alert-caution p.markdown-alert-title { color: #cf222e; }
     """
 
-    private func syntaxHighlightingTags(preferences: Preferences) -> (styles: [String], scripts: [String]) {
+    private func syntaxHighlightingTags(
+        preferences: Preferences,
+        appearanceOverride: PreviewAppearanceMode? = nil
+    ) -> (styles: [String], scripts: [String]) {
         guard preferences.htmlSyntaxHighlighting else { return ([], []) }
 
         var styles: [String] = []
         var scripts: [String] = []
-        if let themeCSS = loadHighlightThemeCSS(named: preferences.htmlHighlightingThemeName) {
+        let effectiveHighlightThemeName = Self.resolveEffectiveHighlightThemeName(
+            preferences: preferences,
+            appearanceOverride: appearanceOverride
+        )
+        if let themeCSS = loadHighlightThemeCSS(named: effectiveHighlightThemeName) {
             styles.append(inlineStyle(themeCSS))
         }
         if preferences.htmlLineNumbers, let lineNumCSS = loadHighlightLineNumbersCSS() {
@@ -407,7 +414,11 @@ public struct HTMLComposer: Sendable {
         }
 
         if includeHighlighting, preferences.htmlSyntaxHighlighting {
-            if let themeCSS = loadHighlightThemeCSS(named: preferences.htmlHighlightingThemeName) {
+            let effectiveHighlightThemeName = Self.resolveEffectiveHighlightThemeName(
+                preferences: preferences,
+                appearanceOverride: appearanceOverride
+            )
+            if let themeCSS = loadHighlightThemeCSS(named: effectiveHighlightThemeName) {
                 styleTags.append(inlineStyle(themeCSS))
             }
             if let highlightJS = loadHighlightCoreJS() {

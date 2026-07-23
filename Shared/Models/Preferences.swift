@@ -270,6 +270,13 @@ public final class Preferences {
         }
     }
 
+    /// A highlighting theme *family* name (e.g. `"github"`), never an exact light/dark filename --
+    /// mirrors `htmlStyleName`'s own family convention (issue #100). Light/dark polarity is never
+    /// set here; it's inherited from whichever of `previewAppearanceMode`/`printAppearanceMode`
+    /// applies to the render path, via `HTMLComposer.resolveEffectiveHighlightThemeName`, the same
+    /// way Mermaid already inherits its polarity rather than getting its own Appearance control.
+    /// `loadHTMLDefaults` normalizes any pre-#100 persisted value (which could be a dark-suffixed
+    /// filename like `"github-dark"`) to its family name on load.
     var htmlHighlightingThemeName: String = "github" {
         didSet { defaults.set(htmlHighlightingThemeName, forKey: "htmlHighlightingThemeName")
             renderRevision += 1
@@ -390,7 +397,9 @@ public final class Preferences {
         htmlMathJaxInlineDollar = defaults.bool(forKey: "htmlMathJaxInlineDollar")
         htmlSyntaxHighlighting = defaults.object(forKey: "htmlSyntaxHighlighting") != nil
             ? defaults.bool(forKey: "htmlSyntaxHighlighting") : true
-        htmlHighlightingThemeName = defaults.string(forKey: "htmlHighlightingThemeName") ?? "github"
+        htmlHighlightingThemeName = HTMLComposer.highlightFamilyName(
+            forFileName: defaults.string(forKey: "htmlHighlightingThemeName") ?? "github"
+        )
         htmlLineNumbers = defaults.bool(forKey: "htmlLineNumbers")
         htmlCopyButton = defaults.object(forKey: "htmlCopyButton") != nil
             ? defaults.bool(forKey: "htmlCopyButton") : true
