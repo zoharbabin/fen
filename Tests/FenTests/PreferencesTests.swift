@@ -84,7 +84,7 @@ struct PreferencesTests {
         prefs.extensionSmartyPants.toggle()
         #expect(prefs.renderRevision == base + 12)
 
-        prefs.htmlHighlightingThemeName = "github-dark"
+        prefs.htmlHighlightingThemeName = "xcode"
         #expect(prefs.renderRevision == base + 13)
 
         prefs.htmlLineNumbers.toggle()

@@ -69,15 +69,72 @@ public extension HTMLComposer {
         appearanceOverride: PreviewAppearanceMode? = nil,
         documentOverrides: DocumentPreviewOverrides = .none
     ) -> String {
-        let wantsDark: Bool = switch appearanceOverride ?? preferences.previewAppearanceMode {
-        case .system: preferences.systemPrefersDarkAppearance
-        case .light: false
-        case .dark: true
-        }
+        let wantsDark = resolveWantsDark(preferences: preferences, appearanceOverride: appearanceOverride)
         let family = documentOverrides.styleName.map(familyName(forFileName:))
             ?? familyOverride
             ?? preferences.htmlStyleName
         return resolvedFileName(forFamily: family, wantsDark: wantsDark)
+    }
+
+    /// The shared light/dark resolution `resolveEffectiveStyleName` and
+    /// `resolveEffectiveHighlightThemeName` both use, so a CSS theme and the syntax-highlighting
+    /// theme always agree on polarity for the same render path (issue #100) -- neither the
+    /// highlighting theme nor Mermaid gets its own Appearance control; both inherit whichever of
+    /// `previewAppearanceMode`/`printAppearanceMode` applies.
+    static func resolveWantsDark(preferences: Preferences, appearanceOverride: PreviewAppearanceMode? = nil) -> Bool {
+        switch appearanceOverride ?? preferences.previewAppearanceMode {
+        case .system: preferences.systemPrefersDarkAppearance
+        case .light: false
+        case .dark: true
+        }
+    }
+
+    /// The 5 bundled syntax-highlighting theme families, covering all 9 `Highlight/themes/*.css`
+    /// files -- mirrors `themeFamilies` above (issue #100). `default` has no dark counterpart,
+    /// the same documented limitation `GitHub`'s CSS theme family has (rule 3.1).
+    static let highlightThemeFamilies: [ThemeFamily] = [
+        ThemeFamily(name: "atom-one", lightFileName: "atom-one-light", darkFileName: "atom-one-dark"),
+        ThemeFamily(name: "default", lightFileName: "default", darkFileName: nil),
+        ThemeFamily(name: "github", lightFileName: "github", darkFileName: "github-dark"),
+        ThemeFamily(name: "solarized", lightFileName: "solarized-light", darkFileName: "solarized-dark"),
+        ThemeFamily(name: "xcode", lightFileName: "xcode", darkFileName: "xcode-dark"),
+    ]
+
+    static func availableHighlightThemeFamilyNames() -> [String] {
+        highlightThemeFamilies.map(\.name).sorted()
+    }
+
+    /// Maps an exact bundled highlighting CSS filename (e.g. `"github-dark"`) back to its family
+    /// name, e.g. for normalizing a legacy persisted `htmlHighlightingThemeName` value that
+    /// predates this family model (issue #100). A name that already is a family name, or doesn't
+    /// match any known filename, is returned unchanged (rule 3.2).
+    static func highlightFamilyName(forFileName fileName: String) -> String {
+        highlightThemeFamilies.first { $0.lightFileName == fileName || $0.darkFileName == fileName }?.name
+            ?? fileName
+    }
+
+    /// Resolves a highlighting theme family name to the concrete CSS filename for the wanted
+    /// polarity. An unrecognized family name is returned unchanged (rule 3.2), and `default`
+    /// (no dark counterpart) always resolves to its light file (rule 3.1).
+    static func resolvedHighlightFileName(forFamily family: String, wantsDark: Bool) -> String {
+        guard let entry = highlightThemeFamilies.first(where: { $0.name == family }) else { return family }
+        if wantsDark, let darkFileName = entry.darkFileName {
+            return darkFileName
+        }
+        return entry.lightFileName
+    }
+
+    /// Resolves which highlighting theme CSS file to load, inheriting light/dark polarity from
+    /// the same Appearance setting the render path's CSS theme already resolved through
+    /// (`appearanceOverride` is `Preferences.printAppearanceMode` for `composeForPrint`) -- issue
+    /// #100 deliberately gives syntax highlighting no Appearance control of its own, the same way
+    /// Mermaid already inherits from the resolved CSS theme filename.
+    static func resolveEffectiveHighlightThemeName(
+        preferences: Preferences,
+        appearanceOverride: PreviewAppearanceMode? = nil
+    ) -> String {
+        let wantsDark = resolveWantsDark(preferences: preferences, appearanceOverride: appearanceOverride)
+        return resolvedHighlightFileName(forFamily: preferences.htmlHighlightingThemeName, wantsDark: wantsDark)
     }
 
     /// Swatch colors for a theme family's row in the settings picker -- always drawn from the
@@ -136,16 +193,6 @@ public extension HTMLComposer {
 
     static func availablePreviewStyles() -> [String] {
         guard let url = coreBundle.url(forResource: "Styles", withExtension: nil),
-              let contents = try? FileManager.default.contentsOfDirectory(at: url, includingPropertiesForKeys: nil)
-        else { return [] }
-        return contents
-            .filter { $0.pathExtension == "css" }
-            .map { $0.deletingPathExtension().lastPathComponent }
-            .sorted()
-    }
-
-    static func availableHighlightingThemes() -> [String] {
-        guard let url = coreBundle.url(forResource: "themes", withExtension: nil, subdirectory: "Highlight"),
               let contents = try? FileManager.default.contentsOfDirectory(at: url, includingPropertiesForKeys: nil)
         else { return [] }
         return contents
