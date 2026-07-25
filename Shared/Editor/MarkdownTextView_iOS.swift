@@ -18,6 +18,14 @@
         var scrollsPastEnd: Bool
         var scrollFraction: CGFloat = 0
         var isScrollSyncEnabled: Bool = false
+        /// Mirrors the macOS `MarkdownTextView.isFocusModeEnabled` doc comment (issue #19 rule
+        /// 1.3): the toggle itself is a single app-wide `Preferences.editorFocusModeEnabled`
+        /// value, but the derived dim/centering state stays on this Coordinator instance.
+        var isFocusModeEnabled: Bool = false
+        /// Mirrors the macOS `MarkdownTextView.isLivePreviewEnabled` doc comment (issue #2 rule 1.2).
+        var isLivePreviewEnabled: Bool = false
+        /// Mirrors the macOS `MarkdownTextView.showLineNumbers` doc comment (issue #21).
+        var showLineNumbers: Bool = false
         /// The document's on-disk location, used to resolve where a pasted/dropped image's
         /// sidecar folder belongs (issue #18). `nil` for an unsaved document -- that case
         /// declines the paste/drop with an alert rather than guessing a location.
@@ -34,6 +42,10 @@
             textStorage.language = "markdown"
             textStorage.highlightr.setTheme(to: highlightThemeName)
             textStorage.highlightr.theme.setCodeFont(font)
+            // Notifies the coordinator once Highlightr's async re-highlight for a range lands,
+            // so focus-mode dim attributes can be reapplied after (never before) that pass --
+            // mirrors the macOS Coordinator's wiring for issue #19 rule 4.3.
+            textStorage.highlightDelegate = context.coordinator
 
             let layoutManager = NSLayoutManager()
             textStorage.addLayoutManager(layoutManager)
@@ -65,6 +77,17 @@
             textView.pasteDelegate = context.coordinator
             context.coordinator.textView = textView
             context.coordinator.documentURL = documentURL
+
+            let gutterView = EditorGutterView()
+            gutterView.textView = textView
+            gutterView.lineStartOffsetsProvider = { [weak coordinator = context.coordinator] in
+                coordinator?.gutterLineStartOffsets ?? []
+            }
+            gutterView.isHidden = !showLineNumbers
+            textView.addSubview(gutterView)
+            context.coordinator.gutterView = gutterView
+            textView.showsLineNumberGutter = showLineNumbers
+            textView.applyWidthLimitedInset()
 
             if scrollsPastEnd {
                 textView.contentInset.bottom = 300
@@ -114,6 +137,7 @@
                 widthLimitedTextView.verticalInset = verticalInset
                 widthLimitedTextView.isWidthLimited = isWidthLimited
                 widthLimitedTextView.maximumWidth = maximumWidth
+                widthLimitedTextView.showsLineNumberGutter = showLineNumbers
                 widthLimitedTextView.applyWidthLimitedInset()
             } else {
                 textView.textContainerInset = UIEdgeInsets(
@@ -134,11 +158,28 @@
                 textStorage.language = language
             }
 
+            let focusModeJustToggled = context.coordinator.parent.isFocusModeEnabled != isFocusModeEnabled
+            let livePreviewJustToggled = context.coordinator.parent.isLivePreviewEnabled != isLivePreviewEnabled
             context.coordinator.parent = self
             context.coordinator.documentURL = documentURL
             if isScrollSyncEnabled {
                 context.coordinator.applyScrollFraction(scrollFraction, to: textView)
             }
+            // Toggling the Preferences-backed switch itself doesn't fire textViewDidChange or a
+            // selection-change notification, so it needs its own trigger here -- both to dim the
+            // initial active paragraph on enable and to fully clear dimming on disable (rule 3.5).
+            if focusModeJustToggled {
+                context.coordinator.applyFocusModeIfNeeded(in: textView)
+            }
+            if livePreviewJustToggled {
+                context.coordinator.applyLivePreviewStylingIfNeeded(in: textView, fullDocument: true)
+            }
+
+            context.coordinator.gutterView?.isHidden = !showLineNumbers
+            context.coordinator.refreshGutterLineStartOffsetsIfNeeded(text: textView.text)
+            context.coordinator.gutterView?.frame = CGRect(
+                x: textView.contentOffset.x, y: 0, width: EditorGutterView.width, height: textView.contentSize.height
+            )
         }
 
         /// A `UITextView` subclass that recomputes its horizontal inset on every bounds change,
@@ -150,6 +191,12 @@
             var verticalInset: CGFloat = 30
             var isWidthLimited = false
             var maximumWidth: CGFloat = 800
+            /// Reserves room on the left for `EditorGutterView` (issue #21) -- toggling this
+            /// re-runs `applyWidthLimitedInset()` so the text container narrows/widens to make
+            /// room without moving the gutter's own fixed-width column.
+            var showsLineNumberGutter = false {
+                didSet { applyWidthLimitedInset() }
+            }
 
             func applyWidthLimitedInset() {
                 let inset = MarkdownTextEditing.widthLimitedHorizontalInset(
@@ -158,7 +205,10 @@
                     isWidthLimited: isWidthLimited,
                     maximumWidth: maximumWidth
                 )
-                textContainerInset = UIEdgeInsets(top: verticalInset, left: inset, bottom: verticalInset, right: inset)
+                let leftInset = showsLineNumberGutter ? inset + EditorGutterView.width : inset
+                textContainerInset = UIEdgeInsets(
+                    top: verticalInset, left: leftInset, bottom: verticalInset, right: inset
+                )
             }
 
             override func layoutSubviews() {
@@ -167,9 +217,34 @@
                     applyWidthLimitedInset()
                 }
             }
+
+            /// The caret's bounding rect at `location`, in this text view's own coordinate
+            /// space -- used to position the slash-command menu popup (issue #1).
+            /// `UITextView.caretRect(for:)` already returns bounds-space coordinates, unlike
+            /// AppKit's screen-space `firstRect(forCharacterRange:)`, so no further conversion
+            /// is needed here.
+            func caretRect(forCharacterIndex location: Int) -> CGRect? {
+                guard let position = position(from: beginningOfDocument, offset: location) else { return nil }
+                return caretRect(for: position)
+            }
+
+            /// `range`'s bounding rect, in this text view's own coordinate space -- used to
+            /// position live-preview's checkbox/image overlays (issue #2) over the markdown
+            /// range they replace.
+            func rect(forCharacterRange range: NSRange) -> CGRect? {
+                guard let start = position(from: beginningOfDocument, offset: range.location),
+                      let end = position(from: start, offset: range.length),
+                      let textRange = textRange(from: start, to: end) else { return nil }
+                return firstRect(for: textRange)
+            }
         }
 
-        class Coordinator: NSObject, UITextViewDelegate, UITextPasteDelegate {
+        // `HighlightDelegate` is a nonisolated, unannotated Objective-C protocol, but
+        // `CodeAttributedString.highlight(_:)` only ever calls it from `DispatchQueue.main.async`
+        // (confirmed by reading `Dependency/Highlightr/src/classes/CodeAttributedString.swift`), so
+        // `@preconcurrency` documents that real, already-main-thread guarantee instead of papering
+        // over an actual race.
+        class Coordinator: NSObject, UITextViewDelegate, UITextPasteDelegate, @preconcurrency HighlightDelegate {
             var parent: MarkdownTextView
             weak var textView: UITextView?
             var themeName: String
@@ -184,160 +259,73 @@
             private var anchors: [EditorLineAnchor] = []
             private var anchorText: String?
             private var anchorHeight: CGFloat = 0
+            /// The paragraph range currently undimmed by focus mode, or `nil` when focus mode is
+            /// off. Lives on this Coordinator instance only (issue #19 rule 1.1) -- never shared
+            /// across two panes/windows editing the same or different documents. Not `private`
+            /// since `MarkdownTextView+FocusMode_iOS.swift`'s extension needs access from another
+            /// file in the module (Swift's `private` only reaches same-file extensions).
+            var focusModeActiveRange: NSRange?
+            /// This Coordinator's own slash-command menu state (issue #1 rule 1.1) -- constructed
+            /// fresh per instance, never shared across two open documents/windows. Not `private`
+            /// since `MarkdownTextView+SlashCommandMenu_iOS.swift`'s extension needs access from
+            /// another file in the module.
+            let slashMenuState = SlashCommandMenuState()
+            /// The live popup subview showing `slashMenuState`, or `nil` while no trigger is
+            /// active. Not `private` for the same cross-file reason as `slashMenuState`.
+            var slashMenuHostingController: UIHostingController<SlashCommandMenuView>?
+            /// This Coordinator's own line-start-offset cache for the gutter (issue #21 rule
+            /// 1.1) -- mirrors the macOS Coordinator's `gutterLineStartOffsets`. Not `private`:
+            /// `EditorGutterView` reads it via `lineStartOffsetsProvider`.
+            var gutterLineStartOffsets: [Int] = []
+            private var gutterText: String?
+            /// The gutter subview added by `makeUIView`, or `nil` before that runs. Not
+            /// `private`: `updateUIView` toggles its visibility/frame directly.
+            weak var gutterView: EditorGutterView?
+            /// Mirrors the macOS Coordinator's five live-preview (issue #2) state properties
+            /// verbatim, each living on this instance only (rule 1.1) -- never shared across two
+            /// open documents/windows. Not `private`: `MarkdownTextView+LivePreview_iOS.swift`'s
+            /// extension needs access from another file in the module.
+            var livePreviewStyledText: String?
+            var livePreviewCaretParagraphRange: NSRange?
+            var livePreviewImageCache: [String: PlatformImage] = [:]
+            var livePreviewCheckboxOverlays: [Int: UIButton] = [:]
+            var livePreviewImageOverlays: [Int: UIImageView] = [:]
 
             init(_ parent: MarkdownTextView) {
                 self.parent = parent
                 themeName = parent.highlightThemeName
+                super.init()
+                slashMenuState.commit = { [weak self] action in
+                    self?.commitSlashCommandMenuEntry(action)
+                }
             }
 
             func textViewDidChange(_ textView: UITextView) {
                 parent.text = textView.text
                 parent.onTextChange?()
+                applyFocusModeIfNeeded(in: textView)
+                recenterCaretOnActiveLine(in: textView)
+                recomputeSlashMenu(in: textView)
+                refreshGutterLineStartOffsetsIfNeeded(text: textView.text)
+                applyLivePreviewStylingIfNeeded(in: textView, fullDocument: false)
             }
 
-            // MARK: - Tab/Backspace/Enter key handling (issues #15, #17)
-
-            /// UIKit funnels every insertion, deletion, and replacement through this one
-            /// delegate method (there's no `doCommandBySelector` equivalent on iOS), so Tab,
-            /// Backspace, Enter, and auto-pair are all recognized here by `range`/`text` shape:
-            /// Backspace is an empty replacement over a non-empty range; Tab/Enter/a single
-            /// pairable character are single-character insertions.
-            func textView(
-                _ textView: UITextView, shouldChangeTextIn range: NSRange, replacementText text: String
-            ) -> Bool {
-                let preferences = Preferences.shared
-
-                if text.isEmpty, range.length == 1 {
-                    return !handleBackspace(in: textView, range: range, preferences: preferences)
-                }
-                if text == "\t" {
-                    guard preferences.editorConvertTabs, range.length == 0 else { return true }
-                    insertTabAsSpaces(in: textView, at: range.location)
-                    return false
-                }
-                if text == "\n" {
-                    guard preferences.editorInsertPrefixInBlock, range.length == 0 else { return true }
-                    return !handleNewline(
-                        in: textView, at: range.location, autoIncrement: preferences.editorAutoIncrementNumberedLists
-                    )
-                }
-                if preferences.editorCompleteMatchingCharacters, text.count == 1, let character = text.first {
-                    return !applyPairDecision(for: character, in: textView, range: range)
-                }
-                return true
+            /// Rebuilds `gutterLineStartOffsets` only when the text actually changed since the
+            /// last build (issue #21 rule 4.2) -- mirrors the macOS Coordinator's own gate --
+            /// then marks the gutter view for redraw so it picks up the new table on its next
+            /// (viewport-scoped, rule 4.3) draw pass.
+            func refreshGutterLineStartOffsetsIfNeeded(text: String) {
+                guard text != gutterText else { return }
+                gutterText = text
+                gutterLineStartOffsets = computeLineStartOffsets(text: text)
+                gutterView?.setNeedsDisplay()
             }
 
-            private func insertTabAsSpaces(in textView: UITextView, at location: Int) {
-                let column = columnOfCharacter(at: location, in: textView.text)
-                let spaces = MarkdownTextEditing.tabInsertion(atColumn: column)
-                replaceAndNotify(in: textView, range: NSRange(location: location, length: 0), with: spaces)
-            }
-
-            private func handleBackspace(in textView: UITextView, range: NSRange, preferences: Preferences) -> Bool {
-                let location = range.location + range.length
-                let ns = textView.text as NSString
-
-                if preferences.editorConvertTabs {
-                    let column = columnOfCharacter(at: location, in: textView.text)
-                    let lineStart = ns.lineRange(for: NSRange(location: location, length: 0)).location
-                    let prefix = ns.substring(with: NSRange(location: lineStart, length: location - lineStart))
-                    if column > 0, let outdent = MarkdownTextEditing.outdentAmount(linePrefix: prefix) {
-                        replaceAndNotify(
-                            in: textView, range: NSRange(location: location - outdent, length: outdent), with: ""
-                        )
-                        return true
-                    }
-                }
-
-                if preferences.editorCompleteMatchingCharacters, location > 0, location < ns.length {
-                    let before = Character(ns.substring(with: NSRange(location: location - 1, length: 1)))
-                    let after = Character(ns.substring(with: NSRange(location: location, length: 1)))
-                    if MarkdownTextEditing.isAtomicPairDeletion(before: before, after: after) {
-                        replaceAndNotify(in: textView, range: NSRange(location: location - 1, length: 2), with: "")
-                        return true
-                    }
-                }
-
-                return false
-            }
-
-            private func handleNewline(in textView: UITextView, at location: Int, autoIncrement: Bool) -> Bool {
-                let ns = textView.text as NSString
-                let lineRange = ns.lineRange(for: NSRange(location: location, length: 0))
-                var contentEnd = lineRange.location + lineRange.length
-                if contentEnd > lineRange.location, ns.character(at: contentEnd - 1) == 10 {
-                    contentEnd -= 1
-                }
-                if contentEnd > lineRange.location, ns.character(at: contentEnd - 1) == 13 {
-                    contentEnd -= 1
-                }
-                guard location == contentEnd else { return false }
-
-                let line = ns.substring(with: NSRange(
-                    location: lineRange.location,
-                    length: contentEnd - lineRange.location
-                ))
-                switch MarkdownTextEditing.continuationAction(forLine: line, autoIncrement: autoIncrement) {
-                case let .continuePrefix(prefix):
-                    replaceAndNotify(in: textView, range: NSRange(location: location, length: 0), with: "\n" + prefix)
-                    return true
-                case .terminateList:
-                    replaceAndNotify(
-                        in: textView,
-                        range: NSRange(location: lineRange.location, length: location - lineRange.location),
-                        with: ""
-                    )
-                    return true
-                case .none:
-                    return false
-                }
-            }
-
-            private func applyPairDecision(for character: Character, in textView: UITextView, range: NSRange) -> Bool {
-                let ns = textView.text as NSString
-                let hasSelection = range.length > 0
-                let nextCharacter: Character? = (!hasSelection && range.location < ns.length)
-                    ? Character(ns.substring(with: NSRange(location: range.location, length: 1)))
-                    : nil
-
-                switch MarkdownTextEditing.pairDecision(
-                    for: character, nextCharacter: nextCharacter, hasSelection: hasSelection
-                ) {
-                case let .insertPair(opening, closing):
-                    replaceAndNotify(in: textView, range: range, with: "\(opening)\(closing)")
-                    textView.selectedRange = NSRange(location: range.location + 1, length: 0)
-                    return true
-                case .skipOver:
-                    textView.selectedRange = NSRange(location: range.location + 1, length: 0)
-                    return true
-                case let .wrapSelection(opening, closing):
-                    let selected = ns.substring(with: range)
-                    replaceAndNotify(in: textView, range: range, with: "\(opening)\(selected)\(closing)")
-                    textView.selectedRange = NSRange(location: range.location + 1, length: range.length)
-                    return true
-                case .insertPlain:
-                    return false
-                }
-            }
-
-            private func columnOfCharacter(at location: Int, in text: String) -> Int {
-                let ns = text as NSString
-                let lineStart = ns.lineRange(for: NSRange(location: location, length: 0)).location
-                return location - lineStart
-            }
-
-            /// Performs a text replacement and notifies `parent`/`onTextChange` the same way
-            /// `textViewDidChange` does, since this bypasses the normal delegate change callback.
-            /// Assigning `UITextView.text` (unlike a real keystroke) resets `selectedRange` to the
-            /// end of the document, so this restores the caret to where the replacement leaves it.
-            private func replaceAndNotify(in textView: UITextView, range: NSRange, with replacement: String) {
-                let ns = textView.text as NSString
-                textView.text = ns.replacingCharacters(in: range, with: replacement)
-                textView.selectedRange = MarkdownTextEditing.selectionAfterReplacement(
-                    range: range, replacementLength: (replacement as NSString).length
-                )
-                parent.text = textView.text
-                parent.onTextChange?()
+            func textViewDidChangeSelection(_ textView: UITextView) {
+                applyFocusModeIfNeeded(in: textView)
+                recenterCaretOnActiveLine(in: textView)
+                recomputeSlashMenu(in: textView)
+                applyLivePreviewStylingIfNeeded(in: textView, fullDocument: false)
             }
 
             // MARK: - Pasted/dropped image (issue #18)
@@ -443,7 +431,10 @@
             }
 
             func scrollViewDidScroll(_ scrollView: UIScrollView) {
-                guard !isApplyingExternalScroll, let textView = scrollView as? UITextView else { return }
+                guard let textView = scrollView as? UITextView else { return }
+                gutterView?.frame.origin = CGPoint(x: textView.contentOffset.x, y: 0)
+                gutterView?.setNeedsDisplay()
+                guard !isApplyingExternalScroll else { return }
                 let contentHeight = scrollView.contentSize.height
                 let visibleHeight = scrollView.bounds.height
                 guard contentHeight > visibleHeight else { return }

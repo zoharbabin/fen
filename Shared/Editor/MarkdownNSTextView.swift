@@ -14,6 +14,21 @@
         var scrollsPastEnd = true
         weak var imagePasteCoordinator: ImagePasteCoordinating?
 
+        /// Subviews added on top of the text (e.g. the slash-command menu popup, issue #1) that
+        /// must stay reachable by accessibility clients -- `NSTextView` overrides
+        /// `accessibilityChildren()` to return only its text content, ignoring plain `addSubview`
+        /// children entirely (confirmed empirically: an `NSHostingView` added via `addSubview`
+        /// never appeared in `accessibilityChildren()`, which is why XCUITest's
+        /// `app.buttons["SlashCommandMenuEntry-..."]` lookup -- and VoiceOver -- couldn't find it
+        /// despite the view existing, being laid out, and being visible in the on-screen view
+        /// hierarchy). Callers append/remove their overlay here alongside `addSubview`/
+        /// `removeFromSuperview` so this list never outlives the view it names.
+        var accessibilityOverlaySubviews: [NSView] = []
+
+        override func accessibilityChildren() -> [Any]? {
+            (super.accessibilityChildren() ?? []) + accessibilityOverlaySubviews
+        }
+
         /// Pasteboard types AppKit offers here that carry raw image bytes -- e.g. a copied
         /// screenshot with no backing file. Each maps directly to a `UTType` via its raw
         /// identifier, empirically confirmed to conform to `.image` for `.tiff`/`.png` and not
@@ -131,6 +146,26 @@
             let glyphIndex = layoutManager.glyphIndexForCharacter(at: index)
             let rect = layoutManager.lineFragmentRect(forGlyphAt: glyphIndex, effectiveRange: nil)
             return rect.origin.y + textContainerInset.height
+        }
+
+        /// The caret's bounding rect at `index`, in this text view's own coordinate space --
+        /// used to position the slash-command menu popup (issue #1) with no further coordinate
+        /// conversion needed by the caller.
+        func caretRect(forCharacterIndex index: Int) -> CGRect? {
+            rect(forCharacterRange: NSRange(location: index, length: 0))
+        }
+
+        /// `range`'s bounding rect, in this text view's own coordinate space -- used to position
+        /// live-preview's checkbox/image overlays (issue #2) over the markdown range they
+        /// replace. Routes through `firstRect(forCharacterRange:)` (the same `NSTextInputClient`
+        /// API AppKit itself uses to position an input method's candidate window), converting its
+        /// screen-space result back through the window.
+        func rect(forCharacterRange range: NSRange) -> CGRect? {
+            guard let window else { return nil }
+            let screenRect = firstRect(forCharacterRange: range, actualRange: nil)
+            guard screenRect != .zero else { return nil }
+            let windowRect = window.convertFromScreen(screenRect)
+            return convert(windowRect, from: nil)
         }
 
         override func setFrameSize(_ newSize: NSSize) {

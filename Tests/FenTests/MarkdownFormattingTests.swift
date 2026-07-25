@@ -185,6 +185,34 @@ struct MarkdownFormattingTests {
         #expect(result.text.contains("|"))
     }
 
+    /// Issue #1 rule 3.6: both the toolbar and the slash-command menu insert `.table` through
+    /// this same function, so the cursor lands selecting the first "Header" placeholder --
+    /// letting a user type the header immediately, matching `link`/`image`'s placeholder-select
+    /// pattern -- rather than after the whole inserted template.
+    @Test func tableSelectsTheFirstHeaderPlaceholder() {
+        let text = ""
+        let selection = NSRange(location: 0, length: 0)
+        let result = MarkdownFormatting.apply(.table, to: text, selection: selection)
+        #expect((result.text as NSString).substring(with: result.selection) == "Header")
+    }
+
+    // MARK: - Rule 3.11 (issue #1): mermaid diagram fenced code block
+
+    @Test func mermaidDiagramOnEmptySelectionInsertsEmptyFenceWithCursorInside() {
+        let text = ""
+        let selection = NSRange(location: 0, length: 0)
+        let result = MarkdownFormatting.apply(.mermaidDiagram, to: text, selection: selection)
+        #expect(result.text == "```mermaid\n\n```")
+        #expect(result.selection == NSRange(location: 11, length: 0))
+    }
+
+    @Test func mermaidDiagramOnNonEmptySelectionWrapsContentUnchanged() {
+        let text = "graph TD;\nA-->B;"
+        let selection = NSRange(location: 0, length: (text as NSString).length)
+        let result = MarkdownFormatting.apply(.mermaidDiagram, to: text, selection: selection)
+        #expect(result.text == "```mermaid\ngraph TD;\nA-->B;\n```")
+    }
+
     // MARK: - Rule 3.10: edge selections never crash
 
     @Test func everyActionIsSafeAtStartOfEmptyDocument() {

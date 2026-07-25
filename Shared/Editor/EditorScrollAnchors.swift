@@ -1,4 +1,9 @@
 import Foundation
+#if os(macOS)
+    import AppKit
+#else
+    import UIKit
+#endif
 
 /// A point in the piecewise-linear table mapping "fraction through the source by
 /// raw line count" to "fraction through the editor's actual laid-out pixel height."
@@ -56,6 +61,87 @@ func computeEditorLineAnchors(
     }
     anchors.append(EditorLineAnchor(source: 1, rendered: 1))
     return anchors
+}
+
+/// One raw source line's starting character index (issue #21). Line `i` (0-based) in this
+/// array starts at `offsets[i]`; the 1-based source line number for any character index is
+/// `1 + ` the count of offsets not exceeding it. Built once per text change and cached by the
+/// caller (mirroring `EditorLineAnchor`'s own text/height staleness gate) so gutter numbering
+/// never rescans the whole document on every scroll or redraw (rule 4.2).
+func computeLineStartOffsets(text: String) -> [Int] {
+    var offsets = [0]
+    var index = 0
+    for scalar in text.utf16 {
+        index += 1
+        if scalar == 10 { // "\n"
+            offsets.append(index)
+        }
+    }
+    return offsets
+}
+
+/// The 1-based source line number containing `characterIndex`, via binary search over
+/// `computeLineStartOffsets(text:)`'s output — O(log n), safe to call once per visible line
+/// fragment on every scroll/redraw without rescanning the document (rule 4.2/4.3).
+func sourceLine(forCharacterIndex characterIndex: Int, lineStartOffsets: [Int]) -> Int {
+    guard !lineStartOffsets.isEmpty else { return 1 }
+    var low = 0
+    var high = lineStartOffsets.count - 1
+    while low < high {
+        let mid = (low + high + 1) / 2
+        if lineStartOffsets[mid] <= characterIndex {
+            low = mid
+        } else {
+            high = mid - 1
+        }
+    }
+    return low + 1
+}
+
+/// One visible line fragment's source-line number and laid-out rect, in `textContainer`'s own
+/// coordinate space (issue #21). The gutter's drawing code (`EditorGutterRulerView`,
+/// `EditorGutterView_iOS`) only converts this rect into its own view's coordinates and draws the
+/// number -- this function does the actual layout-manager walk, so it's the one place both
+/// platforms' visible-range scoping (rule 4.3) and one-number-per-source-line deduplication
+/// (rule 3.3) live and can be tested against real `NSLayoutManager` geometry.
+struct EditorGutterLineFragment {
+    let sourceLine: Int
+    let rect: CGRect
+}
+
+/// Scoped to `visibleRect` only (rule 4.3): asks `layoutManager` for the glyph range covering
+/// it, never iterating every line fragment in the document. Returns one `EditorGutterLineFragment`
+/// per source line that starts a new visible line fragment, skipping every later wrapped visual
+/// line of the same source line (rule 3.3's "a wrapped source line shows its number once").
+func visibleGutterLineFragments(
+    layoutManager: NSLayoutManager,
+    textContainer: NSTextContainer,
+    visibleRect: CGRect,
+    lineStartOffsets: [Int]
+) -> [EditorGutterLineFragment] {
+    guard !lineStartOffsets.isEmpty else { return [] }
+    let visibleGlyphRange = layoutManager.glyphRange(forBoundingRect: visibleRect, in: textContainer)
+
+    var fragments: [EditorGutterLineFragment] = []
+    var glyphIndex = visibleGlyphRange.location
+    var lastSourceLine: Int?
+    while glyphIndex < NSMaxRange(visibleGlyphRange) {
+        var effectiveRange = NSRange(location: 0, length: 0)
+        let fragmentRect = layoutManager.lineFragmentRect(forGlyphAt: glyphIndex, effectiveRange: &effectiveRange)
+        let characterIndex = layoutManager.characterIndexForGlyph(at: glyphIndex)
+        let currentSourceLine = sourceLine(forCharacterIndex: characterIndex, lineStartOffsets: lineStartOffsets)
+
+        if currentSourceLine != lastSourceLine {
+            lastSourceLine = currentSourceLine
+            fragments.append(EditorGutterLineFragment(sourceLine: currentSourceLine, rect: fragmentRect))
+        }
+
+        glyphIndex = NSMaxRange(effectiveRange)
+        if effectiveRange.length == 0 {
+            break
+        }
+    }
+    return fragments
 }
 
 /// The same piecewise-linear-interpolation-with-clamped-endpoints technique as

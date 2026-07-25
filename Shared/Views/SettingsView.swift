@@ -115,6 +115,8 @@ struct EditorSettingsTab: View {
                 Toggle("Sync scrolling with preview", isOn: $prefs.editorSyncScrolling)
                 Toggle("Scroll past end", isOn: $prefs.editorScrollsPastEnd)
                 Toggle("Show word count", isOn: $prefs.editorShowWordCount)
+                Toggle("Show line numbers", isOn: $prefs.editorShowLineNumbers)
+                Toggle("Live preview", isOn: $prefs.editorLivePreviewEnabled)
                 Toggle("Editor on right", isOn: $prefs.editorOnRight)
                 #if os(macOS)
                     Toggle("Smart Home key", isOn: $prefs.editorSmartHome)

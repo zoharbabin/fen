@@ -103,11 +103,38 @@ struct PreferencesTests {
         prefs.editorScrollsPastEnd.toggle()
         prefs.editorShowWordCount.toggle()
         prefs.editorConvertTabs.toggle()
+        prefs.editorFocusModeEnabled.toggle()
         // fontSize is applied to the preview live via a CSS custom property (see
         // PreviewWebView.applyFontSize), not by recomposing/reloading, so it must not
         // bump renderRevision -- that would cause the exact reload-flash this avoids.
         prefs.fontSize += 1
         #expect(prefs.renderRevision == base)
+    }
+
+    @Test("editorFocusModeEnabled persists across instances sharing UserDefaults (issue #19 rule 1.3)")
+    func editorFocusModeEnabledPersists() throws {
+        let suiteName = "test.\(UUID().uuidString)"
+        let ud = try #require(UserDefaults(suiteName: suiteName))
+        let prefsA = Preferences(defaults: ud)
+        #expect(prefsA.editorFocusModeEnabled == false)
+
+        prefsA.editorFocusModeEnabled = true
+
+        let prefsB = Preferences(defaults: ud)
+        #expect(prefsB.editorFocusModeEnabled == true)
+    }
+
+    @Test("editorLivePreviewEnabled persists across instances sharing UserDefaults (issue #2 rule 1.2)")
+    func editorLivePreviewEnabledPersists() throws {
+        let suiteName = "test.\(UUID().uuidString)"
+        let ud = try #require(UserDefaults(suiteName: suiteName))
+        let prefsA = Preferences(defaults: ud)
+        #expect(prefsA.editorLivePreviewEnabled == false)
+
+        prefsA.editorLivePreviewEnabled = true
+
+        let prefsB = Preferences(defaults: ud)
+        #expect(prefsB.editorLivePreviewEnabled == true)
     }
 
     @Test("increaseFontSize/decreaseFontSize/resetFontSize clamp and reset correctly")

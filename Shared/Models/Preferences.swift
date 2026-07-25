@@ -124,8 +124,35 @@ public final class Preferences {
         didSet { defaults.set(editorSyncScrolling, forKey: "editorSyncScrolling") }
     }
 
+    /// Focus/typewriter mode toggle (issue #19): dims paragraphs other than the one containing
+    /// the caret and recenters the caret's line vertically. An editor-only display setting like
+    /// `editorSyncScrolling` -- it changes nothing about the rendered preview -- so it does not
+    /// bump `renderRevision`.
+    var editorFocusModeEnabled: Bool = false {
+        didSet { defaults.set(editorFocusModeEnabled, forKey: "editorFocusModeEnabled") }
+    }
+
+    /// Live-preview (WYSIWYG-in-source) editing mode toggle (issue #2): styles Markdown syntax
+    /// in place in the editor (real font weight/size, hidden markers, rendered checkboxes/images)
+    /// without ever changing what's stored on disk. An editor-only display setting like
+    /// `editorFocusModeEnabled` -- it changes nothing about the rendered preview -- so it does
+    /// not bump `renderRevision`.
+    var editorLivePreviewEnabled: Bool = false {
+        didSet { defaults.set(editorLivePreviewEnabled, forKey: "editorLivePreviewEnabled") }
+    }
+
     var editorSmartHome: Bool = true {
         didSet { defaults.set(editorSmartHome, forKey: "editorSmartHome") }
+    }
+
+    /// Shows source-line numbers in the editor gutter and, via the matching preview-side CSS,
+    /// alongside the rendered HTML (issue #21). Rendering the preview gutter needs a rebuild
+    /// (it's CSS baked into the composed HTML document), so — unlike `editorFocusModeEnabled`/
+    /// `editorSyncScrolling` — this bumps `renderRevision`.
+    var editorShowLineNumbers: Bool = false {
+        didSet { defaults.set(editorShowLineNumbers, forKey: "editorShowLineNumbers")
+            renderRevision += 1
+        }
     }
 
     var editorStyleName: String = "xcode" {
@@ -355,6 +382,9 @@ public final class Preferences {
             ? defaults.bool(forKey: "editorCompleteMatchingCharacters") : true
         editorSyncScrolling = defaults.object(forKey: "editorSyncScrolling") != nil
             ? defaults.bool(forKey: "editorSyncScrolling") : true
+        editorFocusModeEnabled = defaults.bool(forKey: "editorFocusModeEnabled")
+        editorLivePreviewEnabled = defaults.bool(forKey: "editorLivePreviewEnabled")
+        editorShowLineNumbers = defaults.bool(forKey: "editorShowLineNumbers")
         editorSmartHome = defaults.object(forKey: "editorSmartHome") != nil
             ? defaults.bool(forKey: "editorSmartHome") : true
         editorStyleName = defaults.string(forKey: "editorStyleName") ?? "xcode"
