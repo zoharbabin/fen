@@ -33,6 +33,10 @@ If Fen ever charges for anything, we'll favor a one-time purchase over a subscri
 ## Features
 
 - **Live preview with scroll sync** — the preview pane tracks your scroll position as you type
+- **WYSIWYG-in-source live preview mode** (Cmd+Shift+P) — an optional editor mode that hides markdown markers (`**`, `#`, `` ` ``, and more) off-focus and renders the styling they imply directly in the source, without leaving plain text
+- **Slash-command menu** — type `/` at the start of a line (or after whitespace) to insert a heading, table, image, quote, code block, horizontal rule, or Mermaid diagram from a filterable popup
+- **Focus/typewriter mode** (Cmd+Shift+F) — dims every paragraph except the one you're editing and keeps your cursor vertically centered as you type
+- **Synced line numbers** — an optional editor gutter and matching preview-pane gutter, numbered from the same source lines so both panes agree
 - **GitHub-Flavored Markdown** via Apple's [`swift-cmark`](https://github.com/apple/swift-cmark) — tables, task lists, strikethrough, autolinks, footnotes, and `==highlight==` marks, plus GitHub-style alert/callout blocks (`> [!NOTE]`, `[!TIP]`, `[!WARNING]`, and more)
 - **A formatting toolbar and menu commands** — bold, italic, strikethrough, code, headings, lists, task items, blockquotes, links, images, tables, and more, one click or keyboard shortcut away
 - **Editing quality-of-life** — auto-pair brackets/quotes, tabs-to-spaces, smart Home key, and list/blockquote continuation on Enter
