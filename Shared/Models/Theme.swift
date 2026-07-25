@@ -4,11 +4,13 @@ import Foundation
 
     public typealias PlatformColor = NSColor
     public typealias PlatformFont = NSFont
+    public typealias PlatformImage = NSImage
 #else
     import UIKit
 
     public typealias PlatformColor = UIColor
     public typealias PlatformFont = UIFont
+    public typealias PlatformImage = UIImage
 #endif
 
 /// Represents a parsed editor theme from a `.style` file.

@@ -64,6 +64,26 @@ struct FenApp: App {
                     NotificationCenter.default.post(name: DocumentOutline.toggleOutlineNotification, object: nil)
                 }
                 .keyboardShortcut("o", modifiers: [.command, .shift])
+
+                // NotificationCenter post, matching Toggle Outline above -- `editorFocusModeEnabled`
+                // is `internal` to FenCore (like `editorSyncScrolling`), so a cross-module direct
+                // mutation from this FenMacOS target isn't possible; unlike Zoom In/Out/Actual
+                // Size, there's no public `Preferences` method to call instead (issue #19 rule
+                // 5.3). The notification name lives on `FocusModeEditing` in FenCore, mirroring
+                // `DocumentOutline.toggleOutlineNotification`'s pattern, since `SplitEditorView`'s
+                // subscriber (also in FenCore) needs to reference the same name.
+                Button("Toggle Focus Mode") {
+                    NotificationCenter.default.post(name: FocusModeEditing.toggleFocusModeNotification, object: nil)
+                }
+                .keyboardShortcut("f", modifiers: [.command, .shift])
+
+                // Mirrors Toggle Focus Mode immediately above -- `editorLivePreviewEnabled` is
+                // `internal` to FenCore, so this posts through the same cross-module notification
+                // pattern rather than mutating `Preferences.shared` directly (issue #2).
+                Button("Toggle Live Preview") {
+                    NotificationCenter.default.post(name: LivePreviewEditing.toggleLivePreviewNotification, object: nil)
+                }
+                .keyboardShortcut("p", modifiers: [.command, .shift])
             }
         }
 

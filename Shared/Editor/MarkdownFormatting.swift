@@ -25,6 +25,7 @@ public enum FormattingAction: CaseIterable, Equatable, Hashable, Sendable {
     case horizontalRule
     case codeBlock
     case table
+    case mermaidDiagram
 
     /// The `.insertMarkdownFormatting` notification's `object` payload for this action --
     /// the wire format both the posting menu commands/toolbar buttons and the observing
@@ -47,6 +48,7 @@ public enum FormattingAction: CaseIterable, Equatable, Hashable, Sendable {
         case .horizontalRule: "horizontalRule"
         case .codeBlock: "codeBlock"
         case .table: "table"
+        case .mermaidDiagram: "mermaidDiagram"
         }
     }
 
@@ -75,6 +77,7 @@ public enum FormattingAction: CaseIterable, Equatable, Hashable, Sendable {
         case .horizontalRule: "Horizontal Rule"
         case .codeBlock: "Code Block"
         case .table: "Table"
+        case .mermaidDiagram: "Diagram"
         }
     }
 
@@ -96,6 +99,7 @@ public enum FormattingAction: CaseIterable, Equatable, Hashable, Sendable {
         case .horizontalRule: "minus"
         case .codeBlock: "curlybraces"
         case .table: "tablecells"
+        case .mermaidDiagram: "chart.xyaxis.line"
         }
     }
 
@@ -147,6 +151,8 @@ public enum MarkdownFormatting {
             applyCodeBlock(text: text, selection: selection)
         case .table:
             applyTable(text: text, selection: selection)
+        case .mermaidDiagram:
+            applyMermaidDiagram(text: text, selection: selection)
         }
     }
 
@@ -410,15 +416,46 @@ public enum MarkdownFormatting {
         return (newText, NSRange(location: bounded.location + 4, length: (selectedText as NSString).length))
     }
 
-    // MARK: - Table (fixed template, ignores selection)
+    // MARK: - Mermaid diagram (fenced code block with a `mermaid` language tag)
+
+    private static func applyMermaidDiagram(text: String, selection: NSRange) -> (text: String, selection: NSRange) {
+        let ns = text as NSString
+        let bounded = boundedRange(selection, in: ns)
+        let fenceOpen = "```mermaid\n"
+        let fenceOpenLength = (fenceOpen as NSString).length
+
+        if bounded.length == 0 {
+            let replacement = fenceOpen + "\n```"
+            let newText = ns.replacingCharacters(in: bounded, with: replacement)
+            return (newText, NSRange(location: bounded.location + fenceOpenLength, length: 0))
+        }
+
+        let selectedText = ns.substring(with: bounded)
+        let replacement = fenceOpen + selectedText + "\n```"
+        let newText = ns.replacingCharacters(in: bounded, with: replacement)
+        return (
+            newText,
+            NSRange(location: bounded.location + fenceOpenLength, length: (selectedText as NSString).length)
+        )
+    }
+
+    // MARK: - Table (fixed template, ignores selection; cursor selects the first "Header"
+
+    // placeholder so a slash-menu or toolbar user can start typing the header immediately,
+    // mirroring applyLink's placeholder-select UX -- issue #1 rule 3.6)
 
     private static func applyTable(text: String, selection: NSRange) -> (text: String, selection: NSRange) {
         let ns = text as NSString
         let bounded = boundedRange(selection, in: ns)
         let template = "\n\n| Header | Header |\n| --- | --- |\n| Cell | Cell |\n\n"
         let newText = ns.replacingCharacters(in: NSRange(location: bounded.location, length: 0), with: template)
-        let location = bounded.location + (template as NSString).length
-        return (newText, clampedSelection(location: location, length: 0, in: newText as NSString))
+        let placeholder = "Header"
+        let placeholderOffset = (template as NSString).range(of: placeholder).location
+        let location = bounded.location + placeholderOffset
+        return (
+            newText,
+            clampedSelection(location: location, length: (placeholder as NSString).length, in: newText as NSString)
+        )
     }
 
     // MARK: - Shared helpers

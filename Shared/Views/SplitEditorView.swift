@@ -102,6 +102,16 @@ public struct SplitEditorView: View {
                 .onReceive(NotificationCenter.default.publisher(for: DocumentOutline.toggleOutlineNotification)) { _ in
                     isOutlineVisible.toggle()
                 }
+                .onReceive(
+                    NotificationCenter.default.publisher(for: FocusModeEditing.toggleFocusModeNotification)
+                ) { _ in
+                    preferences.editorFocusModeEnabled.toggle()
+                }
+                .onReceive(
+                    NotificationCenter.default.publisher(for: LivePreviewEditing.toggleLivePreviewNotification)
+                ) { _ in
+                    preferences.editorLivePreviewEnabled.toggle()
+                }
                 .onReceive(NotificationCenter.default.publisher(for: .exportToHTML)) { _ in
                     htmlExportController.presentSavePanel(document: document, preferences: preferences)
                 }
@@ -259,6 +269,9 @@ public struct SplitEditorView: View {
             scrollsPastEnd: preferences.editorScrollsPastEnd,
             scrollFraction: scrollSync.editorScrollFraction,
             isScrollSyncEnabled: preferences.editorSyncScrolling,
+            isFocusModeEnabled: preferences.editorFocusModeEnabled,
+            isLivePreviewEnabled: preferences.editorLivePreviewEnabled,
+            showLineNumbers: preferences.editorShowLineNumbers,
             documentURL: document.fileURL,
             onScroll: { fraction in
                 if preferences.editorSyncScrolling {
@@ -388,6 +401,14 @@ public struct SplitEditorView: View {
             }
             .help("Toggle Outline")
             .accessibilityIdentifier("OutlineToggleButton")
+
+            Button {
+                preferences.editorFocusModeEnabled.toggle()
+            } label: {
+                Image(systemName: preferences.editorFocusModeEnabled ? "eye.slash.fill" : "eye.slash")
+            }
+            .help("Toggle Focus Mode")
+            .accessibilityIdentifier("FocusModeToggleButton")
 
             Menu {
                 ForEach(FormattingAction.allCases, id: \.self) { action in

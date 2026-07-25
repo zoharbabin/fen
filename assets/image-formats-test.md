@@ -36,7 +36,7 @@ Remote JPEG:
 
 Remote GIF:
 
-![Remote GIF](https://upload.wikimedia.org/wikipedia/commons/2/2c/Rotating_earth_%28large%29.gif "Remote GIF")
+![Remote GIF](https://octodex.github.com/images/nyantocat.gif "Remote GIF")
 
 Remote SVG:
 

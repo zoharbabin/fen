@@ -55,6 +55,10 @@ public struct HTMLComposer: Sendable {
         styleTags += copyButton.styles
         scriptTags += copyButton.scripts
 
+        let lineNumberGutter = lineNumberGutterTags(preferences: preferences)
+        styleTags += lineNumberGutter.styles
+        scriptTags += lineNumberGutter.scripts
+
         scriptTags += scrollSyncTags(sourceLineCount: sourceLineCount, sourceLineOffset: sourceLineOffset)
 
         if preferences.customCSSEnabled,
@@ -283,6 +287,31 @@ public struct HTMLComposer: Sendable {
             .map { inlineScript($0) }
         return (styles, scripts)
     }
+
+    /// Whole-document line-number gutter (issue #21) -- distinct from
+    /// `Highlight/line-numbers.css`'s per-code-block counters (`preferences.htmlLineNumbers`,
+    /// wired through `syntaxHighlightingTags` above), which this must not change the behavior
+    /// of. `scroll-sync.js` builds and draws the actual `.fen-gutter-line` elements (reusing its
+    /// `data-sourcepos` anchor machinery per rule 4.1); this only supplies the CSS box for them
+    /// and the `window.__fenShowLineNumbers` flag gating that code, mirroring how
+    /// `syntaxHighlightingTags` sets `window.__fenLineNumbers` for the code-block feature.
+    private func lineNumberGutterTags(preferences: Preferences) -> (styles: [String], scripts: [String]) {
+        guard preferences.editorShowLineNumbers else { return ([], []) }
+        return ([inlineStyle(Self.lineNumberGutterCSS)], [inlineScript("window.__fenShowLineNumbers = true;")])
+    }
+
+    /// Reserves a fixed-width left column for `.fen-gutter-line` (drawn by `scroll-sync.js`)
+    /// via `body` padding, matching this feature's whole-document scope -- distinct from
+    /// `Highlight/line-numbers.css`'s per-`<pre>` counters, which stay untouched.
+    private static let lineNumberGutterCSS = """
+    body { padding-left: 3.5em; }
+    .fen-gutter-line {
+        position: absolute; left: 0; width: 3em; text-align: right;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 0.8em; color: color-mix(in srgb, currentColor 45%, transparent);
+        user-select: none; pointer-events: none;
+    }
+    """
 
     private func scrollSyncTags(sourceLineCount: Int, sourceLineOffset: Int) -> [String] {
         guard let scrollSyncJS = loadResourceFile(name: "scroll-sync", ext: "js", subdirectory: "ScrollSync")

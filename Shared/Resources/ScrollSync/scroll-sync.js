@@ -5,6 +5,11 @@
 
 (function () {
   var anchors = [];
+  // Whole-document line-number gutter positions (issue #21), rebuilt on the same
+  // staleness signal as `anchors` below -- one {line, top} pair per leaf
+  // data-sourcepos element, only ever populated when window.__fenShowLineNumbers
+  // is on, so the feature costs nothing when the preference is off.
+  var lineNumberAnchors = [];
   // Layout dimensions the cached anchors were built against. Any reflow that changes
   // these (resizing the window, dragging the split divider, an image finishing a late
   // load, Mermaid/MathJax finishing an async render) shifts every element's rendered
@@ -27,6 +32,21 @@
     anchorHeight = height;
     anchorScrollHeight = scrollHeight;
     anchors = computeAnchors();
+    if (window.__fenShowLineNumbers) {
+      lineNumberAnchors = computeLineNumberAnchors();
+      renderLineNumberGutter();
+    }
+  }
+
+  // Shared by computeAnchors and computeLineNumberAnchors so both read the same
+  // data-sourcepos parsing rule (rule 4.1/5.1) -- they differ only in which elements
+  // they collect and what they do with the parsed line, not in how a line is parsed.
+  function parseStartLine(element) {
+    var pos = element.getAttribute("data-sourcepos");
+    if (!pos) {
+      return NaN;
+    }
+    return parseInt(pos.split(":")[0], 10);
   }
 
   function computeAnchors() {
@@ -43,8 +63,7 @@
     var elements = document.querySelectorAll("[data-sourcepos]");
     var raw = [];
     for (var i = 0; i < elements.length; i++) {
-      var pos = elements[i].getAttribute("data-sourcepos");
-      var startLine = parseInt(pos.split(":")[0], 10);
+      var startLine = parseStartLine(elements[i]);
       if (isNaN(startLine)) {
         continue;
       }
@@ -69,6 +88,77 @@
     }
     filtered.push({ source: 1, rendered: 1 });
     return filtered;
+  }
+
+  // Leaf data-sourcepos elements only (issue #21) -- an element that itself carries
+  // data-sourcepos but has no non-cell descendant that also does. cmark-gfm annotates
+  // every block-level container (e.g. a loose list's <li> AND its inner <p>, a
+  // <blockquote> AND its inner <p>), so walking every matched element would stack
+  // duplicate numbers at the same rendered position. `td`/`th` cells are excluded from
+  // both the candidate set and the descendant check: cmark-gfm annotates each cell with
+  // its own data-sourcepos too, which would otherwise make every cell its own leaf and
+  // number a single row once per column. Excluding them makes the row's own <tr> the
+  // leaf instead -- one number per logical block (row, list item, paragraph), matching
+  // the documented "starting source line, not one number per source line it spans"
+  // convention (rule 3.3).
+  function collectLeafSourceposElements() {
+    var all = document.querySelectorAll("[data-sourcepos]:not(td):not(th)");
+    var leaves = [];
+    for (var i = 0; i < all.length; i++) {
+      if (!all[i].querySelector("[data-sourcepos]:not(td):not(th)")) {
+        leaves.push(all[i]);
+      }
+    }
+    return leaves;
+  }
+
+  // One {line, top} pair per leaf data-sourcepos block (issue #21) -- `line` is that
+  // block's raw (front-matter-inclusive) starting source line, `top` its rendered pixel
+  // position, both computed the same way computeAnchors already does. This is the
+  // documented source-line-numbering choice (rule 3.3): a block spanning several raw
+  // source lines (a wrapped paragraph, a multi-line table row) is marked once, at its
+  // first line, not once per raw line it spans.
+  function computeLineNumberAnchors() {
+    var totalLines = window.__fenTotalSourceLines || 0;
+    if (totalLines <= 0) {
+      return [];
+    }
+    var lineOffset = window.__fenSourceLineOffset || 0;
+    var elements = collectLeafSourceposElements();
+    var result = [];
+    for (var i = 0; i < elements.length; i++) {
+      var startLine = parseStartLine(elements[i]);
+      if (isNaN(startLine)) {
+        continue;
+      }
+      var top = elements[i].getBoundingClientRect().top + window.scrollY;
+      result.push({ line: startLine + lineOffset, top: top });
+    }
+    return result;
+  }
+
+  // Draws `lineNumberAnchors` into the preview's whole-document gutter (issue #21).
+  // Each number is a `position: absolute` div with no positioned ancestor, so its
+  // `top` is relative to the initial containing block -- the same document-pixel
+  // coordinate space `getBoundingClientRect().top + scrollY` already reads from --
+  // meaning it scrolls with the page like ordinary content, with no scroll listener
+  // or per-frame repositioning needed. Only ever called from refreshAnchorsIfStale,
+  // so a rebuild happens exactly when the anchor table itself would rebuild (rule 4.2).
+  // Writes only numeric textContent, never innerHTML (rule 2.2) -- document-derived
+  // text never reaches this gutter, only the integer line numbers already reused by
+  // computeAnchors above.
+  function renderLineNumberGutter() {
+    var stale = document.querySelectorAll(".fen-gutter-line");
+    for (var i = 0; i < stale.length; i++) {
+      stale[i].remove();
+    }
+    for (var j = 0; j < lineNumberAnchors.length; j++) {
+      var lineDiv = document.createElement("div");
+      lineDiv.className = "fen-gutter-line";
+      lineDiv.style.top = lineNumberAnchors[j].top + "px";
+      lineDiv.textContent = String(lineNumberAnchors[j].line);
+      document.body.appendChild(lineDiv);
+    }
   }
 
   // The same piecewise-linear-interpolation-with-clamped-endpoints technique as
@@ -114,6 +204,13 @@
     // Tests/FenTests/CrossLanguageInterpolationTest.swift, which drives this and Swift's
     // interpolateEditorAnchor with identical tables/inputs to prove the two stay in agreement.
     interpolate: interpolate,
+    // Exposed for Tests/FenTests/PreviewGutterVerifyTest.swift -- lets a test force a
+    // rebuild and read the exact anchors renderLineNumberGutter drew from, instead of only
+    // being able to assert on the resulting .fen-gutter-line DOM elements.
+    lineNumberAnchors: function () {
+      refreshAnchorsIfStale();
+      return lineNumberAnchors;
+    },
   };
 
   if (typeof window.addEventListener != "undefined") {
