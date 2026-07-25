@@ -38,11 +38,20 @@ log "Gate 1/6: no networking APIs introduced (Fen's local-first trust model, CLA
 if grep -rn "URLSession" Shared macOS iOS FenQuickLook 2>/dev/null | tee "$RUN_DIR/01-urlsession-grep.log"; then
     fail "URLSession usage found -- the Quick Look extension must not introduce network calls"
 fi
-log "Gate 1/6: entitlements stay minimal (rule 2.1 -- sandbox + read-only file access only)"
+log "Gate 1/6: entitlements stay minimal (rule 2.1 -- sandbox + read-only file access + network client only)"
+# com.apple.security.network.client is required for WKWebView's Networking/WebContent XPC
+# helpers to launch inside a sandboxed process at all -- confirmed by reproduction: without it,
+# quicklookd's `qlmanage -p` invocation renders a blank preview because those helper processes
+# crash before ever reaching PreviewViewController's HTML render step. It grants no actual
+# outbound network access QuickLookPreviewRenderer would use -- see Gate 1's URLSession check
+# below, which still fails loud on any real network call.
 if [ -f FenQuickLook/FenQuickLook.entitlements ]; then
     /usr/libexec/PlistBuddy -c "Print" FenQuickLook/FenQuickLook.entitlements > "$RUN_DIR/01-entitlements.log"
-    if grep -qE "com\.apple\.security\.network|com\.apple\.security\.cs\.allow-jit" "$RUN_DIR/01-entitlements.log"; then
-        fail "FenQuickLook.entitlements grants a broader entitlement than sandbox + read-only file access"
+    if grep -qE "com\.apple\.security\.network\.server|com\.apple\.security\.cs\.allow-jit" "$RUN_DIR/01-entitlements.log"; then
+        fail "FenQuickLook.entitlements grants a broader entitlement than sandbox + read-only file access + network client"
+    fi
+    if ! grep -q "com.apple.security.network.client" "$RUN_DIR/01-entitlements.log"; then
+        fail "FenQuickLook.entitlements is missing com.apple.security.network.client -- required for WKWebView to render at all inside the sandboxed extension"
     fi
 else
     fail "FenQuickLook/FenQuickLook.entitlements does not exist yet"
@@ -87,7 +96,7 @@ xcodebuild build \
     2>&1 | tee "$RUN_DIR/04-xcodebuild.log" \
     || fail "FenMacOSApp build failed with the FenQuickLook extension target added"
 BUILT_APP="$(find ~/Library/Developer/Xcode/DerivedData -maxdepth 1 -iname "FenUITesting-*" -type d 2>/dev/null \
-    | head -1)/Build/Products/Debug/Fen.app"
+    -exec stat -f "%m %N" {} \; | sort -rn | head -1 | cut -d' ' -f2-)/Build/Products/Debug/Fen.app"
 if [ ! -d "$BUILT_APP/Contents/PlugIns/FenQuickLook.appex" ]; then
     fail "FenQuickLook.appex is not embedded in the built Fen.app bundle"
 fi
