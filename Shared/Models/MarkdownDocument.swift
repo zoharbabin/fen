@@ -30,6 +30,14 @@ public final class MarkdownDocument: ReferenceFileDocument, @unchecked Sendable 
         self.text = text
     }
 
+    /// The document a fresh `DocumentGroup(newDocument:)` should create -- the bundled welcome
+    /// document the very first time (issue #37), blank every time after. `preferences` defaults
+    /// to `.shared` since this always runs in-process on the real app, never across a process
+    /// boundary the way the Quick Look extension does.
+    public static func makeNew(preferences: Preferences = .shared) -> MarkdownDocument {
+        MarkdownDocument(text: FirstRunContent.welcomeDocumentText(preferences: preferences) ?? "")
+    }
+
     public required init(configuration: ReadConfiguration) throws {
         guard let data = configuration.file.regularFileContents else {
             throw CocoaError(.fileReadCorruptFile)

@@ -195,6 +195,14 @@ public final class Preferences {
         didSet { defaults.set(editorEnsuresNewlineAtEndOfFile, forKey: "editorEnsuresNewlineAtEndOfFile") }
     }
 
+    /// Whether the app has already shown its bundled welcome document once. Read by the app's
+    /// `DocumentGroup(newDocument:)` closure (issue #37) to decide whether the very first new
+    /// document should be the welcome content instead of blank; every document created after
+    /// this flips to `true` opens blank as usual.
+    var hasCompletedFirstRun: Bool = false {
+        didSet { defaults.set(hasCompletedFirstRun, forKey: "hasCompletedFirstRun") }
+    }
+
     // MARK: - HTML / Preview
 
     /// A theme *family* name (e.g. `"GitHub2"`), never an exact light/dark filename -- the
@@ -403,6 +411,7 @@ public final class Preferences {
             ? defaults.bool(forKey: "editorScrollsPastEnd") : true
         editorEnsuresNewlineAtEndOfFile = defaults.object(forKey: "editorEnsuresNewlineAtEndOfFile") != nil
             ? defaults.bool(forKey: "editorEnsuresNewlineAtEndOfFile") : true
+        hasCompletedFirstRun = defaults.bool(forKey: "hasCompletedFirstRun")
     }
 
     private func loadHTMLDefaults(from defaults: UserDefaults) {

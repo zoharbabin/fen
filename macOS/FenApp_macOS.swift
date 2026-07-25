@@ -6,7 +6,7 @@ struct FenApp: App {
     @Environment(\.openWindow) private var openWindow
 
     var body: some Scene {
-        DocumentGroup(newDocument: { MarkdownDocument() }, editor: { file in
+        DocumentGroup(newDocument: { MarkdownDocument.makeNew() }, editor: { file in
             SplitEditorView(document: file.document)
                 .frame(minWidth: 600, minHeight: 400)
                 .onAppear { file.document.fileURL = file.fileURL }
