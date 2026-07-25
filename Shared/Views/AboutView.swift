@@ -57,7 +57,7 @@ public struct AboutView: View {
             Divider()
 
             VStack(spacing: 8) {
-                linkRow("Website", url: "https://zoharbabin.com/fen/")
+                linkRow("Website", url: "https://fen.md/")
                 linkRow("Source Code", url: "https://github.com/zoharbabin/fen")
                 linkRow("Report an Issue", url: "https://github.com/zoharbabin/fen/issues")
                 linkRow("Release Notes", url: "https://github.com/zoharbabin/fen/releases")
