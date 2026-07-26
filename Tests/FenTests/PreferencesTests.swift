@@ -137,6 +137,19 @@ struct PreferencesTests {
         #expect(prefsB.editorLivePreviewEnabled == true)
     }
 
+    @Test("hasCompletedFirstRun persists across instances sharing UserDefaults (issue #37 rule 1.1)")
+    func hasCompletedFirstRunPersists() throws {
+        let suiteName = "test.\(UUID().uuidString)"
+        let ud = try #require(UserDefaults(suiteName: suiteName))
+        let prefsA = Preferences(defaults: ud)
+        #expect(prefsA.hasCompletedFirstRun == false)
+
+        prefsA.hasCompletedFirstRun = true
+
+        let prefsB = Preferences(defaults: ud)
+        #expect(prefsB.hasCompletedFirstRun == true)
+    }
+
     @Test("increaseFontSize/decreaseFontSize/resetFontSize clamp and reset correctly")
     func fontSizeZoomControls() {
         let (prefs, _) = Self.isolated()
