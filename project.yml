@@ -37,6 +37,26 @@ targets:
     dependencies:
       - package: Fen
         product: FenCore
+      - target: FenQuickLook
+        embed: true
+
+  FenQuickLook:
+    type: app-extension
+    platform: macOS
+    sources:
+      - path: FenQuickLook
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.zoharbabin.fen.quicklook
+        PRODUCT_NAME: FenQuickLook
+        INFOPLIST_FILE: FenQuickLook/Info.plist
+        CODE_SIGN_ENTITLEMENTS: FenQuickLook/FenQuickLook.entitlements
+        GENERATE_INFOPLIST_FILE: false
+        CODE_SIGN_STYLE: Automatic
+        SKIP_INSTALL: true
+    dependencies:
+      - package: Fen
+        product: FenCore
 
   FeniOSApp:
     type: application
@@ -92,6 +112,7 @@ schemes:
     build:
       targets:
         FenMacOSApp: all
+        FenQuickLook: all
         FenMacOSUITests: [test]
     test:
       targets:

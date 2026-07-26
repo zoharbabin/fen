@@ -2,6 +2,7 @@ included:
   - Shared
   - macOS
   - iOS
+  - FenQuickLook
   - Tests
 
 excluded:
