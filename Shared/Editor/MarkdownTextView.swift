@@ -58,6 +58,14 @@ func caretColor(for background: PlatformColor) -> PlatformColor {
             scrollView.hasHorizontalScroller = false
             scrollView.autohidesScrollers = true
             scrollView.borderType = .noBorder
+            // AppKit's default (true) auto-detects the window's unified toolbar and grows this
+            // scroll view's contentInsets.top to let content scroll underneath it -- but SwiftUI's
+            // .toolbar already gives this NSViewRepresentable a frame that starts below the
+            // toolbar, so that auto-inset double-compensates: NSScrollView.tile() grows
+            // verticalRulerView's frame upward by the same amount, and EditorGutterRulerView draws
+            // whatever's scrolled just above the visible top -- including numbers for lines that
+            // aren't visible -- into that extra region, which paints over the toolbar itself.
+            scrollView.automaticallyAdjustsContentInsets = false
 
             // Highlightr's CodeAttributedString is an NSTextStorage that
             // re-highlights its contents as Markdown whenever they change.
@@ -157,7 +165,8 @@ func caretColor(for background: PlatformColor) -> PlatformColor {
                 needsFullRehighlight = true
             }
 
-            if textView.font != font {
+            let fontJustChanged = textView.font != font
+            if fontJustChanged {
                 textView.font = font
                 needsFullRehighlight = true
             }
@@ -207,6 +216,14 @@ func caretColor(for background: PlatformColor) -> PlatformColor {
 
             scrollView.rulersVisible = showLineNumbers
             context.coordinator.refreshGutterLineStartOffsetsIfNeeded(text: textView.string)
+            // refreshGutterLineStartOffsetsIfNeeded's own updateThickness() call only fires on a
+            // text change; a zoom step changes the number label's rendered width with the text
+            // held constant, so it needs this separate trigger or the ruler keeps its stale
+            // pre-zoom thickness (issue #21 zoom regression).
+            if fontJustChanged {
+                context.coordinator.gutterRulerView?.updateThickness()
+                context.coordinator.gutterRulerView?.needsDisplay = true
+            }
         }
 
         // `HighlightDelegate` is a nonisolated, unannotated Objective-C protocol, but
@@ -223,6 +240,7 @@ func caretColor(for background: PlatformColor) -> PlatformColor {
             private var anchors: [EditorLineAnchor] = []
             private var anchorText: String?
             private var anchorHeight: CGFloat = 0
+            private var anchorVisibleHeight: CGFloat = 0
             /// The paragraph range currently undimmed by focus mode, or `nil` when off (issue #19
             /// rule 1.1) -- lives on this Coordinator instance only, never shared. Not `private`:
             /// `MarkdownTextView+FocusMode.swift`'s extension needs access from another file.
@@ -346,12 +364,18 @@ func caretColor(for background: PlatformColor) -> PlatformColor {
 
             /// Rebuilds the source-line ↔ pixel-fraction anchor table if the text or laid-out
             /// height changed since the last build (word wrap makes a naive line-count fraction
-            /// diverge from where a line actually sits once laid out).
+            /// diverge from where a line actually sits once laid out). `rendered` is normalized
+            /// against `totalHeight - visibleHeight` (see `EditorScrollAnchors.swift`), so a
+            /// pane-height-only resize (e.g. the window's height changing with no split-divider
+            /// move, `totalHeight` unchanged) shifts that normalization without this check
+            /// noticing unless `visibleHeight` is part of the fingerprint too.
             @MainActor
             private func refreshAnchorsIfNeeded(text: String, totalHeight: CGFloat, visibleHeight: CGFloat) {
-                guard text != anchorText || totalHeight != anchorHeight else { return }
+                guard text != anchorText || totalHeight != anchorHeight || visibleHeight != anchorVisibleHeight
+                else { return }
                 anchorText = text
                 anchorHeight = totalHeight
+                anchorVisibleHeight = visibleHeight
                 anchors = computeEditorLineAnchors(
                     text: text, totalHeight: totalHeight, visibleHeight: visibleHeight
                 ) { [weak textView] charIndex in

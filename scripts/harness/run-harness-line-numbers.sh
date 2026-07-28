@@ -60,9 +60,11 @@ LINE_NUMBER_FILES=(
     Shared/Editor/EditorGutterView.swift
     Shared/Editor/EditorGutterView_iOS.swift
     Shared/Editor/MarkdownTextView+EditorGutter.swift
+    Shared/Preview/ScrollSyncJS.swift
     Tests/FenTests/EditorGutterIsolationTests.swift
     Tests/FenTests/EditorGutterTests.swift
     Tests/FenTests/PreviewGutterVerifyTest.swift
+    Tests/FenTests/ScrollSyncVerifyTest.swift
     Tests/FenTests/EditorPreviewGutterAgreementTest.swift
     UITests/FenUITests/EditorGutterUITests.swift
 )
@@ -93,6 +95,10 @@ assert_tests_ran "$RUN_DIR/05-crosslang.log" "CrossLanguageInterpolationTest" "T
 swift test --no-parallel --filter EditorPreviewGutterAgreementTest 2>&1 | tee "$RUN_DIR/05-agreement.log" \
     || fail "EditorPreviewGutterAgreementTest failed"
 assert_tests_ran "$RUN_DIR/05-agreement.log" "EditorPreviewGutterAgreementTest" "Test run with 0 tests"
+log "Gate 5/6: issue #110 resiliency/performance tests (ScrollSyncVerifyTest)"
+swift test --no-parallel --filter ScrollSyncVerifyTest 2>&1 | tee "$RUN_DIR/05-scrollsync.log" \
+    || fail "ScrollSyncVerifyTest failed"
+assert_tests_ran "$RUN_DIR/05-scrollsync.log" "ScrollSyncVerifyTest" "Test run with 0 tests"
 
 # --- Gate 6: E2E test of the real user flow, with recorded proof ---
 log "Gate 6/6: E2E UI test (EditorGutterUITests) -- screenshots attached to test result"

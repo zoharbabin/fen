@@ -18,6 +18,10 @@
             scrollView.verticalRulerView = rulerView
             scrollView.hasVerticalRuler = true
             scrollView.rulersVisible = showing
+            // The initializer's own updateThickness() ran before lineStartOffsetsProvider was
+            // wired up just above, so it sized against zero lines -- redo it now that the
+            // provider can actually report the document's real line count.
+            rulerView.updateThickness()
         }
 
         /// Rebuilds `gutterLineStartOffsets` only when the text actually changed since the
@@ -28,6 +32,7 @@
             guard text != gutterText else { return }
             gutterText = text
             gutterLineStartOffsets = computeLineStartOffsets(text: text)
+            gutterRulerView?.updateThickness()
             gutterRulerView?.needsDisplay = true
         }
     }

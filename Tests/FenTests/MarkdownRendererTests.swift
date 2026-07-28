@@ -201,6 +201,25 @@ struct MarkdownRendererTests {
         #expect(result.html.contains(#"<h1 id="first-heading" data-sourcepos="3:1-3:15">"#))
     }
 
+    @Test("TOC's own generated list carries the replaced marker's data-sourcepos")
+    func tocListItselfCarriesSourcePosition() {
+        let md = """
+        [TOC]
+
+        # First Heading
+
+        ## Second Heading
+        """
+        var opts = MarkdownRenderer.Options()
+        opts.renderTOC = true
+        opts.sourcePositions = true
+        let result = renderer.render(md, options: opts)
+        // Without this, the whole rendered span the TOC occupies -- which can be dozens of
+        // visual lines for a document with many headings -- has no data-sourcepos anywhere
+        // in its subtree, so the preview line-number gutter (issue #21) skips it entirely.
+        #expect(result.html.contains(#"<ul data-sourcepos="1:1-1:5""#))
+    }
+
     @Test("Handles empty input")
     func emptyInput() {
         let result = renderer.render("")

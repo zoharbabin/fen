@@ -87,6 +87,9 @@ func fontScaleAssignmentJS(
         }
         document.documentElement.style.setProperty('--fen-font-scale', '\(scale)');
         document.documentElement.style.setProperty('--fen-font-inverse-scale', '\(inverseScale)');
+        if (window.__fenScrollSyncMarkDirty) {
+            window.__fenScrollSyncMarkDirty();
+        }
         var renderedFraction = window.__fenScrollSync
             ? window.__fenScrollSync.renderedFractionForSource(sourceFraction)
             : sourceFraction;

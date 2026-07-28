@@ -37,6 +37,7 @@ swift test
 
 ## Tests
 
+- See [docs/DEBUGGING.md](docs/DEBUGGING.md) for how to rebuild/reinstall Fen without accidentally testing a stale binary, and how to attach Safari's Web Inspector to the live preview WKWebView for real DOM/JS state instead of guessing from a screenshot.
 - Use **Swift Testing** (`import Testing`, `@Test`), not XCTest, for new unit tests in `Tests/FenTests`.
 - UI tests live in `UITests/` and run via the xcodegen-generated `FenUITesting.xcodeproj` (regenerate with `xcodegen generate` after editing `project.yml`).
 - New behavior should come with a test. Bug fixes should come with a regression test that fails before the fix and passes after.
