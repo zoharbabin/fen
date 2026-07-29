@@ -35,8 +35,12 @@ If Fen ever charges for anything, we'll favor a one-time purchase over a subscri
 - **Live preview with scroll sync** — the preview pane tracks your scroll position as you type
 - **WYSIWYG-in-source live preview mode** (Cmd+Shift+P) — an optional editor mode that hides markdown markers (`**`, `#`, `` ` ``, and more) off-focus and renders the styling they imply directly in the source, without leaving plain text
 - **Slash-command menu** — type `/` at the start of a line (or after whitespace) to insert a heading, table, image, quote, code block, horizontal rule, or Mermaid diagram from a filterable popup
+- **Outline/table of contents sidebar** (Cmd+Shift+O) — a per-document heading tree with fold/expand state; click a heading to jump both panes to it
 - **Focus/typewriter mode** (Cmd+Shift+F) — dims every paragraph except the one you're editing and keeps your cursor vertically centered as you type
 - **Synced line numbers** — an optional editor gutter and matching preview-pane gutter, numbered from the same source lines so both panes agree
+- **Find (Cmd+F), Find Next/Previous, and Find and Replace (Opt+Cmd+F)** — the built-in AppKit find bar
+- **Quick Look preview for `.md` files** — select a Markdown file in Finder and press Space to see it rendered through the same renderer the editor and export use
+- **A welcome document on first launch** — a genuinely fresh install opens a bundled document that walks through formatting, math/Mermaid rendering, and the slash-command menu instead of a blank page; every document after that opens blank as usual
 - **GitHub-Flavored Markdown** via Apple's [`swift-cmark`](https://github.com/apple/swift-cmark) — tables, task lists, strikethrough, autolinks, footnotes, and `==highlight==` marks, plus GitHub-style alert/callout blocks (`> [!NOTE]`, `[!TIP]`, `[!WARNING]`, and more)
 - **A formatting toolbar and menu commands** — bold, italic, strikethrough, code, headings, lists, task items, blockquotes, links, images, tables, and more, one click or keyboard shortcut away
 - **Editing quality-of-life** — auto-pair brackets/quotes, tabs-to-spaces, smart Home key, and list/blockquote continuation on Enter
@@ -84,11 +88,12 @@ See [RELEASING.md](docs/RELEASING.md) for signing, notarization, and cutting a r
 Shared/        FenCore — cross-platform model, rendering, editor, preview, CLI export
 macOS/         macOS app target (DocumentGroup, menus, Settings)
 iOS/           iOS app target
+FenQuickLook/  Quick Look preview extension for .md files
 Tests/         Swift Testing test suite
 UITests/       UI tests (xcodegen-generated project, see CONTRIBUTING.md)
 scripts/       build-app.sh — assembles the .app bundle
 site/          fen.md landing page (GitHub Pages)
-docs/          architecture, roadmap, and release documentation
+docs/          architecture, release, and debugging documentation
 ```
 
 See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for why things are shaped this way.
