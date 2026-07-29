@@ -204,6 +204,8 @@ MathJax used to be the exception: earlier builds pulled `MathJax.js` from `cdnjs
 
 `.github/workflows/ci.yml` runs `swift test --no-parallel` on every push and pull request against `master`. `.github/workflows/release.yml` runs on a `v*` tag push (or manual dispatch): it builds and tests the same way, then signs and notarizes only if the signing secrets are present, verifies the resulting bundle structure (see [Resource bundle resolution](#resource-bundle-resolution-sharedcorebundleswift) above), zips it, and publishes it to a GitHub Release. See [RELEASING.md](RELEASING.md) for cutting a release by hand when secrets aren't configured in CI.
 
+`scripts/build-app.sh` builds the app in two passes: `swift build` for the main executable and its SwiftPM resource bundles, then `xcodegen generate` + `xcodebuild -scheme FenMacOSApp` for `FenQuickLook.appex` — SwiftPM has no app-extension concept, so the Quick Look extension can only come from the Xcode project `project.yml` already declares for `UITests/`. The extension is signed with its own entitlements before the main app is signed (Apple requires nested code signed first), and the main app's own signing step drops `--deep` so it doesn't re-sign the extension under the wrong entitlements. `release.yml`'s "Verify bundle structure" step asserts `Contents/PlugIns/FenQuickLook.appex` exists and verifies with `codesign`; a separate step registers it with `pluginkit` and renders a real thumbnail through it with `qlmanage -t`, so a build that produces a broken or unsigned extension fails release, not just a future bug report (see [issue #114](https://github.com/zoharbabin/fen/issues/114)).
+
 Both workflows pass `--no-parallel`: several suites (`ZoomOutScrollPositionVerifyTest`, `PreviewReloadRaceVerifyTest`, `PreviewLinkHoverVerifyTest`, `FontSizeLiveUpdateVerifyTest`, `PreviewScrollRaceVerifyTest`, `ScrollSyncVerifyTest`, and others) drive a real `WKWebView`, and Swift Testing's default parallel mode runs multiple instances at once — GitHub's macOS runner doesn't have the cores to keep their real-time JS evaluation from slipping under that much concurrent load, which reproduced as a different failing subset on 4 of 4 consecutive CI attempts on the same commit before serializing fixed it. This is a separate concern from timing correctness within a single test: those suites poll for the actual condition they need (`Tests/FenTests/WebViewPreviewTestSupport.swift`'s `pollUntilTrue`, either against JS state or an arbitrary Swift-side condition) rather than sleeping a fixed duration and hoping it was long enough — see [CONTRIBUTING.md](../CONTRIBUTING.md#tests) for that rule. Local `swift test` (parallel, faster) is fine for day-to-day work since a real machine has more headroom; rerun with `--no-parallel` to reproduce a CI-only failure locally.
 
 ```mermaid
@@ -216,7 +218,8 @@ flowchart LR
     Sign -->|no| Unsigned["unsigned build<br/>(Gatekeeper warns)"]
     SignApp --> Verify["Verify bundle structure"]
     Unsigned --> Verify
-    Verify --> Zip["ditto → Fen.app.zip"]
+    Verify --> VerifyQL["Verify Quick Look extension renders"]
+    VerifyQL --> Zip["ditto → Fen.app.zip"]
     Zip --> Publish{"tag push + signed?"}
     Publish -->|yes| GHRelease["Publish to GitHub Release"]
     Publish -->|no| Artifact["Upload as workflow artifact only"]
