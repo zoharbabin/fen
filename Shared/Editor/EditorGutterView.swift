@@ -16,12 +16,42 @@
             self.textView = textView
             super.init(scrollView: textView.enclosingScrollView, orientation: .verticalRuler)
             clientView = textView
-            ruleThickness = 40
+            // AppKit's own ruler-content compositing (an internal helper view sized to the full
+            // document height, not just the visible viewport) doesn't respect this view's frame
+            // on its own -- `draw(_:)` is already auto-clipped to bounds, but that internal
+            // compositing isn't, which let line numbers visually escape into the toolbar above
+            // the editor at certain scroll positions. Backing this view with a layer and clipping
+            // that layer to its bounds constrains AppKit's compositing too, not just our own draws.
+            wantsLayer = true
+            layer?.masksToBounds = true
+            updateThickness()
         }
 
         @available(*, unavailable)
         required init(coder _: NSCoder) {
             fatalError("init(coder:) is not supported")
+        }
+
+        /// Recomputes `ruleThickness` from the widest label the current document/font could draw
+        /// (issue #21 zoom regression): a fixed thickness sized for the default font size fits the
+        /// default-size numbers fine, but zooming in grows `numberFont` (below, `pointSize * 0.85`)
+        /// right along with the editor's own font -- past the point where a 2-3 digit number still
+        /// fits inside a hardcoded column, `drawHashMarksAndLabels`'s `x: ruleThickness - size.width
+        /// - 6` goes negative and the number draws clipped past the ruler's own left edge. Zooming
+        /// out only ever shrinks the numbers further, so a fixed thickness sized for the smallest
+        /// font never shows the bug -- exactly why it was invisible until someone zoomed in. Call
+        /// whenever the font or the document's line count changes, not on every draw: mutating
+        /// `ruleThickness` triggers `NSScrollView` to relayout, so doing it from inside
+        /// `drawHashMarksAndLabels` itself would recurse.
+        func updateThickness() {
+            guard let textView else { return }
+            let font = textView.font ?? .systemFont(ofSize: 13)
+            let numberFont = NSFont.monospacedDigitSystemFont(ofSize: font.pointSize * 0.85, weight: .regular)
+            let lineCount = lineStartOffsetsProvider?().count ?? 0
+            let digits = max(1, String(lineCount).count)
+            let widestLabel = String(repeating: "9", count: digits)
+            let labelWidth = widestLabel.size(withAttributes: [.font: numberFont]).width
+            ruleThickness = max(24, ceil(labelWidth) + 12)
         }
 
         /// Scoped to the visible line fragments only (issue #21 rule 4.3): asks the layout

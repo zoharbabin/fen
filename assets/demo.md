@@ -6,13 +6,7 @@ fen: { toc: true }
 
 # Fen Markdown Reference & Test Suite
 
-This document exercises the Markdown surface Fen supports: the original
-[Markdown syntax](https://daringfireball.net/projects/markdown/syntax)
-plus the [GitHub Flavored Markdown](https://github.github.com/gfm/)
-extensions Fen ships with. Open it in Fen to sanity-check rendering after
-any change to the parser, styles, or preview pipeline. Some sections note
-a Preferences toggle — those features render only once that toggle is on;
-everything else is on by default.
+This document exercises the Markdown surface Fen supports: the original [Markdown syntax](https://daringfireball.net/projects/markdown/syntax) plus the [GitHub Flavored Markdown](https://github.github.com/gfm/) extensions Fen ships with. Open it in Fen to sanity-check rendering after any change to the parser, styles, or preview pipeline. Some sections note a Preferences toggle — those features render only once that toggle is on; everything else is on by default.
 
 [TOC]
 

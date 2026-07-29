@@ -58,6 +58,14 @@ func caretColor(for background: PlatformColor) -> PlatformColor {
             scrollView.hasHorizontalScroller = false
             scrollView.autohidesScrollers = true
             scrollView.borderType = .noBorder
+            // AppKit's default (true) auto-detects the window's unified toolbar and grows this
+            // scroll view's contentInsets.top to let content scroll underneath it -- but SwiftUI's
+            // .toolbar already gives this NSViewRepresentable a frame that starts below the
+            // toolbar, so that auto-inset double-compensates: NSScrollView.tile() grows
+            // verticalRulerView's frame upward by the same amount, and EditorGutterRulerView draws
+            // whatever's scrolled just above the visible top -- including numbers for lines that
+            // aren't visible -- into that extra region, which paints over the toolbar itself.
+            scrollView.automaticallyAdjustsContentInsets = false
 
             // Highlightr's CodeAttributedString is an NSTextStorage that
             // re-highlights its contents as Markdown whenever they change.
@@ -157,7 +165,8 @@ func caretColor(for background: PlatformColor) -> PlatformColor {
                 needsFullRehighlight = true
             }
 
-            if textView.font != font {
+            let fontJustChanged = textView.font != font
+            if fontJustChanged {
                 textView.font = font
                 needsFullRehighlight = true
             }
@@ -207,6 +216,14 @@ func caretColor(for background: PlatformColor) -> PlatformColor {
 
             scrollView.rulersVisible = showLineNumbers
             context.coordinator.refreshGutterLineStartOffsetsIfNeeded(text: textView.string)
+            // refreshGutterLineStartOffsetsIfNeeded's own updateThickness() call only fires on a
+            // text change; a zoom step changes the number label's rendered width with the text
+            // held constant, so it needs this separate trigger or the ruler keeps its stale
+            // pre-zoom thickness (issue #21 zoom regression).
+            if fontJustChanged {
+                context.coordinator.gutterRulerView?.updateThickness()
+                context.coordinator.gutterRulerView?.needsDisplay = true
+            }
         }
 
         // `HighlightDelegate` is a nonisolated, unannotated Objective-C protocol, but
@@ -223,6 +240,32 @@ func caretColor(for background: PlatformColor) -> PlatformColor {
             private var anchors: [EditorLineAnchor] = []
             private var anchorText: String?
             private var anchorHeight: CGFloat = 0
+            private var anchorVisibleHeight: CGFloat = 0
+            /// Width/visible-height `scrollViewDidScroll` observed on its *previous* call,
+            /// regardless of whether that call rebuilt anchors -- see that method's doc comment
+            /// for why a single reflow can span several consecutive bounds-changed notifications
+            /// (an animated window zoom delivers several intermediate frames), only the first of
+            /// which `didReflow` (comparing against the anchor cache) catches; the rest look
+            /// "settled" to that check purely because the previous call already rebuilt the
+            /// anchors to match.
+            private var lastObservedScrollWidth: CGFloat?
+            private var lastObservedScrollVisibleHeight: CGFloat?
+            /// Set while an animated window zoom/resize is still settling, so a
+            /// dimension-unchanged notification arriving mid-animation still gets re-homed
+            /// instead of trusted -- see `scrollViewDidScroll`'s doc comment for why a dimension
+            /// comparison alone isn't enough: AppKit keeps nudging `origin.y` for a short window
+            /// after the last dimension change as the zoom animation finishes settling, with no
+            /// further dimension change to detect that against. A cancelable fixed-duration
+            /// debounce is the documented exception (see CONTRIBUTING.md#tests) to the
+            /// no-fixed-sleep rule -- this is waiting out AppKit's own animation interval, not
+            /// guessing how long unrelated work takes.
+            private var reflowSettleTask: Task<Void, Never>?
+            private var isWithinReflowSettleWindow = false
+            /// How long a dimension-unchanged notification still counts as reflow noise after
+            /// the last dimension change -- covers AppKit's own window-zoom animation duration
+            /// (observed well under this in manual testing) without waiting an excessive amount
+            /// of time before trusting an actual scroll again.
+            private static let reflowSettleInterval: Duration = .milliseconds(400)
             /// The paragraph range currently undimmed by focus mode, or `nil` when off (issue #19
             /// rule 1.1) -- lives on this Coordinator instance only, never shared. Not `private`:
             /// `MarkdownTextView+FocusMode.swift`'s extension needs access from another file.
@@ -346,16 +389,38 @@ func caretColor(for background: PlatformColor) -> PlatformColor {
 
             /// Rebuilds the source-line ↔ pixel-fraction anchor table if the text or laid-out
             /// height changed since the last build (word wrap makes a naive line-count fraction
-            /// diverge from where a line actually sits once laid out).
+            /// diverge from where a line actually sits once laid out). `rendered` is normalized
+            /// against `totalHeight - visibleHeight` (see `EditorScrollAnchors.swift`), so a
+            /// pane-height-only resize (e.g. the window's height changing with no split-divider
+            /// move, `totalHeight` unchanged) shifts that normalization without this check
+            /// noticing unless `visibleHeight` is part of the fingerprint too.
             @MainActor
             private func refreshAnchorsIfNeeded(text: String, totalHeight: CGFloat, visibleHeight: CGFloat) {
-                guard text != anchorText || totalHeight != anchorHeight else { return }
+                guard text != anchorText || totalHeight != anchorHeight || visibleHeight != anchorVisibleHeight
+                else { return }
                 anchorText = text
                 anchorHeight = totalHeight
+                anchorVisibleHeight = visibleHeight
                 anchors = computeEditorLineAnchors(
                     text: text, totalHeight: totalHeight, visibleHeight: visibleHeight
                 ) { [weak textView] charIndex in
                     textView?.lineTop(forCharacterIndex: charIndex)
+                }
+            }
+
+            /// (Re)starts the settle window `scrollViewDidScroll` checks via
+            /// `isWithinReflowSettleWindow` -- called every time a dimension change is observed,
+            /// so a burst of resize frames keeps re-arming this and the window only actually
+            /// closes once frames stop arriving for a full `reflowSettleInterval`, however long
+            /// the underlying AppKit animation actually runs.
+            @MainActor
+            private func armReflowSettleWindow() {
+                isWithinReflowSettleWindow = true
+                reflowSettleTask?.cancel()
+                reflowSettleTask = Task { [weak self] in
+                    try? await Task.sleep(for: Self.reflowSettleInterval)
+                    guard !Task.isCancelled else { return }
+                    self?.isWithinReflowSettleWindow = false
                 }
             }
 
@@ -366,7 +431,48 @@ func caretColor(for background: PlatformColor) -> PlatformColor {
                 let visibleHeight = contentView.bounds.height
                 let totalHeight = textView.contentHeightExcludingScrollPastEnd
                 guard totalHeight > visibleHeight else { return }
+                // This notification also fires for a resize -- a split-divider drag, or a window
+                // zoom/maximize -- that reflows word-wrapped text and changes totalHeight and/or
+                // visibleHeight with no scrollbar touched. NSClipView preserves the raw pixel
+                // bounds.origin.y across that reflow rather than rescaling it, so recomputing a
+                // fraction from that now-stale pixel offset against the *new* height produces a
+                // spurious jump -- most visible resizing from a narrow, heavily-wrapped width to a
+                // wide one, where totalHeight collapses and the unchanged origin.y reads as a much
+                // larger fraction than where the user actually was. Comparing dimensions alone only
+                // catches the notifications that actually carry a dimension change: an animated
+                // window zoom keeps nudging origin.y for a short window after its *last* dimension
+                // change too, as the animation itself finishes settling, with nothing left to
+                // detect that against dimension-wise -- so once any dimension changes, every
+                // notification for the next `reflowSettleWindow` is treated as reflow noise, not
+                // just the ones that individually changed a dimension.
+                let dimensionsChanged = totalHeight != anchorHeight || visibleHeight != anchorVisibleHeight
+                    || textView.bounds.width != lastObservedScrollWidth
+                    || visibleHeight != lastObservedScrollVisibleHeight
+                lastObservedScrollWidth = textView.bounds.width
+                lastObservedScrollVisibleHeight = visibleHeight
+                if dimensionsChanged {
+                    armReflowSettleWindow()
+                }
+                let didReflow = dimensionsChanged || isWithinReflowSettleWindow
                 refreshAnchorsIfNeeded(text: textView.string, totalHeight: totalHeight, visibleHeight: visibleHeight)
+                if didReflow, let lastFraction = lastAppliedScrollFraction {
+                    // Re-home the pixel offset to the fraction we know is still correct, instead
+                    // of trusting the stale raw offset -- the same "preserve fraction across a
+                    // layout change" principle applyScrollFraction already applies for a font-zoom
+                    // step, extended to cover a resize arriving through this scroll-notification
+                    // path instead of that one.
+                    let pixelFraction = interpolateEditorAnchor(
+                        anchors, from: \.source, to: \.rendered, value: lastFraction
+                    )
+                    let targetY = pixelFraction * (totalHeight - visibleHeight)
+                    if abs(contentView.bounds.origin.y - targetY) > 0.5 {
+                        isApplyingExternalScroll = true
+                        contentView.scroll(to: NSPoint(x: contentView.bounds.origin.x, y: targetY))
+                        scrollView.reflectScrolledClipView(contentView)
+                        isApplyingExternalScroll = false
+                    }
+                    return
+                }
                 let pixelFraction = max(0, min(1, contentView.bounds.origin.y / (totalHeight - visibleHeight)))
                 let sourceFraction = interpolateEditorAnchor(
                     anchors, from: \.rendered, to: \.source, value: pixelFraction

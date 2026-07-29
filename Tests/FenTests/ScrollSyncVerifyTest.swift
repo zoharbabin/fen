@@ -249,4 +249,199 @@ struct ScrollSyncVerifyTest {
         )
         #expect((mapped as? Double) == 0.5, "Expected identity fallback with no data-sourcepos anchors")
     }
+
+    /// Issue #110: the old staleness check compared `(clientWidth, clientHeight, scrollHeight)`
+    /// against a cached snapshot, which can alias -- an in-flight resize passing through an
+    /// intermediate frame whose triple happens to match the previously cached one wrongly skips
+    /// a rebuild. Drives the dirty flag through `window.__fenScrollSyncMarkDirty` -- the exact
+    /// function `ResizeObserver`'s callback invokes -- rather than a real `setFrameSize` (whose
+    /// `ResizeObserver`/`resize`-event delivery timing in a headless `WKWebView` isn't
+    /// deterministic enough to assert an exact rebuild count against) to prove the new mechanism
+    /// has no dimension comparison to alias against at all: a rebuild fires on the next read
+    /// even when the document's dimensions haven't changed since the last one.
+    @Test("Marking dirty forces a rebuild on the next read even with unchanged dimensions")
+    @MainActor
+    func markingDirtyForcesRebuildRegardlessOfUnchangedDimensions() async throws {
+        let (markdown, sourceLineCount) = Self.unevenDensityDocument()
+        var opts = MarkdownRenderer.Options()
+        opts.sourcePositions = true
+        let webView = try await renderPreviewWebView(
+            markdown: markdown,
+            options: opts,
+            sourceLineCount: sourceLineCount
+        )
+
+        _ = try await pollUntilTrue(
+            webView,
+            js: "document.documentElement.scrollHeight > document.documentElement.clientHeight"
+        )
+        _ = try await webView.evaluateJavaScript("window.__fenScrollSync.lineNumberAnchors();")
+        let rebuildCountAfterFirstRead = try #require(
+            try await webView.evaluateJavaScript("window.__fenScrollSyncRebuildCount") as? Double
+        )
+
+        let widthBefore = try await webView.evaluateJavaScript("document.documentElement.clientWidth")
+        _ = try await webView.evaluateJavaScript("window.__fenScrollSyncMarkDirty();")
+        let widthAfterMarkDirty = try await webView.evaluateJavaScript("document.documentElement.clientWidth")
+        #expect(
+            (widthBefore as? Double) == (widthAfterMarkDirty as? Double),
+            "This test's premise is an unchanged layout -- marking dirty itself must not resize anything"
+        )
+
+        _ = try await webView.evaluateJavaScript("window.__fenScrollSync.lineNumberAnchors();")
+        let rebuildCountAfterSecondRead = try #require(
+            try await webView.evaluateJavaScript("window.__fenScrollSyncRebuildCount") as? Double
+        )
+
+        #expect(
+            rebuildCountAfterSecondRead > rebuildCountAfterFirstRead,
+            """
+            Expected a rebuild on the read following markAnchorsDirty despite unchanged \
+            dimensions -- a scalar-triple comparison would wrongly treat this as unchanged, but \
+            the dirty flag has no dimension value to compare against
+            """
+        )
+    }
+
+    /// Rule 3.1 (issue #110): a rebuild triggered by DOM mutation (simulating Mermaid/MathJax
+    /// swapping placeholder content for rendered output after `window.onload`) must reflect that
+    /// mutation on the very next read, never a partial/stale intermediate state.
+    @Test("Anchor table reflects a DOM mutation injected after initial load, on the next read")
+    @MainActor
+    func anchorTableReflectsLateDOMMutation() async throws {
+        let (markdown, sourceLineCount) = Self.unevenDensityDocument()
+        var opts = MarkdownRenderer.Options()
+        opts.sourcePositions = true
+        let webView = try await renderPreviewWebView(
+            markdown: markdown,
+            options: opts,
+            configurePreferences: { $0.editorShowLineNumbers = true },
+            sourceLineCount: sourceLineCount
+        )
+        _ = try await pollUntilTrue(
+            webView,
+            js: "document.documentElement.scrollHeight > document.documentElement.clientHeight"
+        )
+        let countBefore = try #require(
+            try await webView.evaluateJavaScript("window.__fenScrollSync.lineNumberAnchors().length") as? Double
+        )
+
+        // Simulates an async render (Mermaid/MathJax) inserting a new leaf sourcepos block into
+        // the document well after initial load -- no resize event fires for this. Wrapped in an
+        // IIFE returning undefined: appendChild's return value is a DOM Node, which
+        // evaluateJavaScript can't bridge back to Swift and would fail the call.
+        _ = try await webView.evaluateJavaScript("""
+        (function () {
+            var el = document.createElement('p');
+            el.setAttribute('data-sourcepos', '1:1-1:1');
+            document.body.appendChild(el);
+        })();
+        """)
+
+        let countAfter = try await pollUntilTrue(timeout: .seconds(3)) {
+            let count = try await webView.evaluateJavaScript(
+                "window.__fenScrollSync.lineNumberAnchors().length"
+            ) as? Double
+            return count.map { $0 != countBefore } ?? false
+        }
+        #expect(countAfter, "Expected the gutter anchor count to change after a late DOM mutation")
+    }
+
+    /// Rule 3.2 (issue #110): scroll-sync.js wires Mermaid/MathJax's ready promise with
+    /// `.then(markAnchorsDirty, markAnchorsDirty)` -- both arguments the same function -- so a
+    /// *rejected* ready promise still dirties the table instead of leaving it permanently stale.
+    /// Mermaid's own `init()` (`mermaid.init.js`) catches every per-diagram render error
+    /// internally and never actually rejects `__fenMermaidReadyPromise` itself, so a genuine
+    /// end-to-end rejection can't be produced through the real rendering pipeline. This drives
+    /// the exact two-argument `.then` pattern scroll-sync.js uses against a promise this test
+    /// rejects itself, proving the failure branch -- not just the success branch -- reaches
+    /// `markAnchorsDirty`.
+    @Test("A rejected ready promise still dirties the anchor table")
+    @MainActor
+    func rejectedReadyPromiseStillDirtiesAnchorTable() async throws {
+        let webView = try await renderPreviewWebView(markdown: "# Just a heading")
+
+        _ = try await webView.evaluateJavaScript("window.__fenScrollSync.lineNumberAnchors();")
+        let baseline = try #require(
+            try await webView.evaluateJavaScript("window.__fenScrollSyncRebuildCount") as? Double
+        )
+
+        _ = try await webView.evaluateJavaScript("""
+        (function () {
+            var rejecting = Promise.reject(new Error('simulated Mermaid/MathJax render failure'));
+            rejecting.then(window.__fenScrollSyncMarkDirty, window.__fenScrollSyncMarkDirty);
+        })();
+        """)
+
+        let dirtiedAfterRejection = try await pollUntilTrue(timeout: .seconds(3)) {
+            let widthProbe = try await webView.evaluateJavaScript("""
+            (function () {
+                window.__fenScrollSync.lineNumberAnchors();
+                return window.__fenScrollSyncRebuildCount;
+            })();
+            """) as? Double
+            return widthProbe.map { $0 > baseline } ?? false
+        }
+        #expect(dirtiedAfterRejection, "Expected a rejected ready promise to still trigger a rebuild on the next read")
+    }
+
+    /// Rule 4.1 (issue #110): the observers only flag dirty; the actual recompute stays lazy.
+    /// A burst of dirtying events (several intervening `ResizeObserver`/`MutationObserver`
+    /// triggers, simulated here by calling `window.__fenScrollSyncMarkDirty` directly, the exact
+    /// function both observers' callbacks invoke) before a single read must still cost exactly
+    /// one rebuild, not one per event.
+    @Test("A burst of markDirty calls before a read costs exactly one rebuild")
+    @MainActor
+    func burstOfMarkDirtyCallsCostsOneRebuild() async throws {
+        let (markdown, sourceLineCount) = Self.unevenDensityDocument()
+        var opts = MarkdownRenderer.Options()
+        opts.sourcePositions = true
+        let webView = try await renderPreviewWebView(
+            markdown: markdown,
+            options: opts,
+            sourceLineCount: sourceLineCount
+        )
+        _ = try await pollUntilTrue(
+            webView,
+            js: "document.documentElement.scrollHeight > document.documentElement.clientHeight"
+        )
+        _ = try await webView.evaluateJavaScript("window.__fenScrollSync.lineNumberAnchors();")
+        let baseline = try #require(
+            try await webView.evaluateJavaScript("window.__fenScrollSyncRebuildCount") as? Double
+        )
+
+        _ = try await webView.evaluateJavaScript("""
+        (function () {
+            for (var i = 0; i < 5; i++) {
+                window.__fenScrollSyncMarkDirty();
+            }
+        })();
+        """)
+
+        let afterBurstBeforeRead = try #require(
+            try await webView.evaluateJavaScript("window.__fenScrollSyncRebuildCount") as? Double
+        )
+        #expect(afterBurstBeforeRead == baseline, "Rebuild must not happen inside the markDirty burst itself")
+
+        _ = try await webView.evaluateJavaScript("window.__fenScrollSync.lineNumberAnchors();")
+        let afterRead = try #require(
+            try await webView.evaluateJavaScript("window.__fenScrollSyncRebuildCount") as? Double
+        )
+        #expect(
+            afterRead == baseline + 1,
+            """
+            Expected exactly one rebuild for the read following a burst of 5 markDirty calls, got \
+            \(afterRead - baseline)
+            """
+        )
+    }
+
+    // No test drives Mermaid's *real* rendering pipeline end to end, deliberately: in this
+    // WKWebView-unit-test harness, Mermaid's async init() always finishes before
+    // renderPreviewWebView's didFinish returns control to the test, even with every invalidation
+    // trigger disabled and a 150-node diagram -- confirmed by trying exactly that. There's no
+    // stale window to observe, so a real-render test here would pass unconditionally, proving
+    // nothing. anchorTableReflectsLateDOMMutation (the MutationObserver path) and
+    // rejectedReadyPromiseStillDirtiesAnchorTable (the ready-promise path) already cover both
+    // trigger mechanisms Mermaid's completion actually exercises.
 }

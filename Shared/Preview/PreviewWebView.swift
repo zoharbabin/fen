@@ -25,6 +25,11 @@ import WebKit
             let webView = WKWebView(frame: .zero, configuration: config)
             webView.navigationDelegate = context.coordinator
             context.coordinator.webView = webView
+            #if DEBUG
+                // Lets Safari's Develop menu attach to this WKWebView for live DOM/JS
+                // inspection -- debug builds only, so a Release build never exposes it.
+                webView.isInspectable = true
+            #endif
 
             // Allow scrolling observation via JS
             let script = WKUserScript(

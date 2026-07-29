@@ -69,6 +69,9 @@ public struct SplitEditorView: View {
             .toolbar {
                 toolbarContent
             }
+        #if os(macOS)
+            .background(SplitDividerToolbarClip().frame(width: 0, height: 0))
+        #endif
             .onAppear {
                 editorOnRight = preferences.editorOnRight
                 preferences.systemPrefersDarkAppearance = colorScheme == .dark

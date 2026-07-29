@@ -83,10 +83,12 @@
             gutterView.lineStartOffsetsProvider = { [weak coordinator = context.coordinator] in
                 coordinator?.gutterLineStartOffsets ?? []
             }
+            gutterView.updateWidth()
             gutterView.isHidden = !showLineNumbers
             textView.addSubview(gutterView)
             context.coordinator.gutterView = gutterView
             textView.showsLineNumberGutter = showLineNumbers
+            textView.gutterWidth = gutterView.width
             textView.applyWidthLimitedInset()
 
             if scrollsPastEnd {
@@ -177,8 +179,27 @@
 
             context.coordinator.gutterView?.isHidden = !showLineNumbers
             context.coordinator.refreshGutterLineStartOffsetsIfNeeded(text: textView.text)
-            context.coordinator.gutterView?.frame = CGRect(
-                x: textView.contentOffset.x, y: 0, width: EditorGutterView.width, height: textView.contentSize.height
+            syncGutterWidth(textView, context: context, fontJustChanged: needsFullRehighlight)
+        }
+
+        /// Keeps the gutter subview's frame and the text container's left inset matched to its
+        /// current `EditorGutterView.width` (issue #21 zoom regression, mirrors the macOS fix in
+        /// `MarkdownTextView.swift`'s `updateNSView`). `refreshGutterLineStartOffsetsIfNeeded`'s
+        /// own `updateWidth()` call only fires on a text change, so a pure zoom step (font
+        /// changes, text doesn't) needs `fontJustChanged` as a separate trigger or the gutter
+        /// keeps its stale pre-zoom width.
+        private func syncGutterWidth(_ textView: UITextView, context: Context, fontJustChanged: Bool) {
+            guard let gutterView = context.coordinator.gutterView else { return }
+            if fontJustChanged {
+                gutterView.updateWidth()
+            }
+            if let widthLimitedTextView = textView as? MarkdownUITextView,
+               widthLimitedTextView.gutterWidth != gutterView.width {
+                widthLimitedTextView.gutterWidth = gutterView.width
+                widthLimitedTextView.applyWidthLimitedInset()
+            }
+            gutterView.frame = CGRect(
+                x: textView.contentOffset.x, y: 0, width: gutterView.width, height: textView.contentSize.height
             )
         }
 
@@ -193,10 +214,15 @@
             var maximumWidth: CGFloat = 800
             /// Reserves room on the left for `EditorGutterView` (issue #21) -- toggling this
             /// re-runs `applyWidthLimitedInset()` so the text container narrows/widens to make
-            /// room without moving the gutter's own fixed-width column.
+            /// room without moving the gutter's own dynamically-sized column.
             var showsLineNumberGutter = false {
                 didSet { applyWidthLimitedInset() }
             }
+
+            /// Set by `updateUIView`/the Coordinator once `EditorGutterView.updateWidth()` has
+            /// run against the current font/line-count, so this inset always matches the gutter's
+            /// actual on-screen width (issue #21 zoom regression) instead of a stale constant.
+            var gutterWidth: CGFloat = 32
 
             func applyWidthLimitedInset() {
                 let inset = MarkdownTextEditing.widthLimitedHorizontalInset(
@@ -205,7 +231,7 @@
                     isWidthLimited: isWidthLimited,
                     maximumWidth: maximumWidth
                 )
-                let leftInset = showsLineNumberGutter ? inset + EditorGutterView.width : inset
+                let leftInset = showsLineNumberGutter ? inset + gutterWidth : inset
                 textContainerInset = UIEdgeInsets(
                     top: verticalInset, left: leftInset, bottom: verticalInset, right: inset
                 )
@@ -259,6 +285,7 @@
             private var anchors: [EditorLineAnchor] = []
             private var anchorText: String?
             private var anchorHeight: CGFloat = 0
+            private var anchorVisibleHeight: CGFloat = 0
             /// The paragraph range currently undimmed by focus mode, or `nil` when focus mode is
             /// off. Lives on this Coordinator instance only (issue #19 rule 1.1) -- never shared
             /// across two panes/windows editing the same or different documents. Not `private`
@@ -318,6 +345,7 @@
                 guard text != gutterText else { return }
                 gutterText = text
                 gutterLineStartOffsets = computeLineStartOffsets(text: text)
+                gutterView?.updateWidth()
                 gutterView?.setNeedsDisplay()
             }
 
@@ -409,12 +437,18 @@
 
             /// Rebuilds the source-line ↔ pixel-fraction anchor table if the text or laid-out
             /// height changed since the last build (word wrap makes a naive line-count fraction
-            /// diverge from where a line actually sits once laid out).
+            /// diverge from where a line actually sits once laid out). `rendered` is normalized
+            /// against `totalHeight - visibleHeight` (see `EditorScrollAnchors.swift`), so a
+            /// pane-height-only resize (e.g. rotating the device with no split-divider move,
+            /// `totalHeight` unchanged) shifts that normalization without this check noticing
+            /// unless `visibleHeight` is part of the fingerprint too.
             private func refreshAnchorsIfNeeded(textView: UITextView, totalHeight: CGFloat, visibleHeight: CGFloat) {
                 let text = textView.text ?? ""
-                guard text != anchorText || totalHeight != anchorHeight else { return }
+                guard text != anchorText || totalHeight != anchorHeight || visibleHeight != anchorVisibleHeight
+                else { return }
                 anchorText = text
                 anchorHeight = totalHeight
+                anchorVisibleHeight = visibleHeight
                 anchors = computeEditorLineAnchors(
                     text: text, totalHeight: totalHeight, visibleHeight: visibleHeight
                 ) { [weak textView] charIndex in

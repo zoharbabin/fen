@@ -14,7 +14,11 @@
         /// or caches line-start offsets itself.
         var lineStartOffsetsProvider: (() -> [Int])?
 
-        static let width: CGFloat = 32
+        /// Recomputed by `updateWidth()`; never a fixed constant (issue #21 zoom regression --
+        /// see `EditorGutterRulerView.updateThickness()`'s doc comment for the macOS mirror of
+        /// this same bug). Defaults to a reasonable pre-layout value so the very first frame,
+        /// before `updateWidth()` has run, doesn't draw a zero-width gutter.
+        private(set) var width: CGFloat = 32
 
         init() {
             super.init(frame: .zero)
@@ -25,6 +29,23 @@
         @available(*, unavailable)
         required init?(coder _: NSCoder) {
             fatalError("init(coder:) is not supported")
+        }
+
+        /// Recomputes `width` from the widest label the current document/font could draw
+        /// (issue #21 zoom regression): a fixed width sized for the default font fits the
+        /// default-size numbers fine, but zooming in grows `numberFont` (below, `pointSize *
+        /// 0.85`) right along with the editor's own font -- past the point where a 2-3 digit
+        /// number still fits inside a hardcoded column, `draw(_:)`'s `x: width - size.width - 6`
+        /// goes negative and the number draws clipped past the gutter's own left edge. Call
+        /// whenever the font or the document's line count changes.
+        func updateWidth() {
+            let font = textView?.font ?? .systemFont(ofSize: 14)
+            let numberFont = UIFont.monospacedDigitSystemFont(ofSize: font.pointSize * 0.85, weight: .regular)
+            let lineCount = lineStartOffsetsProvider?().count ?? 0
+            let digits = max(1, String(lineCount).count)
+            let widestLabel = String(repeating: "9", count: digits)
+            let labelWidth = widestLabel.size(withAttributes: [.font: numberFont]).width
+            width = max(24, ceil(labelWidth) + 12)
         }
 
         /// Scoped to the visible line fragments only (issue #21 rule 4.3): only asks the layout
@@ -59,7 +80,7 @@
                 let size = label.size(withAttributes: attributes)
                 let top = fragment.rect.origin.y + insetTop - contentOriginY
                 let drawRect = CGRect(
-                    x: Self.width - size.width - 6,
+                    x: width - size.width - 6,
                     y: top + (fragment.rect.height - size.height) / 2,
                     width: size.width,
                     height: size.height

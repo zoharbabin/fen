@@ -130,6 +130,15 @@
         /// actual last line.
         var contentHeightExcludingScrollPastEnd: CGFloat {
             guard let layoutManager, let textContainer else { return frame.height }
+            // NSLayoutManager lays out glyphs lazily -- usedRect only reflects whatever's
+            // been laid out so far, not the whole document, unless layout is forced first.
+            // Without this, two reads of this property milliseconds apart (e.g. scroll-sync's
+            // read on the way out to the preview, then its own read while applying the fraction
+            // back) can see different heights for the same unchanged text/width, snapping the
+            // scroll position around -- most visible in a tall/full-screen pane, where far more
+            // of the document must be laid out to fill the viewport, widening the window in
+            // which usedRect can be caught mid-layout.
+            layoutManager.ensureLayout(for: textContainer)
             let usedRect = layoutManager.usedRect(for: textContainer)
             return usedRect.height + 2 * textContainerInset.height
         }

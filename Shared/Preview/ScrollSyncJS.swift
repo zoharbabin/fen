@@ -87,6 +87,9 @@ func fontScaleAssignmentJS(
         }
         document.documentElement.style.setProperty('--fen-font-scale', '\(scale)');
         document.documentElement.style.setProperty('--fen-font-inverse-scale', '\(inverseScale)');
+        if (window.__fenScrollSyncMarkDirty) {
+            window.__fenScrollSyncMarkDirty();
+        }
         var renderedFraction = window.__fenScrollSync
             ? window.__fenScrollSync.renderedFractionForSource(sourceFraction)
             : sourceFraction;
@@ -121,10 +124,16 @@ func fontScaleAssignmentJS(
             window.__fenExpectedScrollTop = null;
             return;
         }
-        var scrollFraction = scrollTop /
-            Math.max(1, document.documentElement.scrollHeight - document.documentElement.clientHeight);
-        if (window.__fenScrollSync) {
-            scrollFraction = window.__fenScrollSync.sourceFractionForRendered(scrollFraction);
+        // reconcileScroll tells a resize-driven scrollTop clamp (WKWebView re-clamping
+        // scrollTop to a smaller maxScroll after a reflow, with no real user scroll behind
+        // it -- see that function's doc comment) apart from a genuine scroll, correcting the
+        // page back to its known-good position and returning null for the former rather
+        // than reporting a spurious fraction to the editor.
+        var scrollFraction = window.__fenScrollSync
+            ? window.__fenScrollSync.reconcileScroll(scrollTop)
+            : scrollTop / Math.max(1, document.documentElement.scrollHeight - document.documentElement.clientHeight);
+        if (scrollFraction === null) {
+            return;
         }
         window.webkit.messageHandlers.scrollHandler.postMessage(scrollFraction);
     });
