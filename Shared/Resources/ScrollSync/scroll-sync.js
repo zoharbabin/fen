@@ -19,6 +19,33 @@
   // different width, either of which would wrongly skip a rebuild while real rendered
   // positions have moved. A boolean has no value space to alias against.
   var anchorsDirty = true;
+  // scrollHeight the anchor table's "rendered" axis was last normalized against -- an
+  // additional staleness signal alongside anchorsDirty, not a replacement for it. Neither
+  // ResizeObserver (fires on documentElement's own border-box/viewport size, not its content
+  // overflow height) nor MutationObserver (fires on DOM node adds/removes, not layout-only
+  // changes) ever fires when scrollHeight alone settles to a new value after a resize --
+  // observed via the debug log for the "maximize with no further trigger" repro: a single
+  // ResizeObserver notification landed while text reflow was still catching up to the new
+  // width, rebuilding anchors against a transient scrollHeight, and no later event ever
+  // invalidated it even though the real scrollHeight kept settling afterward. Comparing this
+  // scalar can only ever force an *extra* rebuild (when the live value no longer matches),
+  // never skip one anchorsDirty would otherwise have triggered -- so it can't reintroduce the
+  // intermediate-frame aliasing anchorsDirty's own doc comment above warns a scalar comparison
+  // risks; it only closes the gap where nothing at all marks the table dirty.
+  var anchorsScrollHeight = null;
+  // The last source fraction either a genuine preview scroll or an editor-driven
+  // scrollAssignmentJS/fontScaleAssignmentJS write recorded -- see reconcileScroll's doc
+  // comment for why this exists: WebKit's own scrollTop-clamping during a window resize
+  // needs a known-good fraction to re-home to, since the resize-clamped scrollTop itself
+  // no longer means anything relative to where the anchor table now says that content is.
+  var lastKnownSourceFraction = null;
+  // maxScroll as of the last reconcileScroll call, so a later call can tell a real resize
+  // (this changed) apart from an ordinary scroll (this didn't).
+  var lastObservedMaxScroll = null;
+  // Coalesces a burst of ResizeObserver frames (a window zoom/maximize animation) into a
+  // single scroll-position reconcile, the same way scheduleRefresh already coalesces a burst
+  // of dirtying events into one anchor rebuild -- see scheduleScrollReconcile.
+  var scrollReconcileScheduled = false;
   // Coalesces a burst of dirtying events (several ResizeObserver frames while a split
   // divider settles, several MutationObserver batches while Mermaid/highlight.js insert
   // nodes) into a single repaint, the same way a burst of resize frames already costs
@@ -37,6 +64,31 @@
     if (window.__fenShowLineNumbers) {
       scheduleRefresh();
     }
+    scheduleScrollReconcile();
+  }
+
+  // Proactively corrects the preview's scroll position after a reflow, instead of waiting
+  // for WKWebView's own 'scroll' event -- which only fires when it has to clamp scrollTop to
+  // a smaller maxScroll. A resize that changes scrollHeight without making the existing
+  // scrollTop exceed the new maxScroll (e.g. shrinking a wide page whose scrollTop was already
+  // near the top) never triggers that clamp, so no 'scroll' event -- and therefore no
+  // reconcileScroll call -- ever fires, leaving the preview stuck at its old raw pixel offset
+  // while the editor (whose scrollViewDidScroll re-homes on every notification) moves on.
+  // Confirmed via the debug log for the "shrink, scroll, then maximize" repro: the
+  // ResizeObserver fired and rebuilt the anchor table, but zero 'JS scroll'/'PREVIEW scroll'
+  // events followed -- the clamp this whole mechanism relies on simply never happened.
+  // setTimeout (not requestAnimationFrame, for the same reason scheduleRefresh uses it) lets a
+  // burst of ResizeObserver frames during an animated window zoom collapse into one reconcile
+  // after the frame settles, rather than fighting a user's own in-progress scroll frame by frame.
+  function scheduleScrollReconcile() {
+    if (scrollReconcileScheduled || lastKnownSourceFraction === null) {
+      return;
+    }
+    scrollReconcileScheduled = true;
+    setTimeout(function () {
+      scrollReconcileScheduled = false;
+      reconcileScroll(document.documentElement.scrollTop);
+    }, 0);
   }
 
   // Proactively pulls the dirty flag for the gutter instead of leaving it purely passive.
@@ -71,11 +123,13 @@
   window.__fenScrollSyncMarkDirty = markAnchorsDirty;
 
   function refreshAnchorsIfStale() {
-    if (!anchorsDirty) {
+    var liveScrollHeight = document.documentElement.scrollHeight;
+    if (!anchorsDirty && anchorsScrollHeight === liveScrollHeight) {
       return;
     }
     anchorsDirty = false;
     anchors = computeAnchors();
+    anchorsScrollHeight = document.documentElement.scrollHeight;
     if (window.__fenShowLineNumbers) {
       lineNumberAnchors = computeLineNumberAnchors();
       renderLineNumberGutter();
@@ -350,15 +404,50 @@
     return value;
   }
 
+  // WKWebView clamps document.documentElement.scrollTop to the new (possibly much smaller)
+  // maxScroll as part of a resize reflow -- e.g. a window zoom/maximize that re-wraps text
+  // and collapses scrollHeight -- and that clamp fires a genuine 'scroll' event with no
+  // actual user action behind it. Converting that clamped scrollTop through the anchor
+  // table as if it were a real scroll produces a spurious jump (observed climbing toward
+  // renderedFraction 1.0, i.e. clamped to the new max, in the debug log for the "shrink,
+  // scroll, then maximize" repro). Detecting "maxScroll changed since the last call" and
+  // re-homing to the last known-good source fraction instead -- mirroring how
+  // MarkdownTextView.swift's scrollViewDidScroll re-homes NSClipView's analogous stale
+  // pixel offset -- treats the resize-clamp as a layout artifact to correct for, not a
+  // scroll to report.
+  function reconcileScroll(scrollTop) {
+    refreshAnchorsIfStale();
+    var maxScroll = document.documentElement.scrollHeight - document.documentElement.clientHeight;
+    var resized = lastObservedMaxScroll !== null && maxScroll !== lastObservedMaxScroll;
+    lastObservedMaxScroll = maxScroll;
+    if (resized && lastKnownSourceFraction !== null) {
+      var targetRendered = interpolate(anchors, "source", "rendered", lastKnownSourceFraction);
+      var targetTop = targetRendered * Math.max(1, maxScroll);
+      if (Math.abs(scrollTop - targetTop) > 1) {
+        window.__fenExpectedScrollTop = targetTop;
+        document.documentElement.scrollTop = targetTop;
+      }
+      return null;
+    }
+    var renderedFraction = scrollTop / Math.max(1, maxScroll);
+    var sourceFraction = interpolate(anchors, "rendered", "source", renderedFraction);
+    lastKnownSourceFraction = sourceFraction;
+    return sourceFraction;
+  }
+
   window.__fenScrollSync = {
     renderedFractionForSource: function (fraction) {
       refreshAnchorsIfStale();
+      lastKnownSourceFraction = fraction;
       return interpolate(anchors, "source", "rendered", fraction);
     },
     sourceFractionForRendered: function (fraction) {
       refreshAnchorsIfStale();
-      return interpolate(anchors, "rendered", "source", fraction);
+      var source = interpolate(anchors, "rendered", "source", fraction);
+      lastKnownSourceFraction = source;
+      return source;
     },
+    reconcileScroll: reconcileScroll,
     // Exposed (pure, side-effect-free) so tests can call the exact same interpolation
     // production code uses with an arbitrary literal table, instead of only ever exercising
     // it through a table built from a real DOM's data-sourcepos layout. See
