@@ -79,6 +79,9 @@ jobs:
             --password "$APPLE_APP_PASSWORD" \
             --team-id "$APPLE_TEAM_ID"
 
+      - name: Install xcodegen
+        run: brew install xcodegen >/dev/null
+
       - name: Build app
         env:
           SIGN_IDENTITY: ${{ env.MACOS_SIGN_IDENTITY }}
@@ -118,7 +121,31 @@ jobs:
           [ -d "$RES/Fen_FenCore.bundle/Templates" ] \
             || fail "Templates/ directory missing from FenCore bundle"
 
+          # Guard against issue #114: build-app.sh builds this via xcodebuild, separately
+          # from the swift build above, so a regression there wouldn't otherwise surface
+          # until someone noticed Quick Look missing from a published release.
+          APPEX="$APP/Contents/PlugIns/FenQuickLook.appex"
+          [ -d "$APPEX" ] \
+            || fail "FenQuickLook.appex missing from Contents/PlugIns/"
+          codesign --verify --strict "$APPEX" \
+            || fail "FenQuickLook.appex failed codesign verification"
+
           echo "Bundle structure OK"
+
+      - name: Verify Quick Look extension renders
+        # Presence in the bundle isn't proof it works -- register it with pluginkit and
+        # render a real thumbnail through it, the same check `qlmanage`/Finder use.
+        run: |
+          set -euo pipefail
+          APP="$(cd dist/Fen.app && pwd)"
+          pluginkit -a "$APP/Contents/PlugIns/FenQuickLook.appex"
+          pluginkit -m -A -v | grep -q com.zoharbabin.fen.quicklook \
+            || { echo "FAIL: FenQuickLook did not register with pluginkit" >&2; exit 1; }
+          OUT="$(mktemp -d)"
+          qlmanage -t assets/demo.md -o "$OUT"
+          [ -f "$OUT/demo.md.png" ] \
+            || { echo "FAIL: qlmanage produced no thumbnail via FenQuickLook" >&2; exit 1; }
+          echo "Quick Look extension renders OK"
 
       - name: Package zip
         run: |

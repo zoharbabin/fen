@@ -88,7 +88,7 @@ Match the format every release since v0.2.4 has used — `## Fixed` / `## Change
 
 ## Option B — Build & release manually on your Mac
 
-`./scripts/build-app.sh` **auto-detects** your "Developer ID Application" certificate and signs with it — no `SIGN_IDENTITY` needed for a signed local build. To also notarize (required before others can run it without warnings):
+`./scripts/build-app.sh` needs `xcodegen` on your `PATH` (`brew install xcodegen`) to build the `FenQuickLook` Quick Look extension via the Xcode project it generates from `project.yml` — SwiftPM has no app-extension concept, so that part can't come from `swift build` alone. It **auto-detects** your "Developer ID Application" certificate and signs with it — no `SIGN_IDENTITY` needed for a signed local build. To also notarize (required before others can run it without warnings):
 
 ```sh
 # 1. Store notary credentials once (creates a keychain profile)

@@ -67,6 +67,71 @@ for b in "$BIN_PATH"/*.bundle; do
 done
 shopt -u nullglob
 
+# Code signing identity — auto-detect a Developer ID if none was provided. Resolved here,
+# ahead of the FenQuickLook build below, since that build needs to sign the extension with
+# the same identity the main app will use.
+if [ -z "${SIGN_IDENTITY:-}" ]; then
+    DETECTED="$(security find-identity -v -p codesigning 2>/dev/null \
+        | grep "Developer ID Application" | head -1 \
+        | sed -E 's/.*"(.*)".*/\1/')"
+    if [ -n "$DETECTED" ]; then
+        SIGN_IDENTITY="$DETECTED"
+        echo "==> Auto-detected signing identity: $SIGN_IDENTITY"
+    fi
+fi
+
+# FenQuickLook.appex — SwiftPM has no app-extension concept, so this can't come from
+# `swift build` above. `project.yml` declares the extension target and embeds it in the
+# FenMacOSApp scheme; build that scheme via the Xcode project xcodegen generates from it,
+# then lift just the built .appex out. (Building FenQuickLook as an isolated `-target`
+# reliably fails with DerivedData path collisions against SPM checkouts; building the
+# whole scheme, as a real `xcodebuild test` run already does elsewhere in this repo, does
+# not.) See issue #114.
+echo "==> Building FenQuickLook.appex…"
+command -v xcodegen >/dev/null || {
+    echo "!! xcodegen not found (brew install xcodegen)" >&2
+    exit 1
+}
+xcodegen generate --spec "$ROOT/project.yml" --project "$ROOT" >/dev/null
+
+XC_CONFIG="Release"
+[ "$CONFIG" = "debug" ] && XC_CONFIG="Debug"
+XC_DD="$(mktemp -d)"
+trap 'rm -rf "$XC_DD"' EXIT
+
+if [ -n "${SIGN_IDENTITY:-}" ]; then
+    # Notarization requires hardened runtime + a secure timestamp on every signed
+    # Mach-O in the bundle, extension included — pass them explicitly here since
+    # xcodebuild, not this script, is what signs the extension.
+    XC_SIGN_ARGS=(
+        CODE_SIGN_STYLE=Manual
+        "CODE_SIGN_IDENTITY=$SIGN_IDENTITY"
+        ENABLE_HARDENED_RUNTIME=YES
+        "OTHER_CODE_SIGN_FLAGS=--timestamp"
+    )
+else
+    # No identity to sign with yet — this script's own ad-hoc signing step below
+    # handles the extension once it's embedded, same as it does for the main app.
+    XC_SIGN_ARGS=(CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO)
+fi
+
+xcodebuild build \
+    -scheme FenMacOSApp -project "$ROOT/FenUITesting.xcodeproj" \
+    -configuration "$XC_CONFIG" -destination "platform=macOS" \
+    -derivedDataPath "$XC_DD" \
+    "MARKETING_VERSION=$VERSION" "CURRENT_PROJECT_VERSION=$BUILD_NUM" \
+    "${XC_SIGN_ARGS[@]}"
+
+BUILT_APPEX="$XC_DD/Build/Products/$XC_CONFIG/$APP_NAME.app/Contents/PlugIns/FenQuickLook.appex"
+if [ ! -d "$BUILT_APPEX" ]; then
+    echo "!! FenQuickLook.appex was not produced by the Xcode build" >&2
+    exit 1
+fi
+mkdir -p "$CONTENTS/PlugIns"
+cp -R "$BUILT_APPEX" "$CONTENTS/PlugIns/FenQuickLook.appex"
+rm -rf "$XC_DD"
+trap - EXIT
+
 # App icon
 iconutil -c icns "$ROOT/macOS/AppIcon.iconset" -o "$CONTENTS/Resources/AppIcon.icns"
 
@@ -93,23 +158,22 @@ set_key NSHumanReadableCopyright "Fen — based on MacDown © 2014 Tzu-ping Chun
 # PkgInfo
 printf 'APPL????' > "$CONTENTS/PkgInfo"
 
-# Code signing — auto-detect a Developer ID if none was provided.
-if [ -z "${SIGN_IDENTITY:-}" ]; then
-    DETECTED="$(security find-identity -v -p codesigning 2>/dev/null \
-        | grep "Developer ID Application" | head -1 \
-        | sed -E 's/.*"(.*)".*/\1/')"
-    if [ -n "$DETECTED" ]; then
-        SIGN_IDENTITY="$DETECTED"
-        echo "==> Auto-detected signing identity: $SIGN_IDENTITY"
-    fi
-fi
-
+# Code signing. FenQuickLook.appex (if present) is signed first, with its own
+# entitlements — Apple requires nested code signed before the bundle that embeds it.
+# The outer app is then signed WITHOUT --deep: --deep would re-sign the extension using
+# the main app's entitlements instead of its own, breaking its sandboxed identity. The
+# ad-hoc branch below still uses --deep since there's only one (shared) identity there.
 if [ -n "${SIGN_IDENTITY:-}" ]; then
     echo "==> Signing with: $SIGN_IDENTITY"
-    codesign --force --deep --options runtime --timestamp \
+    if [ -d "$CONTENTS/PlugIns/FenQuickLook.appex" ]; then
+        codesign --force --options runtime --timestamp \
+            --entitlements "$ROOT/FenQuickLook/FenQuickLook.entitlements" \
+            --sign "$SIGN_IDENTITY" "$CONTENTS/PlugIns/FenQuickLook.appex"
+    fi
+    codesign --force --options runtime --timestamp \
         --entitlements "$ROOT/macOS/Fen.entitlements" \
         --sign "$SIGN_IDENTITY" "$APP"
-    codesign --verify --strict --verbose=2 "$APP"
+    codesign --verify --deep --strict --verbose=2 "$APP"
 else
     echo "==> No SIGN_IDENTITY set — applying ad-hoc signature (local use only)."
     codesign --force --deep --sign - "$APP"
