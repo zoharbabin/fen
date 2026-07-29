@@ -9,6 +9,8 @@ Fen is built and maintained by Zohar Babin (https://zoharbabin.com/), CSO at Kal
 - A rewrite of the original MacDown (Objective-C, by Tzu-ping Chung) in pure Swift and SwiftUI, sharing a cross-platform core (`FenCore`) between the macOS and iOS apps.
 - Live Markdown preview with editor/preview scroll sync, syntax highlighting, MathJax, and Mermaid diagram rendering.
 - GitHub-Flavored Markdown via Apple's swift-cmark (tables, task lists, strikethrough, autolinks, footnotes).
+- An optional WYSIWYG-in-source live preview editing mode, a slash-command menu for inserting blocks, focus/typewriter mode, and synced line-number gutters between editor and preview.
+- A Quick Look extension that renders `.md` files in Finder's preview panel, and a first-run sample document for new installs.
 - Free, MIT-licensed, no telemetry, no account required.
 - Signed and notarized by Apple — installs without Gatekeeper warnings.
 
@@ -22,4 +24,4 @@ Fen is built and maintained by Zohar Babin (https://zoharbabin.com/), CSO at Kal
 
 ## Where Fen is headed
 
-Shipped: a formatting toolbar, default-`.md`-editor system integration (Finder icon, Open Recent, session restore), and export & printing (PDF/HTML export, native printing, Copy as Raw HTML/Rich Text Formatted, and a `fen-export` command-line tool). Longer-term ("the knowledge suite"): multi-file workspaces, `[[wiki-link]]` backlinks, local full-text search, a lightweight tagging/ontology layer, and a graph view — turning isolated Markdown files into a connected, searchable knowledge base.
+Shipped: a formatting toolbar, default-`.md`-editor system integration (Finder icon, Open Recent, session restore), export & printing (PDF/HTML export, native printing, Copy as Raw HTML/Rich Text Formatted, and a `fen-export` command-line tool), slash commands, live preview mode, focus mode, synced gutters, a first-run sample document, and Quick Look in Finder. Longer-term ("the knowledge suite"): multi-file workspaces, `[[wiki-link]]` backlinks, local full-text search, and a lightweight document-type/ontology layer — turning isolated Markdown files into a connected, searchable knowledge base.

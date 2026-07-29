@@ -82,7 +82,7 @@ If it's just the compare link, write real notes and replace them:
 gh release edit v0.1.0 --notes-file notes.md
 ```
 
-Match the format every release since v0.2.4 has used — `## Fixed` / `## Changed` / `## Testing` / `## Docs` sections (only the ones that apply), each bullet leading with what a user or contributor would notice, followed by the *why*. End with the same `**Full Changelog**: vX...vY` link the workflow would have generated on its own. Read a recent release (e.g. `gh release view v0.2.10 --json body -q .body`) for the pattern before writing a new one.
+Match the format every release since v0.2.6 has used — `## Added` / `## Fixed` / `## Changed` / `## Testing` / `## Docs` sections (only the ones that apply), each bullet leading with what a user or contributor would notice, followed by the *why*. End with the same `**Full Changelog**: vX...vY` link the workflow would have generated on its own. Read a recent release (e.g. `gh release view v0.2.10 --json body -q .body`) for the pattern before writing a new one.
 
 ---
 
