@@ -187,6 +187,24 @@ struct MarkdownRendererTests {
         #expect(!result.html.contains("data-sourcepos"))
     }
 
+    @Test("Populates blockStartLines from data-sourcepos in a single render() call (issue #113)")
+    func blockStartLinesPopulatedBySingleRenderCall() {
+        let md = "# Heading\n\nA paragraph.\n\n- item one\n- item two"
+        var opts = MarkdownRenderer.Options()
+        opts.sourcePositions = true
+        let result = renderer.render(md, options: opts)
+        // One block-start line per block element (heading, paragraph, list, and each list
+        // item) -- deduplicated, in document order -- extracted from the same HTML string
+        // this same render() call already produced, not a second pass over the source.
+        #expect(result.blockStartLines == [1, 3, 5, 6])
+    }
+
+    @Test("blockStartLines stays empty when sourcePositions is off (issue #113)")
+    func blockStartLinesEmptyWithoutSourcePositions() {
+        let result = renderer.render("# Heading\n\nA paragraph.")
+        #expect(result.blockStartLines.isEmpty)
+    }
+
     @Test("TOC pass preserves data-sourcepos on the rewritten heading tag")
     func tocPreservesSourcePositions() {
         let md = """

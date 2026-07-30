@@ -18,6 +18,8 @@
         var scrollsPastEnd: Bool
         var scrollFraction: CGFloat = 0
         var isScrollSyncEnabled: Bool = false
+        /// Mirrors the macOS `MarkdownTextView.breakpoints` doc comment (issue #113).
+        var breakpoints: [Int] = []
         /// Mirrors the macOS `MarkdownTextView.isFocusModeEnabled` doc comment (issue #19 rule
         /// 1.3): the toggle itself is a single app-wide `Preferences.editorFocusModeEnabled`
         /// value, but the derived dim/centering state stays on this Coordinator instance.
@@ -286,6 +288,8 @@
             private var anchorText: String?
             private var anchorHeight: CGFloat = 0
             private var anchorVisibleHeight: CGFloat = 0
+            /// Mirrors the macOS Coordinator's `anchorBreakpoints` doc comment (issue #113).
+            private var anchorBreakpoints: [Int] = []
             /// The paragraph range currently undimmed by focus mode, or `nil` when focus mode is
             /// off. Lives on this Coordinator instance only (issue #19 rule 1.1) -- never shared
             /// across two panes/windows editing the same or different documents. Not `private`
@@ -442,15 +446,19 @@
             /// pane-height-only resize (e.g. rotating the device with no split-divider move,
             /// `totalHeight` unchanged) shifts that normalization without this check noticing
             /// unless `visibleHeight` is part of the fingerprint too.
-            private func refreshAnchorsIfNeeded(textView: UITextView, totalHeight: CGFloat, visibleHeight: CGFloat) {
+            private func refreshAnchorsIfNeeded(
+                textView: UITextView, totalHeight: CGFloat, visibleHeight: CGFloat, breakpoints: [Int]
+            ) {
                 let text = textView.text ?? ""
                 guard text != anchorText || totalHeight != anchorHeight || visibleHeight != anchorVisibleHeight
+                    || breakpoints != anchorBreakpoints
                 else { return }
                 anchorText = text
                 anchorHeight = totalHeight
                 anchorVisibleHeight = visibleHeight
+                anchorBreakpoints = breakpoints
                 anchors = computeEditorLineAnchors(
-                    text: text, totalHeight: totalHeight, visibleHeight: visibleHeight
+                    text: text, totalHeight: totalHeight, visibleHeight: visibleHeight, breakpoints: breakpoints
                 ) { [weak textView] charIndex in
                     guard let textView else { return nil }
                     let layoutManager = textView.layoutManager
@@ -472,7 +480,12 @@
                 let contentHeight = scrollView.contentSize.height
                 let visibleHeight = scrollView.bounds.height
                 guard contentHeight > visibleHeight else { return }
-                refreshAnchorsIfNeeded(textView: textView, totalHeight: contentHeight, visibleHeight: visibleHeight)
+                refreshAnchorsIfNeeded(
+                    textView: textView,
+                    totalHeight: contentHeight,
+                    visibleHeight: visibleHeight,
+                    breakpoints: parent.breakpoints
+                )
                 let offset = scrollView.contentOffset.y
                 let pixelFraction = max(0, min(1, offset / (contentHeight - visibleHeight)))
                 let sourceFraction = interpolateEditorAnchor(
@@ -495,7 +508,12 @@
                     || abs(fraction - lastAppliedScrollFraction!) > 0.001
                     || lastAppliedContentHeight != contentHeight
                 else { return }
-                refreshAnchorsIfNeeded(textView: textView, totalHeight: contentHeight, visibleHeight: visibleHeight)
+                refreshAnchorsIfNeeded(
+                    textView: textView,
+                    totalHeight: contentHeight,
+                    visibleHeight: visibleHeight,
+                    breakpoints: parent.breakpoints
+                )
                 lastAppliedScrollFraction = fraction
                 lastAppliedContentHeight = contentHeight
                 isApplyingExternalScroll = true

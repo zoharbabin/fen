@@ -85,6 +85,13 @@ struct EditorScrollAnchorTests {
         )
     }
 
+    /// Every raw source line, 1-based -- exercises the shared-breakpoint sampling path
+    /// (issue #113) the same way the preview's `data-sourcepos` walk would if every line
+    /// in this synthetic document happened to start its own block.
+    private static func allLineBreakpoints(for doc: WrappedDocument) -> [Int] {
+        Array(1 ... doc.text.components(separatedBy: "\n").count)
+    }
+
     @Test("Anchor table recovers a line's actual pixel fraction from its naive source fraction")
     @MainActor
     func anchorTableRecoversPixelFraction() throws {
@@ -94,6 +101,7 @@ struct EditorScrollAnchorTests {
             text: doc.text,
             totalHeight: doc.totalHeight,
             visibleHeight: doc.visibleHeight,
+            breakpoints: Self.allLineBreakpoints(for: doc),
             lineTopForCharacterIndex: doc.lineTop
         )
 
@@ -123,6 +131,7 @@ struct EditorScrollAnchorTests {
             text: doc.text,
             totalHeight: doc.totalHeight,
             visibleHeight: doc.visibleHeight,
+            breakpoints: Self.allLineBreakpoints(for: doc),
             lineTopForCharacterIndex: doc.lineTop
         )
 
@@ -138,8 +147,49 @@ struct EditorScrollAnchorTests {
     @Test("Falls back to identity mapping for a document with too few lines to sample")
     @MainActor
     func identityFallbackForShortDocument() {
-        let anchors = computeEditorLineAnchors(text: "one line", totalHeight: 20, visibleHeight: 5) { _ in 0 }
+        let anchors = computeEditorLineAnchors(
+            text: "one line", totalHeight: 20, visibleHeight: 5, breakpoints: [1]
+        ) { _ in 0 }
         let mapped = interpolateEditorAnchor(anchors, from: \.source, to: \.rendered, value: 0.5)
         #expect(mapped == 0.5, "Expected identity fallback with no meaningful anchors to build")
+    }
+
+    // MARK: - Issue #113 rules 3.1/3.2
+
+    @Test("An out-of-range breakpoint is skipped, not crashed on")
+    @MainActor
+    func outOfRangeBreakpointIsSkipped() {
+        let doc = Self.unevenlyWrappedDocument()
+        let totalLines = doc.text.components(separatedBy: "\n").count
+        // One valid breakpoint plus two out-of-range ones (zero and far beyond the document's
+        // line count) -- both must be silently skipped, leaving a valid table built from the
+        // one line that's actually in range.
+        let breakpoints = [0, 20, totalLines + 1000]
+        let anchors = computeEditorLineAnchors(
+            text: doc.text,
+            totalHeight: doc.totalHeight,
+            visibleHeight: doc.visibleHeight,
+            breakpoints: breakpoints,
+            lineTopForCharacterIndex: doc.lineTop
+        )
+        #expect(anchors.count >= 2, "Expected a valid table despite out-of-range breakpoints")
+        #expect(anchors.first?.source == 0 && anchors.first?.rendered == 0)
+        #expect(anchors.last?.source == 1 && anchors.last?.rendered == 1)
+    }
+
+    @Test("An empty breakpoint list degrades to the safe two-point table")
+    @MainActor
+    func emptyBreakpointListDegradesSafely() {
+        let doc = Self.unevenlyWrappedDocument()
+        let anchors = computeEditorLineAnchors(
+            text: doc.text,
+            totalHeight: doc.totalHeight,
+            visibleHeight: doc.visibleHeight,
+            breakpoints: [],
+            lineTopForCharacterIndex: doc.lineTop
+        )
+        #expect(anchors.count == 2, "Expected the safe two-point [(0,0),(1,1)] table")
+        #expect(anchors.first?.source == 0 && anchors.first?.rendered == 0)
+        #expect(anchors.last?.source == 1 && anchors.last?.rendered == 1)
     }
 }

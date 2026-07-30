@@ -18,9 +18,18 @@ struct EditorLineAnchor {
 }
 
 /// Samples lines via `lineTopForCharacterIndex` (wired by the caller to its
-/// platform's `NSLayoutManager`) to build the anchor table. Caps the sample count
-/// so pathologically long documents don't pay a cost proportional to their full
-/// line count on every rebuild.
+/// platform's `NSLayoutManager`) to build the anchor table.
+///
+/// Samples at `breakpoints` -- 1-based raw source lines (issue #113) -- rather than a fixed
+/// line stride. `breakpoints` is `MarkdownRenderer.RenderResult.blockStartLines` (adjusted back
+/// to raw-source line numbers by the caller), the exact same `data-sourcepos` block-start lines
+/// `scroll-sync.js`'s `computeAnchors()` samples on the preview side. Sampling both panes' anchor
+/// tables from the same breakpoint set is what makes their interpolated values agree by
+/// construction instead of by two independently-chosen sampling strategies coincidentally landing
+/// close together -- the root cause of the residual couple-line drift this fixes. An out-of-range
+/// or unresolvable breakpoint (a line beyond the document's line count, or one
+/// `lineTopForCharacterIndex` can't resolve) is skipped rather than crashing, and an empty
+/// `breakpoints` list still produces the safe two-point `[(0,0),(1,1)]` table below.
 ///
 /// `rendered` is normalized against the *scrollable range* (`totalHeight - visibleHeight`),
 /// matching how live scroll position is read and written in `scrollViewDidScroll`/
@@ -38,26 +47,25 @@ func computeEditorLineAnchors(
     text: String,
     totalHeight: CGFloat,
     visibleHeight: CGFloat,
+    breakpoints: [Int],
     lineTopForCharacterIndex: (Int) -> CGFloat?
 ) -> [EditorLineAnchor] {
     let maxScroll = totalHeight - visibleHeight
     guard maxScroll > 0 else { return [] }
-    let lines = text.components(separatedBy: "\n")
-    let totalLines = lines.count
+    let lineStartOffsets = computeLineStartOffsets(text: text)
+    let totalLines = lineStartOffsets.count
     guard totalLines > 1 else { return [] }
 
-    let stride = max(1, totalLines / 2000)
     var anchors = [EditorLineAnchor(source: 0, rendered: 0)]
-    var charIndex = 0
-    for (i, line) in lines.enumerated() {
-        if i > 0, i % stride == 0, let top = lineTopForCharacterIndex(charIndex) {
-            let renderedFraction = max(0, min(1, top / maxScroll))
-            let sourceFraction = CGFloat(i) / CGFloat(totalLines)
-            if let last = anchors.last, sourceFraction > last.source, renderedFraction > last.rendered {
-                anchors.append(EditorLineAnchor(source: sourceFraction, rendered: renderedFraction))
-            }
+    for line in breakpoints {
+        guard line >= 1, line <= totalLines else { continue }
+        let charIndex = lineStartOffsets[line - 1]
+        guard let top = lineTopForCharacterIndex(charIndex) else { continue }
+        let renderedFraction = max(0, min(1, top / maxScroll))
+        let sourceFraction = CGFloat(line - 1) / CGFloat(totalLines)
+        if let last = anchors.last, sourceFraction > last.source, renderedFraction > last.rendered {
+            anchors.append(EditorLineAnchor(source: sourceFraction, rendered: renderedFraction))
         }
-        charIndex += line.utf16.count + 1
     }
     anchors.append(EditorLineAnchor(source: 1, rendered: 1))
     return anchors
