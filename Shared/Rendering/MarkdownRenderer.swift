@@ -64,9 +64,22 @@ public struct MarkdownRenderer: Sendable {
         /// (it's read off the same `data-sourcepos` attribute scroll-sync already relies on).
         public let headings: [Heading]
 
+        /// Document-ordered list of every block-start source line carrying `data-sourcepos`
+        /// (issue #113) -- the exact same attribute `Shared/Resources/ScrollSync/scroll-sync.js`'s
+        /// `computeAnchors()` walks via `document.querySelectorAll("[data-sourcepos]")`. Feeding
+        /// the editor's anchor table (`computeEditorLineAnchors`) this same breakpoint set is the
+        /// issue #113 fix: sampling at the preview's own block boundaries, instead of an
+        /// independently-chosen line stride, makes the two panes' interpolation tables agree by
+        /// construction rather than by coincidence. Empty unless `Options.sourcePositions` is on.
+        /// Relative to the front-matter-stripped text, matching `Heading.startLine`'s convention --
+        /// add `frontMatterLineCount` back to recover the raw-source line number.
+        public let blockStartLines: [Int]
+
         /// frontMatter is [String: Any] which isn't Sendable, but we only
         /// produce it from controlled YAML parsing. Mark as safe.
-        static let empty = RenderResult(html: "", frontMatter: nil, title: nil, frontMatterLineCount: 0, headings: [])
+        static let empty = RenderResult(
+            html: "", frontMatter: nil, title: nil, frontMatterLineCount: 0, headings: [], blockStartLines: []
+        )
     }
 
     /// One Markdown heading, extracted from the rendered `<h1>`-`<h6>` tags. Shared by both
@@ -163,13 +176,38 @@ public struct MarkdownRenderer: Sendable {
             html = replaceTOCMarker(in: html, with: extracted.toc)
         }
 
+        let blockStartLines = options.sourcePositions ? extractBlockStartLines(from: html) : []
+
         return RenderResult(
             html: html,
             frontMatter: frontMatter,
             title: title,
             frontMatterLineCount: frontMatterLineCount,
-            headings: extracted.headings
+            headings: extracted.headings,
+            blockStartLines: blockStartLines
         )
+    }
+
+    /// Document-ordered `data-sourcepos` start lines (issue #113) -- every block-level element
+    /// cmark-gfm annotated, deduplicated to one entry per distinct line since several nested
+    /// elements (a loose list's `<li>` and its inner `<p>`, a table row and its cells) commonly
+    /// share the same start line. Mirrors `scroll-sync.js`'s `computeAnchors()`, which walks
+    /// `document.querySelectorAll("[data-sourcepos]")` in the same document order -- this is a
+    /// regex pass over the same rendered HTML string that becomes that DOM, so the two lists
+    /// agree by construction, not by coincidence.
+    private func extractBlockStartLines(from html: String) -> [Int] {
+        guard let regex = try? NSRegularExpression(pattern: #"data-sourcepos="(\d+):"#) else { return [] }
+        let nsHTML = html as NSString
+        let matches = regex.matches(in: html, range: NSRange(location: 0, length: nsHTML.length))
+
+        var result: [Int] = []
+        for match in matches {
+            guard let line = Int(nsHTML.substring(with: match.range(at: 1))) else { continue }
+            if result.last != line {
+                result.append(line)
+            }
+        }
+        return result
     }
 
     /// Attaches each enabled GFM syntax extension (table/strikethrough/autolink/tasklist/

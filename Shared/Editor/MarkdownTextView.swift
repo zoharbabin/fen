@@ -32,6 +32,10 @@ func caretColor(for background: PlatformColor) -> PlatformColor {
         var scrollsPastEnd: Bool
         var scrollFraction: CGFloat = 0
         var isScrollSyncEnabled: Bool = false
+        /// Raw-source-line breakpoints (issue #113) the anchor table samples at, shared with the
+        /// preview's own `data-sourcepos` breakpoints -- see `EditorScrollAnchors.swift`'s
+        /// `computeEditorLineAnchors` doc comment. Empty falls back to the safe two-point table.
+        var breakpoints: [Int] = []
         /// Mirrors `isScrollSyncEnabled`'s threading pattern (issue #19 rule 1.3): the toggle
         /// itself is a single app-wide `Preferences.editorFocusModeEnabled` value, but the
         /// derived dim/centering state stays on this Coordinator instance, never shared.
@@ -241,6 +245,12 @@ func caretColor(for background: PlatformColor) -> PlatformColor {
             private var anchorText: String?
             private var anchorHeight: CGFloat = 0
             private var anchorVisibleHeight: CGFloat = 0
+            /// The breakpoints (issue #113) the current `anchors` table was built from -- part of
+            /// the staleness fingerprint alongside `anchorText`/`anchorHeight`/`anchorVisibleHeight`,
+            /// since a re-render can change which lines the preview's `data-sourcepos` walk landed
+            /// on without changing the text itself (e.g. a preference toggle changing what renders
+            /// as a block).
+            private var anchorBreakpoints: [Int] = []
             /// Width/visible-height `scrollViewDidScroll` observed on its *previous* call,
             /// regardless of whether that call rebuilt anchors -- see that method's doc comment
             /// for why a single reflow can span several consecutive bounds-changed notifications
@@ -395,14 +405,18 @@ func caretColor(for background: PlatformColor) -> PlatformColor {
             /// move, `totalHeight` unchanged) shifts that normalization without this check
             /// noticing unless `visibleHeight` is part of the fingerprint too.
             @MainActor
-            private func refreshAnchorsIfNeeded(text: String, totalHeight: CGFloat, visibleHeight: CGFloat) {
+            private func refreshAnchorsIfNeeded(
+                text: String, totalHeight: CGFloat, visibleHeight: CGFloat, breakpoints: [Int]
+            ) {
                 guard text != anchorText || totalHeight != anchorHeight || visibleHeight != anchorVisibleHeight
+                    || breakpoints != anchorBreakpoints
                 else { return }
                 anchorText = text
                 anchorHeight = totalHeight
                 anchorVisibleHeight = visibleHeight
+                anchorBreakpoints = breakpoints
                 anchors = computeEditorLineAnchors(
-                    text: text, totalHeight: totalHeight, visibleHeight: visibleHeight
+                    text: text, totalHeight: totalHeight, visibleHeight: visibleHeight, breakpoints: breakpoints
                 ) { [weak textView] charIndex in
                     textView?.lineTop(forCharacterIndex: charIndex)
                 }
@@ -454,7 +468,12 @@ func caretColor(for background: PlatformColor) -> PlatformColor {
                     armReflowSettleWindow()
                 }
                 let didReflow = dimensionsChanged || isWithinReflowSettleWindow
-                refreshAnchorsIfNeeded(text: textView.string, totalHeight: totalHeight, visibleHeight: visibleHeight)
+                refreshAnchorsIfNeeded(
+                    text: textView.string,
+                    totalHeight: totalHeight,
+                    visibleHeight: visibleHeight,
+                    breakpoints: parent.breakpoints
+                )
                 if didReflow, let lastFraction = lastAppliedScrollFraction {
                     // Re-home the pixel offset to the fraction we know is still correct, instead
                     // of trusting the stale raw offset -- the same "preserve fraction across a
@@ -501,7 +520,8 @@ func caretColor(for background: PlatformColor) -> PlatformColor {
                 refreshAnchorsIfNeeded(
                     text: documentView.string,
                     totalHeight: totalHeight,
-                    visibleHeight: visibleHeight
+                    visibleHeight: visibleHeight,
+                    breakpoints: parent.breakpoints
                 )
                 lastAppliedScrollFraction = fraction
                 lastAppliedTotalHeight = totalHeight

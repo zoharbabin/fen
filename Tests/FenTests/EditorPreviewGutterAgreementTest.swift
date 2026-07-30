@@ -136,4 +136,111 @@ struct EditorPreviewGutterAgreementTest {
             "Expected editor (\(editorFraction)) and preview (\(previewFractionValue)) fractions to roughly agree"
         )
     }
+
+    // MARK: - Issue #113 rule 5.1: shared breakpoints make interpolated fractions agree tightly
+
+    /// The editor's own `NSLayoutManager`-backed `lineTopForCharacterIndex` closure, over the
+    /// same real text view/window stack `editorRenderedFraction` builds -- factored out so both
+    /// the naive-measurement test above and this anchor-table test share one geometry source.
+    @MainActor
+    private func editorLineTopClosure(
+        for doc: MixedDocument, containerWidth: CGFloat = 900
+    ) -> (top: (Int) -> CGFloat?, totalHeight: CGFloat) {
+        let textStorage = NSTextStorage(string: doc.markdown, attributes: [.font: NSFont.systemFont(ofSize: 14)])
+        let layoutManager = NSLayoutManager()
+        textStorage.addLayoutManager(layoutManager)
+        let textContainer = NSTextContainer(size: CGSize(width: containerWidth, height: .greatestFiniteMagnitude))
+        textContainer.widthTracksTextView = false
+        layoutManager.addTextContainer(textContainer)
+
+        let textView = NSTextView(
+            frame: NSRect(x: 0, y: 0, width: containerWidth, height: 200), textContainer: textContainer
+        )
+        let scrollView = NSScrollView(frame: NSRect(x: 0, y: 0, width: containerWidth, height: 200))
+        scrollView.documentView = textView
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: containerWidth, height: 200),
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        window.contentView = scrollView
+        layoutManager.ensureLayout(for: textContainer)
+
+        let totalHeight = layoutManager.usedRect(for: textContainer).height
+        let top: (Int) -> CGFloat? = { charIndex in
+            let length = (doc.markdown as NSString).length
+            guard charIndex >= 0, charIndex < length else { return nil }
+            let glyphIndex = layoutManager.glyphIndexForCharacter(at: charIndex)
+            return layoutManager.lineFragmentRect(forGlyphAt: glyphIndex, effectiveRange: nil).origin.y
+        }
+        return (top, totalHeight)
+    }
+
+    @Test("Editor and preview anchor tables built from the shared blockStartLines breakpoint set agree tightly")
+    @MainActor
+    func sharedBreakpointsMakeInterpolatedFractionsAgree() async throws {
+        let doc = Self.mixedContentDocument()
+
+        var opts = MarkdownRenderer.Options()
+        opts.sourcePositions = true
+        let renderResult = MarkdownRenderer().render(doc.markdown, options: opts)
+
+        let webView = try await renderPreviewWebView(
+            markdown: doc.markdown,
+            options: opts,
+            sourceLineCount: doc.sourceLineCount
+        )
+        _ = try await pollUntilTrue(
+            webView,
+            js: "document.documentElement.scrollHeight > document.documentElement.clientHeight"
+        )
+
+        // Rule 5.1's breakpoint-equality proof: the breakpoints the editor's anchor table would
+        // be fed equal the raw-line-adjusted data-sourcepos start-line set the preview's own
+        // computeAnchors() walks -- same regex-over-HTML extraction, same DOM query, same lines.
+        let previewStartLines = try await webView.evaluateJavaScript("""
+        (function () {
+            var elements = document.querySelectorAll("[data-sourcepos]");
+            var lines = [];
+            for (var i = 0; i < elements.length; i++) {
+                var line = parseInt(elements[i].getAttribute("data-sourcepos").split(":")[0], 10);
+                if (lines.length === 0 || lines[lines.length - 1] !== line) {
+                    lines.push(line);
+                }
+            }
+            return lines;
+        })();
+        """)
+        let previewStartLinesValue = try #require(previewStartLines as? [Int])
+        // No front matter in this document, so the raw-source-line adjustment is a no-op.
+        #expect(renderResult.blockStartLines == previewStartLinesValue)
+
+        let (lineTop, totalHeight) = editorLineTopClosure(for: doc)
+        let editorAnchors = computeEditorLineAnchors(
+            text: doc.markdown,
+            totalHeight: totalHeight,
+            visibleHeight: 200,
+            breakpoints: renderResult.blockStartLines,
+            lineTopForCharacterIndex: lineTop
+        )
+
+        let naiveFraction = Double(doc.markerRawLine - 1) / Double(doc.sourceLineCount)
+        let editorInterpolated = interpolateEditorAnchor(
+            editorAnchors, from: \.source, to: \.rendered, value: CGFloat(naiveFraction)
+        )
+        let previewInterpolated = try await webView.evaluateJavaScript(
+            "window.__fenScrollSync.renderedFractionForSource(\(naiveFraction));"
+        )
+        let previewInterpolatedValue = try #require(previewInterpolated as? Double)
+
+        #expect(
+            abs(Double(editorInterpolated) - previewInterpolatedValue) < 0.02,
+            """
+            Expected editor (\(editorInterpolated)) and preview (\(previewInterpolatedValue)) interpolated \
+            rendered fractions -- both built from the same blockStartLines breakpoint set -- to agree far \
+            tighter than the raw cross-engine measurement above, since they now sample identical points
+            """
+        )
+    }
 }

@@ -32,6 +32,10 @@ public struct SplitEditorView: View {
     @State private var isOutlineVisible = false
     @State private var sourceLineCount = 1
     @State private var sourceLineOffset = 0
+    /// Raw-source-line-adjusted `MarkdownRenderer.RenderResult.blockStartLines` (issue #113),
+    /// fed to the editor as `MarkdownTextView.breakpoints` so both panes' anchor tables sample
+    /// the same lines. See `EditorScrollAnchors.swift`'s `computeEditorLineAnchors` doc comment.
+    @State private var blockStartLines: [Int] = []
 
     let preferences = Preferences.shared
 
@@ -272,6 +276,7 @@ public struct SplitEditorView: View {
             scrollsPastEnd: preferences.editorScrollsPastEnd,
             scrollFraction: scrollSync.editorScrollFraction,
             isScrollSyncEnabled: preferences.editorSyncScrolling,
+            breakpoints: blockStartLines,
             isFocusModeEnabled: preferences.editorFocusModeEnabled,
             isLivePreviewEnabled: preferences.editorLivePreviewEnabled,
             showLineNumbers: preferences.editorShowLineNumbers,
@@ -512,6 +517,7 @@ public struct SplitEditorView: View {
         let result = renderer.render(document.text, options: options)
         sourceLineCount = document.text.components(separatedBy: .newlines).count
         sourceLineOffset = result.frontMatterLineCount
+        blockStartLines = result.blockStartLines.map { $0 + sourceLineOffset }
         outline.update(headings: result.headings)
         renderedHTML = composer.compose(
             title: result.title,
