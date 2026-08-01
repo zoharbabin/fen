@@ -12,6 +12,49 @@ import Testing
 /// it resolves -- driving a real `HTMLSanitizer` against real Markdown so the guard is proven
 /// against genuine async timing, not a synchronous stand-in.
 struct SanitizerRenderOrderingTests {
+    /// Suspends a render at the exact point where it would otherwise await the sanitizer, and
+    /// lets the test resume it deterministically -- this repo forbids fixed-duration sleeps as a
+    /// synchronization mechanism (see CONTRIBUTING.md#tests), so ordering is proven with a real
+    /// handshake instead of racing a `Task.sleep` against incidental timing.
+    @MainActor
+    final class RenderGate {
+        private var openContinuation: CheckedContinuation<Void, Never>?
+        private var arrivedContinuation: CheckedContinuation<Void, Never>?
+        private var hasArrived = false
+        private var isOpen = false
+
+        /// Called by the render this gate blocks: records that it reached the gate, then
+        /// suspends until `open()` is called (or returns immediately if already open).
+        func wait() async {
+            hasArrived = true
+            arrivedContinuation?.resume()
+            arrivedContinuation = nil
+            if isOpen {
+                return
+            }
+            await withCheckedContinuation { continuation in
+                self.openContinuation = continuation
+            }
+        }
+
+        /// Called by the test: resumes once the blocked render has actually reached `wait()`,
+        /// so the test never has to guess how long that takes.
+        func waitUntilArrived() async {
+            if hasArrived {
+                return
+            }
+            await withCheckedContinuation { continuation in
+                self.arrivedContinuation = continuation
+            }
+        }
+
+        func open() {
+            isOpen = true
+            openContinuation?.resume()
+            openContinuation = nil
+        }
+    }
+
     @MainActor
     final class RenderState {
         private let sanitizer = HTMLSanitizer()
@@ -21,12 +64,11 @@ struct SanitizerRenderOrderingTests {
 
         /// Mirrors `SplitEditorView.renderMarkdown()`'s structure exactly: increment and capture
         /// `generation` before the async sanitize call, only assign `renderedHTML` if that
-        /// generation is still current once the call resolves. `artificialDelay` stands in for
-        /// whatever real-world timing (WKWebView scheduling, JS execution) determines which of
-        /// two overlapping sanitize calls resolves first -- it lets this test deterministically
-        /// force render A to resolve after render B, the exact ordering issue #118 flagged as a
-        /// risk, rather than depending on incidental real-world timing to reproduce it.
-        func render(markdown: String, artificialDelay: Duration = .zero) async {
+        /// generation is still current once the call resolves. `gate`, when given, blocks this
+        /// render immediately before the sanitize call until the test releases it -- standing in
+        /// for whatever real-world timing (WKWebView scheduling, JS execution) would otherwise
+        /// determine which of two overlapping sanitize calls resolves first.
+        func render(markdown: String, gate: RenderGate? = nil) async {
             generation += 1
             let thisGeneration = generation
 
@@ -36,9 +78,7 @@ struct SanitizerRenderOrderingTests {
                 return opts
             }())
 
-            if artificialDelay > .zero {
-                try? await Task.sleep(for: artificialDelay)
-            }
+            await gate?.wait()
             let sanitized = await sanitizer.sanitize(result.html)
 
             guard thisGeneration == generation else { return }
@@ -47,19 +87,23 @@ struct SanitizerRenderOrderingTests {
     }
 
     @Test @MainActor
-    func aSupersededRenderNeverOverwritesTheLatestRendersResult() async throws {
+    func aSupersededRenderNeverOverwritesTheLatestRendersResult() async {
         let state = RenderState()
+        let gateA = RenderGate()
 
-        async let first: Void = state.render(
-            markdown: "<kbd>stale render A</kbd>",
-            artificialDelay: .milliseconds(200)
-        )
-        // Simulates the next keystroke arriving well inside render A's artificial delay, exactly
-        // as a real burst of typing would while A's sanitize call is still in flight.
-        try await Task.sleep(for: .milliseconds(20))
-        async let second: Void = state.render(markdown: "<kbd>latest render B</kbd>")
+        async let first: Void = state.render(markdown: "<kbd>stale render A</kbd>", gate: gateA)
 
-        _ = await (first, second)
+        // Deterministically wait until render A is blocked just before its sanitize call --
+        // `waitUntilArrived()` only resumes once A's `gate.wait()` actually runs, no sleep needed.
+        await gateA.waitUntilArrived()
+
+        // Let render B start and fully complete while A is still held at the gate -- this is the
+        // exact scenario rule 1.2 guards against: an older render resolving after a newer one.
+        await state.render(markdown: "<kbd>latest render B</kbd>")
+
+        // Now release A: it resumes, sanitizes, and finds its captured generation stale.
+        gateA.open()
+        _ = await first
 
         #expect(
             state.renderedHTML.contains("latest render B"),

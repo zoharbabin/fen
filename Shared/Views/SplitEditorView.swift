@@ -522,6 +522,7 @@ public struct SplitEditorView: View {
     /// incremented to before the `await`, and only assigns if that generation is still current
     /// when the sanitize call resolves. Mirrors `PreviewWebView.Coordinator`'s `beginReload()`/
     /// `isCurrentReload()` token pattern, applied one layer up at the render-scheduling level.
+    @MainActor
     private func renderMarkdown() async {
         renderGeneration += 1
         let generation = renderGeneration

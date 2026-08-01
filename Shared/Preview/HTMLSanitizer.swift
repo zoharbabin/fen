@@ -37,6 +37,15 @@ public final class HTMLSanitizer {
         webView != nil
     }
 
+    /// Test-only seam for `SanitizerFailClosedTests.swift` to prove that a failed load doesn't
+    /// permanently wedge every later `sanitize(_:)` call -- forcing a *real* WKWebView load or
+    /// `evaluateJavaScript` failure isn't reliably reproducible from a test (see `sanitize(_:)`'s
+    /// doc comment), so this injects a synthetic failure at the same seam `loadedWebView()`
+    /// checks, without weakening anything on the production path.
+    func forceNextLoadToFailForTesting() {
+        loadTask = Task { throw SanitizeError.resourceMissing }
+    }
+
     /// CommonMark only recognizes raw HTML blocks/inline HTML when they begin with a literal
     /// `<` -- so if `markdown` contains none at all, `CMARK_OPT_UNSAFE` cannot have let any raw
     /// HTML through, and the rendered output is guaranteed byte-for-byte identical to what
@@ -77,16 +86,23 @@ public final class HTMLSanitizer {
 
     /// Returns the reused hidden web view, creating and loading it on first use. Concurrent
     /// callers before the first load completes all await the same in-flight `Task` rather than
-    /// each starting their own load.
+    /// each starting their own load. Clears `loadTask` on failure so a transient WebKit load
+    /// failure (or the 5s timeout) doesn't permanently wedge every later `sanitize(_:)` call into
+    /// re-awaiting the same failed `Task` for the rest of the process's lifetime.
     private func loadedWebView() async throws -> WKWebView {
         if let webView {
             return webView
         }
         let task = loadTask ?? Task { try await Self.makeWebView() }
         loadTask = task
-        let webView = try await task.value
-        self.webView = webView
-        return webView
+        do {
+            let webView = try await task.value
+            self.webView = webView
+            return webView
+        } catch {
+            loadTask = nil
+            throw error
+        }
     }
 
     private static func makeWebView() async throws -> WKWebView {

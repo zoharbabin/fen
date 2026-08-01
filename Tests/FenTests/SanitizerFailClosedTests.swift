@@ -34,4 +34,22 @@ struct SanitizerFailClosedTests {
         let escaped = HTMLSanitizer.escapeAsPlainText("a && b < c")
         #expect(escaped == "a &amp;&amp; b &lt; c", "escaping order must not corrupt already-escaped ampersands")
     }
+
+    @Test @MainActor
+    func aFailedLoadDoesNotPermanentlyWedgeLaterSanitizeCalls() async {
+        let sanitizer = HTMLSanitizer()
+        sanitizer.forceNextLoadToFailForTesting()
+
+        let duringFailure = await sanitizer.sanitize("<script>alert('unsanitized')</script>")
+        #expect(
+            duringFailure.contains("&lt;script&gt;"),
+            "a forced load failure must still fail closed on that call"
+        )
+
+        let afterFailure = await sanitizer.sanitize("<kbd>x</kbd>")
+        #expect(
+            afterFailure.contains("<kbd>"),
+            "a later call must retry the load rather than reusing the earlier failed Task forever"
+        )
+    }
 }
