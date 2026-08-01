@@ -18,6 +18,7 @@ public struct SplitEditorView: View {
 
     @State private var renderer = MarkdownRenderer()
     @State private var composer = HTMLComposer()
+    @State private var htmlSanitizer = HTMLSanitizer()
     @State private var scrollSync = ScrollSync()
     @State private var outline = DocumentOutline()
     @State private var externalChangeController = ExternalChangeController()
@@ -36,6 +37,12 @@ public struct SplitEditorView: View {
     /// fed to the editor as `MarkdownTextView.breakpoints` so both panes' anchor tables sample
     /// the same lines. See `EditorScrollAnchors.swift`'s `computeEditorLineAnchors` doc comment.
     @State private var blockStartLines: [Int] = []
+    /// Monotonic counter guarding `renderMarkdown()`'s async sanitize step (issue #118): a
+    /// render started by an earlier keystroke could otherwise finish sanitizing after a later
+    /// keystroke's render and overwrite `renderedHTML` with stale content. Each call captures
+    /// the generation it incremented to before awaiting, and only assigns `renderedHTML` if
+    /// that generation is still current when the await resolves.
+    @State private var renderGeneration = 0
 
     let preferences = Preferences.shared
 
@@ -79,7 +86,7 @@ public struct SplitEditorView: View {
             .onAppear {
                 editorOnRight = preferences.editorOnRight
                 preferences.systemPrefersDarkAppearance = colorScheme == .dark
-                renderMarkdown()
+                Task { await renderMarkdown() }
                 externalChangeController.start(for: document)
                 autosaveController.start(for: document)
             }
@@ -94,7 +101,7 @@ public struct SplitEditorView: View {
                 autosaveController.textDidChange()
             }
             .onChange(of: preferences.renderRevision) { _, _ in
-                renderMarkdown()
+                Task { await renderMarkdown() }
             }
             .onChange(of: document.fileURL) { _, _ in
                 externalChangeController.start(for: document)
@@ -129,14 +136,18 @@ public struct SplitEditorView: View {
                     printController.printDocument(document: document, preferences: preferences)
                 }
                 .onReceive(NotificationCenter.default.publisher(for: .copyAsRawHTML)) { _ in
-                    ClipboardExporter().copyAsRawHTML(
-                        markdown: document.text, documentURL: document.fileURL, preferences: preferences
-                    )
+                    Task {
+                        await ClipboardExporter().copyAsRawHTML(
+                            markdown: document.text, documentURL: document.fileURL, preferences: preferences
+                        )
+                    }
                 }
                 .onReceive(NotificationCenter.default.publisher(for: .copyAsRichTextFormatted)) { _ in
-                    ClipboardExporter().copyAsRichTextFormatted(
-                        markdown: document.text, documentURL: document.fileURL, preferences: preferences
-                    )
+                    Task {
+                        await ClipboardExporter().copyAsRichTextFormatted(
+                            markdown: document.text, documentURL: document.fileURL, preferences: preferences
+                        )
+                    }
                 }
         #else
             let withReceivers = withChangeHandlers
@@ -499,11 +510,22 @@ public struct SplitEditorView: View {
                 try? await Task.sleep(for: .milliseconds(300))
                 guard !Task.isCancelled else { return }
             }
-            renderMarkdown()
+            await renderMarkdown()
         }
     }
 
-    private func renderMarkdown() {
+    /// Renders `document.text` to HTML and sanitizes it (issue #118's DOMPurify pass, needed
+    /// whenever `Options.sanitizeRawHTML` let raw HTML through) before assigning `renderedHTML`.
+    /// `renderGeneration` guards against out-of-order completion: a render started by an earlier
+    /// keystroke could otherwise finish its async sanitize step after a later keystroke's render
+    /// and overwrite `renderedHTML` with stale content -- this captures the generation it
+    /// incremented to before the `await`, and only assigns if that generation is still current
+    /// when the sanitize call resolves. Mirrors `PreviewWebView.Coordinator`'s `beginReload()`/
+    /// `isCurrentReload()` token pattern, applied one layer up at the render-scheduling level.
+    private func renderMarkdown() async {
+        renderGeneration += 1
+        let generation = renderGeneration
+
         // Per-document overrides (issue #27) only apply when front-matter detection itself is
         // on -- otherwise the `---...---` block renders as literal content, and a `fen:` key
         // inside it must not silently still drive rendering (rule 3.2).
@@ -515,13 +537,19 @@ public struct SplitEditorView: View {
         options.sourcePositions = true
         options.renderTOC = documentOverrides.rendersTOC ?? options.renderTOC
         let result = renderer.render(document.text, options: options)
+
+        let sanitizedBody = options.sanitizeRawHTML && HTMLSanitizer.mayContainRawHTML(document.text)
+            ? await htmlSanitizer.sanitize(result.html)
+            : result.html
+        guard generation == renderGeneration else { return }
+
         sourceLineCount = document.text.components(separatedBy: .newlines).count
         sourceLineOffset = result.frontMatterLineCount
         blockStartLines = result.blockStartLines.map { $0 + sourceLineOffset }
         outline.update(headings: result.headings)
         renderedHTML = composer.compose(
             title: result.title,
-            body: result.html,
+            body: sanitizedBody,
             preferences: preferences,
             sourceLineCount: sourceLineCount,
             sourceLineOffset: sourceLineOffset,

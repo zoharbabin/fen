@@ -89,13 +89,15 @@ public final class HTMLExportController {
                 ? .selfContained
                 : .linkedAssets(exportBaseName: destination.deletingPathExtension().lastPathComponent)
 
-            let result = DocumentHTMLExporter().export(
-                markdown: document.text, documentURL: document.fileURL, preferences: preferences, mode: mode
-            )
-            do {
-                try write(result, to: destination)
-            } catch {
-                presentErrorAlert(error.localizedDescription)
+            Task {
+                let result = await DocumentHTMLExporter().export(
+                    markdown: document.text, documentURL: document.fileURL, preferences: preferences, mode: mode
+                )
+                do {
+                    try write(result, to: destination)
+                } catch {
+                    presentErrorAlert(error.localizedDescription)
+                }
             }
         }
     #endif

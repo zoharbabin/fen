@@ -86,7 +86,7 @@ import Testing
             )
             preferences.htmlStyleName = "GitHub"
 
-            let html = DocumentPDFExporter().export(
+            let html = await DocumentPDFExporter().export(
                 markdown: markdown,
                 documentURL: documentURL,
                 preferences: preferences

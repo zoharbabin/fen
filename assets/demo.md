@@ -216,6 +216,25 @@ So do www-prefixed hosts: www.fen.md
 
 And email addresses: hello@fen.md
 
+## Emoji Shortcodes
+
+GitHub-style shortcodes render as their Unicode emoji: `:rocket:` becomes :rocket:, `:tada:`
+becomes :tada:, and `:+1:` becomes :+1:. An unrecognized shortcode like `:not_a_real_emoji:`
+is left as literal text.
+
+## Raw HTML
+
+Fen passes a GitHub-style allowlist of raw HTML tags through, sanitized (issue #118). H<sub>2</sub>O and E = mc<sup>2</sup> use `<sub>`/`<sup>`, and <kbd>Cmd</kbd>+<kbd>K</kbd> uses `<kbd>`.
+
+<details>
+<summary>Click to expand</summary>
+
+Collapsible sections render via `<details>`/`<summary>`, matching github.com.
+
+</details>
+
+Anything outside the allowlist -- `<script>`, `onerror=`, `javascript:` links -- is stripped before it ever reaches the page: <script>alert('unsanitized')</script>
+
 ## Footnotes
 
 Footnotes render inline.[^1] They can span multiple lines, too.[^long]
@@ -292,4 +311,31 @@ Another task     :after a1  , 20d
 section Another
 Task in sec      :2014-01-12  , 12d
 another task     : 24d
+```
+
+## 3D Models: STL
+
+Fen renders `stl` fenced code blocks as an interactive 3D viewer (issue
+#120). Enable **STL 3D viewer** in Preferences → Rendering, then drag to
+orbit and scroll to zoom. Hover over a model and click the wireframe
+button in the corner to switch that model between shaded and wireframe
+rendering (issue #122).
+
+```stl
+solid cube
+facet normal 0 0 -1
+outer loop
+vertex 0 0 0
+vertex 0 1 0
+vertex 1 1 0
+endloop
+endfacet
+facet normal 0 0 -1
+outer loop
+vertex 0 0 0
+vertex 1 1 0
+vertex 1 0 0
+endloop
+endfacet
+endsolid cube
 ```

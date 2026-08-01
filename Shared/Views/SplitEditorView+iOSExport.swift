@@ -16,14 +16,16 @@ import SwiftUI
                 ? .selfContained
                 : .linkedAssets(exportBaseName: baseName)
 
-            let result = DocumentHTMLExporter().export(
-                markdown: document.text, documentURL: document.fileURL, preferences: preferences, mode: mode
-            )
-            let isDirectory = choice == .linkedAssets
-            htmlExportDocument = HTMLExportDocument(result: result, isDirectory: isDirectory)
-            htmlExportContentType = isDirectory ? .folder : .html
-            htmlExportFilename = isDirectory ? baseName : "\(baseName).html"
-            isHTMLExportPresented = true
+            Task {
+                let result = await DocumentHTMLExporter().export(
+                    markdown: document.text, documentURL: document.fileURL, preferences: preferences, mode: mode
+                )
+                let isDirectory = choice == .linkedAssets
+                htmlExportDocument = HTMLExportDocument(result: result, isDirectory: isDirectory)
+                htmlExportContentType = isDirectory ? .folder : .html
+                htmlExportFilename = isDirectory ? baseName : "\(baseName).html"
+                isHTMLExportPresented = true
+            }
         }
 
         /// Renders and resolves the export up front (issue #30), same constraint as
@@ -37,7 +39,7 @@ import SwiftUI
             let fileURL = document.fileURL
             isPDFExporting = true
             Task {
-                let html = DocumentPDFExporter().export(
+                let html = await DocumentPDFExporter().export(
                     markdown: markdown,
                     documentURL: fileURL,
                     preferences: preferences
@@ -71,7 +73,7 @@ import SwiftUI
             let fileURL = document.fileURL
             isPrinting = true
             Task {
-                let html = DocumentPDFExporter().export(
+                let html = await DocumentPDFExporter().export(
                     markdown: markdown,
                     documentURL: fileURL,
                     preferences: preferences
@@ -102,16 +104,20 @@ import SwiftUI
         /// self-contained HTML and writes it directly to `UIPasteboard.general` with no PDF
         /// render or system UI in the way.
         func copyAsRawHTML() {
-            ClipboardExporter().copyAsRawHTML(
-                markdown: document.text, documentURL: document.fileURL, preferences: preferences
-            )
+            Task {
+                await ClipboardExporter().copyAsRawHTML(
+                    markdown: document.text, documentURL: document.fileURL, preferences: preferences
+                )
+            }
         }
 
         /// iOS's half of "Copy as Rich Text Formatted" -- mirrors `copyAsRawHTML`.
         func copyAsRichTextFormatted() {
-            ClipboardExporter().copyAsRichTextFormatted(
-                markdown: document.text, documentURL: document.fileURL, preferences: preferences
-            )
+            Task {
+                await ClipboardExporter().copyAsRichTextFormatted(
+                    markdown: document.text, documentURL: document.fileURL, preferences: preferences
+                )
+            }
         }
     }
 #endif

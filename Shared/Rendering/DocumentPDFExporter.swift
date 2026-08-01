@@ -19,8 +19,12 @@ public struct DocumentPDFExporter: Sendable {
     /// references -- `nil` for an unsaved document, in which case image references are left
     /// exactly as rendered. Images are always inlined as `data:` URIs (`ExportAssetResolver`'s
     /// `.selfContained` mode, issue #31 rules 4.1/4.2) since a PDF is one opaque file with no
-    /// "linked assets" equivalent.
-    public func export(markdown: String, documentURL: URL?, preferences: Preferences) -> String {
+    /// "linked assets" equivalent. `async` and `@MainActor` since raw HTML sanitization (issue
+    /// #118) runs the vendored DOMPurify inside a hidden `WKWebView` (also `@MainActor`), the
+    /// only DOM-capable JS engine available, which only exposes `evaluateJavaScript`
+    /// asynchronously.
+    @MainActor
+    public func export(markdown: String, documentURL: URL?, preferences: Preferences) async -> String {
         let renderer = MarkdownRenderer()
         // Per-document overrides (issue #85, mirrors SplitEditorView.renderMarkdown's issue #27
         // pattern) only apply when front-matter detection itself is on -- otherwise the
@@ -34,10 +38,13 @@ public struct DocumentPDFExporter: Sendable {
         options.sourcePositions = false
         options.renderTOC = documentOverrides.rendersTOC ?? options.renderTOC
         let rendered = renderer.render(markdown, options: options)
+        let sanitizedBody = options.sanitizeRawHTML && HTMLSanitizer.mayContainRawHTML(markdown)
+            ? await HTMLSanitizer.shared.sanitize(rendered.html)
+            : rendered.html
 
         let composed = HTMLComposer().composeForPrint(
             title: rendered.title,
-            body: rendered.html,
+            body: sanitizedBody,
             preferences: preferences,
             documentOverrides: documentOverrides
         )

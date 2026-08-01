@@ -36,13 +36,15 @@ public struct ClipboardExporter: Sendable {
     public init() {}
 
     /// Composes `markdown` into self-contained export HTML (issue #31's `DocumentHTMLExporter`,
-    /// rule 5.1 -- no HTML composition logic duplicated here).
+    /// rule 5.1 -- no HTML composition logic duplicated here). `async`/`@MainActor` since
+    /// `DocumentHTMLExporter.export` is (issue #118's DOMPurify sanitize pass).
     ///
     /// Not `private`: `ClipboardExporterIsolationTests`/`ClipboardExporterTests` (issue #33) call
     /// this directly to assert on pure composition output, without racing the one real,
     /// process-wide OS pasteboard `copyAsRawHTML`/`copyAsRichTextFormatted` write to.
-    func composeHTML(markdown: String, documentURL: URL?, preferences: Preferences) -> String {
-        DocumentHTMLExporter().export(
+    @MainActor
+    func composeHTML(markdown: String, documentURL: URL?, preferences: Preferences) async -> String {
+        await DocumentHTMLExporter().export(
             markdown: markdown, documentURL: documentURL, preferences: preferences, mode: .selfContained
         ).html
     }
@@ -85,8 +87,9 @@ public struct ClipboardExporter: Sendable {
         /// paste (Mail, Word, Teams, Slack) render the markup instead of showing it, defeating
         /// the entire point of "Copy as Raw HTML": pasting the literal `<tags>` as text,
         /// everywhere, every time.
-        public func copyAsRawHTML(markdown: String, documentURL: URL?, preferences: Preferences) {
-            let html = composeHTML(markdown: markdown, documentURL: documentURL, preferences: preferences)
+        @MainActor
+        public func copyAsRawHTML(markdown: String, documentURL: URL?, preferences: Preferences) async {
+            let html = await composeHTML(markdown: markdown, documentURL: documentURL, preferences: preferences)
             let pasteboard = NSPasteboard.general
             pasteboard.clearContents()
             pasteboard.setString(html, forType: .string)
@@ -95,8 +98,9 @@ public struct ClipboardExporter: Sendable {
         /// Writes composed HTML's rich-text (`.rtf`) conversion to the general pasteboard, plus
         /// an `.html` type for apps that prefer it and a rendered-plain-text `.string` fallback
         /// for apps that understand neither.
-        public func copyAsRichTextFormatted(markdown: String, documentURL: URL?, preferences: Preferences) {
-            let html = composeHTML(markdown: markdown, documentURL: documentURL, preferences: preferences)
+        @MainActor
+        public func copyAsRichTextFormatted(markdown: String, documentURL: URL?, preferences: Preferences) async {
+            let html = await composeHTML(markdown: markdown, documentURL: documentURL, preferences: preferences)
             let strippedHTML = strippingNonDataImages(from: html)
             let attributed = attributedString(from: strippedHTML)
             let pasteboard = NSPasteboard.general

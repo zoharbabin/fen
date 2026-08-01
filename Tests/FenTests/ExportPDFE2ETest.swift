@@ -29,7 +29,7 @@ struct ExportPDFE2ETest {
             let preferences =
                 try Preferences(defaults: #require(UserDefaults(suiteName: "export.pdf.e2e.\(UUID().uuidString)")))
 
-            let html = DocumentPDFExporter().export(
+            let html = await DocumentPDFExporter().export(
                 markdown: "---\ntitle: Notes\n---\n\n# Notes\n\n![photo](photo.png)",
                 documentURL: documentURL,
                 preferences: preferences
@@ -57,7 +57,7 @@ struct ExportPDFE2ETest {
             let preferences =
                 try Preferences(defaults: #require(UserDefaults(suiteName: "export.pdf.e2e.\(UUID().uuidString)")))
 
-            let html = DocumentPDFExporter().export(
+            let html = await DocumentPDFExporter().export(
                 markdown: "---\ntitle: Notes\n---\n\n# Notes\n\n![photo](photo.png)",
                 documentURL: documentURL,
                 preferences: preferences

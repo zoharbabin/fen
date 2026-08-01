@@ -28,14 +28,14 @@ struct ClipboardExporterIsolationTests {
         let exporterB = ClipboardExporter()
 
         async let htmlA = Task { @MainActor in
-            exporterA.composeHTML(
+            await exporterA.composeHTML(
                 markdown: "# Alpha document",
                 documentURL: fixtureA.documentDirectory.appendingPathComponent("a.md"),
                 preferences: Preferences()
             )
         }.value
         async let htmlB = Task { @MainActor in
-            exporterB.composeHTML(
+            await exporterB.composeHTML(
                 markdown: "# Beta document",
                 documentURL: fixtureB.documentDirectory.appendingPathComponent("b.md"),
                 preferences: Preferences()

@@ -42,7 +42,7 @@ struct QuickLookSecurityTests {
     }
 
     @Test @MainActor
-    func pathTraversalImageReferenceIsNeverInlinedIntoThePreview() throws {
+    func pathTraversalImageReferenceIsNeverInlinedIntoThePreview() async throws {
         let (documentDirectory, tempRoot) = try makeFixture()
         defer { try? FileManager.default.removeItem(at: tempRoot) }
 
@@ -58,7 +58,7 @@ struct QuickLookSecurityTests {
         ![leak](../secret/private.png)
         """#.write(to: fileURL, atomically: true, encoding: .utf8)
 
-        let html = try QuickLookPreviewRenderer().render(fileURL: fileURL)
+        let html = try await QuickLookPreviewRenderer().render(fileURL: fileURL)
         #expect(
             !html.contains(secretBytes.base64EncodedString()),
             "an image reference escaping the document directory must never be inlined into the preview"

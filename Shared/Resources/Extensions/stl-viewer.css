@@ -1,0 +1,67 @@
+.fen-stl-container {
+  position: relative;
+  margin: 15px 0;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  border-radius: 6px;
+  overflow: hidden;
+  line-height: 0;
+}
+
+.fen-stl-container canvas {
+  display: block;
+  width: 100%;
+  cursor: grab;
+}
+
+.fen-stl-container canvas:active {
+  cursor: grabbing;
+}
+
+/* Colors use currentColor/opacity rather than a fixed light or dark palette, same reasoning
+   as copy-button.css and mermaid-zoom.css: Fen's themes set body color/background directly
+   rather than through prefers-color-scheme, so a hardcoded light-mode palette here would go
+   illegible on a dark theme. */
+.fen-stl-wireframe-toggle {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid rgba(127, 127, 127, 0.4);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.9);
+  color: #282828;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.fen-stl-container:hover .fen-stl-wireframe-toggle {
+  opacity: 1;
+}
+
+.fen-stl-wireframe-toggle:hover {
+  background: #fff;
+}
+
+.fen-stl-wireframe-toggle.fen-stl-wireframe-toggle-active {
+  opacity: 1;
+  background: rgba(40, 40, 40, 0.9);
+  color: #fff;
+}
+
+.fen-stl-error {
+  margin: 0;
+  padding: 12px 16px;
+  background: rgba(207, 34, 46, 0.08);
+  border-left: 4px solid #cf222e;
+}
+
+.fen-stl-error-message {
+  margin: 0;
+  color: #cf222e;
+  font-size: 0.9em;
+}

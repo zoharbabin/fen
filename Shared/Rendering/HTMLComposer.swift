@@ -47,6 +47,10 @@ public struct HTMLComposer: Sendable {
         styleTags += mermaid.styles
         scriptTags += mermaid.scripts
 
+        let stlViewer = stlViewerTags(preferences: preferences, body: body)
+        styleTags += stlViewer.styles
+        scriptTags += stlViewer.scripts
+
         scriptTags += taskListTags(preferences: preferences)
         scriptTags.append(inlineScript(Self.listMarkerStartJS))
         scriptTags.append(inlineScript(Self.listMarkerWhitespaceJS))
@@ -347,6 +351,7 @@ public struct HTMLComposer: Sendable {
     ) -> String {
         let (styleTags, scriptTags) = exportStyleAndScriptTags(
             preferences: preferences,
+            body: body,
             includeStyles: includeStyles,
             includeHighlighting: includeHighlighting,
             documentOverrides: documentOverrides
@@ -376,6 +381,7 @@ public struct HTMLComposer: Sendable {
     ) -> String {
         var (styleTags, scriptTags) = exportStyleAndScriptTags(
             preferences: preferences,
+            body: body,
             includeStyles: true,
             includeHighlighting: true,
             styleNameOverride: preferences.printStyleName,
@@ -401,6 +407,7 @@ public struct HTMLComposer: Sendable {
     /// both style overrides.
     private func exportStyleAndScriptTags(
         preferences: Preferences,
+        body: String,
         includeStyles: Bool,
         includeHighlighting: Bool,
         styleNameOverride: String? = nil,
@@ -442,6 +449,10 @@ public struct HTMLComposer: Sendable {
         styleTags += mermaid.styles
         scriptTags += mermaid.scripts
 
+        let stlViewer = stlViewerTags(preferences: preferences, body: body)
+        styleTags += stlViewer.styles
+        scriptTags += stlViewer.scripts
+
         scriptTags += renderCompletionTags(preferences: preferences)
 
         if preferences.customCSSEnabled,
@@ -453,15 +464,15 @@ public struct HTMLComposer: Sendable {
     }
 
     /// A signal `PDFRenderer` waits on (issue #84) before rasterizing exported/printed HTML to
-    /// PDF, so Mermaid's and MathJax's async post-load rendering can't race the capture and be
-    /// caught half-drawn or blank. Returns no script at all when neither feature is enabled --
-    /// `window.__fenRenderComplete` stays `undefined`, which `PDFRenderer`'s wait treats as
-    /// already-complete, so a document using neither feature (or raw HTML fed directly into
-    /// `PDFRenderer` by a test, which never sees this script) never waits on a signal nobody
-    /// will ever set. Harmless when the composed HTML is opened directly in a browser (HTML
-    /// export) -- the flag is set and never read by anything there.
+    /// PDF, so Mermaid's, MathJax's, and the STL viewer's (issue #120) async post-load rendering
+    /// can't race the capture and be caught half-drawn or blank. Returns no script at all when
+    /// none of the three are enabled -- `window.__fenRenderComplete` stays `undefined`, which
+    /// `PDFRenderer`'s wait treats as already-complete, so a document using none of them (or raw
+    /// HTML fed directly into `PDFRenderer` by a test, which never sees this script) never waits
+    /// on a signal nobody will ever set. Harmless when the composed HTML is opened directly in a
+    /// browser (HTML export) -- the flag is set and never read by anything there.
     private func renderCompletionTags(preferences: Preferences) -> [String] {
-        guard preferences.htmlMermaid || preferences.htmlMathJax else { return [] }
+        guard preferences.htmlMermaid || preferences.htmlMathJax || preferences.htmlSTLViewer else { return [] }
 
         let mermaidPromise = preferences.htmlMermaid
             ? "(window.__fenMermaidReadyPromise || Promise.resolve())"
@@ -469,10 +480,13 @@ public struct HTMLComposer: Sendable {
         let mathJaxPromise = preferences.htmlMathJax
             ? "((window.MathJax && window.MathJax.startup && window.MathJax.startup.promise) || Promise.resolve())"
             : "Promise.resolve()"
+        let stlPromise = preferences.htmlSTLViewer
+            ? "(window.__fenSTLReadyPromise || Promise.resolve())"
+            : "Promise.resolve()"
 
         let script = """
         window.__fenRenderComplete = false;
-        Promise.all([\(mermaidPromise), \(mathJaxPromise)])
+        Promise.all([\(mermaidPromise), \(mathJaxPromise), \(stlPromise)])
             .then(function () { window.__fenRenderComplete = true; })
             .catch(function () { window.__fenRenderComplete = true; });
         """
@@ -501,7 +515,7 @@ public struct HTMLComposer: Sendable {
         loadResourceFile(name: "line-numbers", ext: "css", subdirectory: "Highlight")
     }
 
-    private func loadExtensionFile(named name: String, ext: String) -> String? {
+    func loadExtensionFile(named name: String, ext: String) -> String? {
         loadResourceFile(name: name, ext: ext, subdirectory: "Extensions")
     }
 

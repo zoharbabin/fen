@@ -52,6 +52,9 @@ If Fen ever charges for anything, we'll favor a one-time purchase over a subscri
 - **Custom preview CSS**, plus per-document `fen:` front-matter overrides for theme and table-of-contents rendering that apply consistently across preview, export, print, and the CLI
 - **Copy-to-clipboard buttons** on every rendered code block in the preview, plus **Copy as Raw HTML** and **Copy as Rich Text Formatted** for the whole document
 - **Syntax highlighting** in code blocks, **MathJax** for equations, and **Mermaid** for diagrams — rendered everywhere: preview, export, print, and the CLI
+- **Emoji shortcodes** (`:tada:`, `:rocket:`, and more) rendered as native Unicode characters
+- **Interactive 3D model viewer** for `stl` code blocks — drag to orbit, scroll to zoom, and toggle between shaded and wireframe rendering per model
+- **Raw-HTML sanitization** — inline HTML in a document is sanitized (via a vendored [DOMPurify](https://github.com/cure53/DOMPurify)) before it reaches the preview, so pasted or authored HTML can't run scripts or load remote content
 - **Export to HTML or PDF, and Print…** — reuse the same rendering pipeline as the live preview
 - **`fen-export` command-line tool** for batch-converting Markdown files to HTML or PDF from a terminal or script
 - **Pure Swift + SwiftUI**, with a cross-platform core (macOS and iOS share `FenCore`) — no Objective-C, no CocoaPods
@@ -104,7 +107,7 @@ Fen is open to contributions — see [CONTRIBUTING.md](CONTRIBUTING.md) for codi
 
 ## License
 
-Fen ships under the **MIT License** ([LICENSE.md](LICENSE.md)). Full license texts for every third-party component live in the [`LICENSE/`](LICENSE/) directory.
+Fen ships under the **MIT License** ([LICENSE.md](LICENSE.md)). Full license texts for every third-party component live in the [`LICENSE/`](LICENSE/) directory, alongside the vendored resource it covers for components bundled directly under `Shared/Resources/` (`Shared/Resources/Extensions/LICENSE-dompurify`, `Shared/Resources/Emoji/LICENSE-gemoji`).
 
 ## Origin and thanks
 
@@ -118,4 +121,4 @@ Fen grew out of a full rewrite of [MacDown](https://github.com/MacDownApp/macdow
 * Clearness / Clearness Dark
 * GitHub / GitHub2
 
-Fen also builds on [Highlightr](https://github.com/raspu/Highlightr), [highlight.js](https://highlightjs.org), [MathJax](https://www.mathjax.org), and [Mermaid](https://mermaid.js.org).
+Fen also builds on [Highlightr](https://github.com/raspu/Highlightr), [highlight.js](https://highlightjs.org), [MathJax](https://www.mathjax.org), [Mermaid](https://mermaid.js.org), [three.js](https://threejs.org), [DOMPurify](https://github.com/cure53/DOMPurify), and GitHub's [gemoji](https://github.com/github/gemoji) shortcode data.

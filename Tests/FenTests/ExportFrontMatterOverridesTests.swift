@@ -17,14 +17,14 @@ struct ExportFrontMatterOverridesTests {
     }
 
     @Test @MainActor
-    func htmlExportUsesTheDocumentsFrontMatterTheme() throws {
+    func htmlExportUsesTheDocumentsFrontMatterTheme() async throws {
         let markdown = "---\nfen:\n  theme: Clearness\n---\n# Title"
         let prefs = try preferences(styleName: "GitHub")
 
-        let html = DocumentHTMLExporter().export(
+        let html = await DocumentHTMLExporter().export(
             markdown: markdown, documentURL: nil, preferences: prefs, mode: .selfContained
         ).html
-        let withoutOverride = DocumentHTMLExporter().export(
+        let withoutOverride = await DocumentHTMLExporter().export(
             markdown: "# Title", documentURL: nil, preferences: prefs, mode: .selfContained
         ).html
 
@@ -32,12 +32,12 @@ struct ExportFrontMatterOverridesTests {
     }
 
     @Test @MainActor
-    func pdfExportUsesTheDocumentsFrontMatterTheme() throws {
+    func pdfExportUsesTheDocumentsFrontMatterTheme() async throws {
         let markdown = "---\nfen:\n  theme: Clearness\n---\n# Title"
         let prefs = try preferences(styleName: "GitHub")
 
-        let html = DocumentPDFExporter().export(markdown: markdown, documentURL: nil, preferences: prefs)
-        let withoutOverride = DocumentPDFExporter().export(
+        let html = await DocumentPDFExporter().export(markdown: markdown, documentURL: nil, preferences: prefs)
+        let withoutOverride = await DocumentPDFExporter().export(
             markdown: "# Title", documentURL: nil, preferences: prefs
         )
 
@@ -45,12 +45,12 @@ struct ExportFrontMatterOverridesTests {
     }
 
     @Test @MainActor
-    func htmlExportRendersATOCWhenFrontMatterRequestsOne() throws {
+    func htmlExportRendersATOCWhenFrontMatterRequestsOne() async throws {
         let markdown = "---\nfen:\n  toc: true\n---\n[TOC]\n\n# Title\n\n## Section"
         let prefs = try preferences()
         prefs.htmlRendersTOC = false
 
-        let html = DocumentHTMLExporter().export(
+        let html = await DocumentHTMLExporter().export(
             markdown: markdown, documentURL: nil, preferences: prefs, mode: .selfContained
         ).html
 
@@ -61,11 +61,11 @@ struct ExportFrontMatterOverridesTests {
     }
 
     @Test @MainActor
-    func malformedFrontMatterDegradesToGlobalPreferencesRatherThanThrowing() throws {
+    func malformedFrontMatterDegradesToGlobalPreferencesRatherThanThrowing() async throws {
         let markdown = "---\nfen: not-a-mapping\n---\n# Title"
         let prefs = try preferences(styleName: "GitHub")
 
-        let html = DocumentHTMLExporter().export(
+        let html = await DocumentHTMLExporter().export(
             markdown: markdown, documentURL: nil, preferences: prefs, mode: .selfContained
         ).html
 
@@ -73,11 +73,11 @@ struct ExportFrontMatterOverridesTests {
     }
 
     @Test @MainActor
-    func disablingFrontMatterDetectionIgnoresTheDocumentsThemeOverride() throws {
+    func disablingFrontMatterDetectionIgnoresTheDocumentsThemeOverride() async throws {
         let markdown = "---\nfen:\n  theme: Clearness\n---\n# Title"
         let prefs = try preferences(detectFrontMatter: false, styleName: "GitHub")
 
-        let html = DocumentHTMLExporter().export(
+        let html = await DocumentHTMLExporter().export(
             markdown: markdown, documentURL: nil, preferences: prefs, mode: .selfContained
         ).html
 

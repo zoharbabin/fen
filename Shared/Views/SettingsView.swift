@@ -146,6 +146,8 @@ struct MarkdownSettingsTab: View {
                 Toggle("Highlight", isOn: $prefs.extensionHighlight)
                 Toggle("Footnotes", isOn: $prefs.extensionFootnotes)
                 Toggle("Alerts", isOn: $prefs.extensionAlerts)
+                Toggle("Emoji shortcodes", isOn: $prefs.extensionEmoji)
+                Toggle("Raw HTML (sanitized)", isOn: $prefs.extensionSanitizeRawHTML)
             }
 
             Section("Processing") {
@@ -239,6 +241,7 @@ struct RenderingSettingsTab: View {
                     Toggle("Inline $ delimiters", isOn: $prefs.htmlMathJaxInlineDollar)
                 }
                 Toggle("Mermaid diagrams", isOn: $prefs.htmlMermaid)
+                Toggle("STL 3D viewer", isOn: $prefs.htmlSTLViewer)
             }
         }
         .formStyle(.grouped)
