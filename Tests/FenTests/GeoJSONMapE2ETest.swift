@@ -238,6 +238,38 @@ struct GeoJSONMapE2ETest {
         #expect(independentContainers)
     }
 
+    @Test("A marker-color point keeps its simplestyle color after Leaflet's own resetStyle pass")
+    @MainActor
+    func markerColorSurvivesResetStyle() async throws {
+        let coloredFeature = """
+        {
+          "type": "Feature",
+          "properties": { "title": "Golden Gate Bridge", "marker-color": "#e6194b" },
+          "geometry": { "type": "Point", "coordinates": [-122.4783, 37.8199] }
+        }
+        """
+        let markdown = "```geojson\n\(coloredFeature)\n```"
+        let webView = try await renderGeoJSONPreviewWebView(markdown: markdown) { prefs in
+            prefs.htmlGeoJSONMaps = true
+        }
+
+        _ = try await pollUntilTrue(
+            webView, js: "!!document.querySelector('.fen-geojson-container path.leaflet-interactive')"
+        )
+
+        // L.geoJSON re-applies its `style` callback to every layer right after creation
+        // (Leaflet's own `resetStyle`), including circleMarkers built by `pointToLayer` -- a
+        // `style` callback that doesn't also honor `marker-color` silently overwrites the
+        // marker's color with its line/fill defaults once that pass runs.
+        let strokeColor = try await webView.evaluateJavaScript(
+            "document.querySelector('.fen-geojson-container path.leaflet-interactive').getAttribute('stroke')"
+        ) as? String
+        #expect(
+            strokeColor?.lowercased() == "#e6194b",
+            "Expected the marker-color property to still be applied after Leaflet's style-reset pass"
+        )
+    }
+
     @Test("A tile load failure still renders the shape, not a blank map (rule 3.1)")
     @MainActor
     func tileLoadFailureStillRendersShapes() async throws {

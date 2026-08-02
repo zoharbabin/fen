@@ -98,8 +98,21 @@
 
   // simplestyle-spec styling: https://github.com/mapbox/simplestyle-spec -- the same properties
   // GitHub's own GeoJSON renderer honors, so a block styled for GitHub looks the same in Fen.
+  //
+  // L.geoJSON calls this for every feature layer it creates, including circleMarkers built by
+  // `pointToLayer` below -- it re-applies the returned style via `setStyle` right after creation
+  // (Leaflet's `resetStyle`), which would silently overwrite a point's `marker-color` with this
+  // function's line/fill defaults unless this function itself special-cases points.
   function styleForFeature(feature) {
     var props = feature.properties || {};
+    if (props["marker-color"]) {
+      return {
+        radius: 8,
+        color: props["marker-color"],
+        fillColor: props["marker-color"],
+        fillOpacity: 0.8,
+      };
+    }
     return {
       color: props.stroke || "#3388ff",
       weight: props["stroke-width"] != null ? props["stroke-width"] : 2,
@@ -112,12 +125,7 @@
   function pointToLayer(feature, latlng) {
     var props = feature.properties || {};
     if (props["marker-color"]) {
-      return L.circleMarker(latlng, {
-        radius: 8,
-        color: props["marker-color"],
-        fillColor: props["marker-color"],
-        fillOpacity: 0.8,
-      });
+      return L.circleMarker(latlng, styleForFeature(feature));
     }
     return L.marker(latlng);
   }
