@@ -76,8 +76,8 @@ Requirements: macOS 15+ and a recent Xcode / Swift 6 toolchain.
 git clone https://github.com/zoharbabin/fen.git
 cd fen
 
-swift build          # build the package
-swift test           # run the test suite
+swift build                     # build the package
+swift test --no-parallel        # run the test suite
 swift run Fen        # launch the macOS app
 
 ./scripts/build-app.sh   # produce dist/Fen.app

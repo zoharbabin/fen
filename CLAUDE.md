@@ -7,10 +7,10 @@ Fen is a native Swift/SwiftUI Markdown editor. Read [README.md](README.md) for w
 ```sh
 swiftformat .
 swiftlint
-swift test
+swift test --no-parallel
 ```
 
-Run all three — they're the same checks CI runs (`.github/workflows/ci.yml`). If you touch the editor, preview, or scroll sync, also run the UI tests locally; CI doesn't cover them yet:
+Run all three — they're the same checks CI runs (`.github/workflows/ci.yml`). Use `--no-parallel`: several suites drive a real `WKWebView`, and running them concurrently contends for shared resources (the system pasteboard, temp files, WebView startup) and produces false failures that vanish when rerun serially — see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#ci-and-releases) for the full explanation. If you touch the editor, preview, or scroll sync, also run the UI tests locally; CI doesn't cover them yet:
 
 ```sh
 xcodegen generate                 # regenerate FenUITesting.xcodeproj from project.yml
@@ -51,7 +51,7 @@ Build and review every change to the strictest reasonable bar — enterprise and
 
 1. **Open a [GitHub issue](https://github.com/zoharbabin/fen/issues)** for anything beyond a trivial fix — bug report or feature proposal, checked against the [open issues list](https://github.com/zoharbabin/fen/issues) first to avoid duplicating an existing one.
 2. **Branch, then PR.** Work on a branch and open a PR for review — `master` has branch protection enforcing this (a required PR and a required `lint & swift test (macOS)` status check), including for admins.
-3. **Every PR needs**: `swift build`, `swift test`, `swiftformat .`, and `swiftlint` clean (CI enforces this). Pair new behavior with a test, and pair bug fixes with a regression test that fails before the fix and passes after. See [CONTRIBUTING.md](CONTRIBUTING.md#tests).
+3. **Every PR needs**: `swift build`, `swift test --no-parallel`, `swiftformat .`, and `swiftlint` clean (CI enforces this). Pair new behavior with a test, and pair bug fixes with a regression test that fails before the fix and passes after. See [CONTRIBUTING.md](CONTRIBUTING.md#tests).
 4. **Run UI tests yourself for anything touching `SplitEditorView`, the editor, or the preview** — `UITests/` exercises real window/document interaction and isn't wired into `ci.yml` yet. Mention in the PR description that you ran them.
 5. **Close the loop.** Reference the issue in the PR, and close the issue (or check its acceptance-criteria boxes) in the same PR when the change finishes it. If the issue is a sub-issue of an epic (e.g. #3), its parent's progress tracker updates automatically.
 
