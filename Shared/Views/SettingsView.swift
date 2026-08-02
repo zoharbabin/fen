@@ -76,9 +76,20 @@ struct EditorSettingsTab: View {
             }
 
             Section("Theme") {
-                Picker("Editor Theme", selection: $prefs.editorStyleName) {
+                Picker("Editor Theme", selection: $prefs.editorThemeFamily) {
+                    ForEach(MarkdownSyntaxHighlighter.availableEditorThemeFamilyNames(), id: \.self) { family in
+                        Text(family).tag(family)
+                    }
+                }
+                Picker("Appearance", selection: $prefs.editorAppearanceMode) {
+                    Text("Follow System").tag(PreviewAppearanceMode.system)
+                    Text("Light").tag(PreviewAppearanceMode.light)
+                    Text("Dark").tag(PreviewAppearanceMode.dark)
+                }
+                Picker("Advanced (all themes)", selection: $prefs.editorAdvancedThemeOverride) {
+                    Text("None (use Theme + Appearance above)").tag(String?.none)
                     ForEach(MarkdownSyntaxHighlighter.availableThemes, id: \.self) { theme in
-                        Text(theme).tag(theme)
+                        Text(theme).tag(String?.some(theme))
                     }
                 }
             }
