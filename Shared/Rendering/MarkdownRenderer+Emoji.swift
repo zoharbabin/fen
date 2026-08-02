@@ -23,7 +23,15 @@ extension MarkdownRenderer {
 
     /// Every alias in `emojiShortcodes` is `[A-Za-z0-9_+-]+` (confirmed against the source data),
     /// so this character class is safe without further escaping.
-    private static let emojiPattern = #"<pre[^>]*>.*?</pre>|<code[^>]*>.*?</code>|<[^>]*>|:([A-Za-z0-9_+-]+):"#
+    ///
+    /// The `[0-9A-Fa-f]{1,4}(?::[0-9A-Fa-f]{1,4}){2,}` alternative matches a run of 3+
+    /// colon-separated hex groups -- a MAC address (6 groups) or IPv6 address (up to 8 groups) --
+    /// *before* the shortcode alternative gets a chance at any colon inside that run (issue #125).
+    /// A genuine shortcode like `:de:` has only one colon pair, not 2+ repetitions, so it's
+    /// unaffected; a MAC/IPv6 byte that happens to equal a hex-valued alias (`ab`, `cd`, `de`) is
+    /// swallowed whole by this alternative first and never reaches the shortcode lookup.
+    private static let emojiPattern =
+        #"<pre[^>]*>.*?</pre>|<code[^>]*>.*?</code>|<[^>]*>|[0-9A-Fa-f]{1,4}(?::[0-9A-Fa-f]{1,4}){2,}|:([A-Za-z0-9_+-]+):"#
 
     /// Replaces every `:shortcode:` span with its looked-up unicode emoji character, skipping any
     /// span inside a `<pre>`/`<code>` block or inside any HTML tag itself -- the same
