@@ -277,7 +277,7 @@ public struct SplitEditorView: View {
         MarkdownTextView(
             text: $document.text,
             font: editorFont,
-            highlightThemeName: preferences.editorStyleName,
+            highlightThemeName: MarkdownSyntaxHighlighter.resolveEditorThemeName(preferences: preferences),
             lineSpacing: preferences.editorLineSpacing,
             horizontalInset: preferences.editorHorizontalInset,
             verticalInset: preferences.editorVerticalInset,

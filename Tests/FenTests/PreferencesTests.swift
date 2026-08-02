@@ -17,7 +17,9 @@ struct PreferencesTests {
         let (prefs, _) = Self.isolated()
         #expect(prefs.editorFontName == "Menlo-Regular")
         #expect(prefs.fontSize == 14)
-        #expect(prefs.editorStyleName == "xcode")
+        #expect(prefs.editorThemeFamily == "xcode")
+        #expect(prefs.editorAppearanceMode == .system)
+        #expect(prefs.editorAdvancedThemeOverride == nil)
         #expect(prefs.htmlStyleName == "GitHub2")
         #expect(prefs.extensionTables == true)
         #expect(prefs.extensionAutolink == true)
@@ -99,7 +101,9 @@ struct PreferencesTests {
         let (prefs, _) = Self.isolated()
         let base = prefs.renderRevision
 
-        prefs.editorStyleName = "github-dark"
+        prefs.editorThemeFamily = "github"
+        prefs.editorAppearanceMode = .dark
+        prefs.editorAdvancedThemeOverride = "github-dark"
         prefs.editorScrollsPastEnd.toggle()
         prefs.editorShowWordCount.toggle()
         prefs.editorConvertTabs.toggle()
