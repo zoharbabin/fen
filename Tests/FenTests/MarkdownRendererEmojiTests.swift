@@ -80,6 +80,54 @@ struct MarkdownRendererEmojiTests {
         #expect(!result.html.contains("title=\"🚀\""))
     }
 
+    @Test("A MAC address is left untouched despite containing hex-valued shortcode aliases")
+    func macAddressIsUntouched() {
+        var opts = MarkdownRenderer.Options()
+        opts.emojiShortcodes = true
+        let result = renderer.render("Device MAC: a0:08:f3:e5:fa:d9", options: opts)
+        #expect(result.html.contains("a0:08:f3:e5:fa:d9"))
+    }
+
+    @Test("A MAC address containing :ab: and :de: bytes is left untouched")
+    func macAddressWithHexAliasBytesIsUntouched() {
+        var opts = MarkdownRenderer.Options()
+        opts.emojiShortcodes = true
+        let result = renderer.render("MAC: 3c:0b:59:de:37:25 and 20:43:ab:d3:b8:11", options: opts)
+        #expect(result.html.contains("3c:0b:59:de:37:25"))
+        #expect(result.html.contains("20:43:ab:d3:b8:11"))
+        #expect(!result.html.contains("🇩🇪"))
+        #expect(!result.html.contains("🆎"))
+    }
+
+    @Test("An IPv6 address is left untouched")
+    func ipv6AddressIsUntouched() {
+        var opts = MarkdownRenderer.Options()
+        opts.emojiShortcodes = true
+        let result = renderer.render("Host: 2001:0db8:0000:0000:0000:ff00:0042:8329", options: opts)
+        #expect(result.html.contains("2001:0db8:0000:0000:0000:ff00:0042:8329"))
+    }
+
+    @Test("A MAC address inside a table cell is left untouched")
+    func macAddressInTableCellIsUntouched() {
+        var opts = MarkdownRenderer.Options()
+        opts.emojiShortcodes = true
+        let result = renderer.render(
+            "| Device | MAC |\n| --- | --- |\n| router | a0:08:f3:e5:fa:d9 |",
+            options: opts
+        )
+        #expect(result.html.contains("a0:08:f3:e5:fa:d9"))
+        #expect(!result.html.contains("🌐"))
+    }
+
+    @Test("A genuine standalone shortcode still converts next to hex-alias-adjacent prose")
+    func standaloneShortcodeStillConvertsNearHexText() {
+        var opts = MarkdownRenderer.Options()
+        opts.emojiShortcodes = true
+        let result = renderer.render("Nice one :de: and also :ab:", options: opts)
+        #expect(result.html.contains("🇩🇪"))
+        #expect(result.html.contains("🆎"))
+    }
+
     @Test("The bundled shortcode table loads and is non-empty")
     func shortcodeTableLoads() {
         #expect(!MarkdownRenderer.emojiShortcodes.isEmpty)
