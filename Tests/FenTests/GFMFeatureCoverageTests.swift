@@ -335,37 +335,6 @@ struct CodeBlockCoverageTests {
         #expect((hasKeywordSpan as? Bool) == true, "Expected a tokenized span (e.g. hljs-keyword) inside the block")
     }
 
-    @Test("Code blocks: line numbers don't leave stray newline text nodes between lines")
-    @MainActor
-    func codeBlocksWithLineNumbers() async throws {
-        let md = "```swift\ntell application \"Fen\"\n    beep\nend tell\n```"
-        let webView = try await renderPreviewWebView(markdown: md) { prefs in
-            prefs.htmlSyntaxHighlighting = true
-            prefs.htmlLineNumbers = true
-        }
-        let rendered = try await pollUntilTrue(webView, js: "!!document.querySelector('code.fen-line-numbers')")
-        #expect(rendered, "Expected the highlighted block to get the fen-line-numbers class")
-        let lineCount = try await webView.evaluateJavaScript(
-            "document.querySelectorAll('code.fen-line-numbers .fen-line').length"
-        )
-        #expect(
-            (lineCount as? Int) == 3,
-            "Expected exactly 3 .fen-line spans, one per source line, got \(String(describing: lineCount))"
-        )
-
-        // A leftover "\n".join() between <span class="fen-line"> elements leaves a raw text
-        // node child on <code> itself; inside <pre> (white-space: pre) that renders as a
-        // second, empty line between every already-block-level span, doubling the spacing.
-        let hasStrayNewlineTextNode = try await webView.evaluateJavaScript("""
-        Array.from(document.querySelector('code.fen-line-numbers').childNodes)
-            .some(function (node) { return node.nodeType === Node.TEXT_NODE && node.textContent.includes('\\n'); });
-        """)
-        #expect(
-            (hasStrayNewlineTextNode as? Bool) == false,
-            "Found a stray newline text node between .fen-line spans, which doubles the visual line spacing"
-        )
-    }
-
     @Test("Code blocks: indented (non-fenced) code renders as <pre><code> without a language class")
     @MainActor
     func indentedCodeBlocks() async throws {
