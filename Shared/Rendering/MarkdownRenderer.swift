@@ -23,6 +23,17 @@ public struct MarkdownRenderer: Sendable {
         /// issue #29), so this is applied as a post-processing pass over the rendered HTML,
         /// following the same technique as `highlight` above -- see `applyAlertMarkup`.
         public var alerts: Bool = true
+        /// `:rocket:` -> "🚀". Not a cmark-gfm extension (no such syntax extension exists
+        /// there), so this is applied as a post-processing pass over the rendered HTML, same as
+        /// `highlight` above -- see `applyEmojiShortcodes` in `MarkdownRenderer+Emoji.swift`.
+        public var emojiShortcodes: Bool = true
+        /// Lets raw HTML in the source pass through cmark-gfm (which otherwise strips it to an
+        /// HTML comment) via `CMARK_OPT_UNSAFE`, matching GitHub's rendering of tags like
+        /// `<details>`/`<sub>`/`<kbd>`. Always paired with an async DOMPurify sanitize pass --
+        /// see `HTMLSanitizer` -- run by the caller between `render` and `HTMLComposer.compose`;
+        /// this flag only controls whether cmark emits the raw HTML for that pass to clean, it
+        /// does not sanitize by itself. See issue #118.
+        public var sanitizeRawHTML: Bool = true
         public var renderTOC: Bool = false
         public var detectFrontMatter: Bool = true
         /// Emits `data-sourcepos="startLine:col-endLine:col"` on block elements, which
@@ -46,6 +57,8 @@ public struct MarkdownRenderer: Sendable {
             opts.footnotes = preferences.extensionFootnotes
             opts.highlight = preferences.extensionHighlight
             opts.alerts = preferences.extensionAlerts
+            opts.emojiShortcodes = preferences.extensionEmoji
+            opts.sanitizeRawHTML = preferences.extensionSanitizeRawHTML
             return opts
         }
     }
@@ -132,10 +145,15 @@ public struct MarkdownRenderer: Sendable {
         }
 
         // Parse markdown to AST
+        // CMARK_OPT_UNSAFE lets raw HTML in the source through -- cmark-gfm otherwise strips it
+        // to an HTML comment. Always paired with the caller running `HTMLSanitizer` (vendored
+        // DOMPurify) on the returned `html` before it reaches a WKWebView or an export -- see
+        // issue #118 and the `sanitizeRawHTML` doc comment on `Options`.
         let cmarkOptions: Int32 = (options.footnotes ? CMARK_OPT_FOOTNOTES : 0)
             | (options.hardBreaks ? CMARK_OPT_HARDBREAKS : 0)
             | (options.smartPunctuation ? CMARK_OPT_SMART : 0)
             | (options.sourcePositions ? CMARK_OPT_SOURCEPOS : 0)
+            | (options.sanitizeRawHTML ? CMARK_OPT_UNSAFE : 0)
 
         guard let parser = cmark_parser_new(cmarkOptions) else {
             return .empty
@@ -164,6 +182,10 @@ public struct MarkdownRenderer: Sendable {
 
         if options.alerts {
             html = applyAlertMarkup(to: html)
+        }
+
+        if options.emojiShortcodes {
+            html = applyEmojiShortcodes(to: html)
         }
 
         // Heading extraction always runs so RenderResult.headings is populated regardless of

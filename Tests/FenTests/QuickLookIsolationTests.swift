@@ -26,8 +26,8 @@ struct QuickLookIsolationTests {
             try? FileManager.default.removeItem(at: fixtureB.tempRoot)
         }
 
-        async let htmlA = try QuickLookPreviewRenderer().render(fileURL: fixtureA.fileURL)
-        async let htmlB = try QuickLookPreviewRenderer().render(fileURL: fixtureB.fileURL)
+        async let htmlA = QuickLookPreviewRenderer().render(fileURL: fixtureA.fileURL)
+        async let htmlB = QuickLookPreviewRenderer().render(fileURL: fixtureB.fileURL)
         let (outputA, outputB) = try await (htmlA, htmlB)
 
         #expect(outputA.contains("Alpha document"))
@@ -40,7 +40,7 @@ struct QuickLookIsolationTests {
     }
 
     @Test @MainActor
-    func eachRenderConstructsItsOwnPreferencesRatherThanSharingState() throws {
+    func eachRenderConstructsItsOwnPreferencesRatherThanSharingState() async throws {
         let fixture = try makeFixture(name: "prefs", markdown: "plain text, no math or diagrams")
         defer { try? FileManager.default.removeItem(at: fixture.tempRoot) }
 
@@ -49,8 +49,8 @@ struct QuickLookIsolationTests {
         prefsA.htmlMermaid = true
         prefsB.htmlMermaid = false
 
-        let htmlA = try QuickLookPreviewRenderer().render(fileURL: fixture.fileURL, preferences: prefsA)
-        let htmlB = try QuickLookPreviewRenderer().render(fileURL: fixture.fileURL, preferences: prefsB)
+        let htmlA = try await QuickLookPreviewRenderer().render(fileURL: fixture.fileURL, preferences: prefsA)
+        let htmlB = try await QuickLookPreviewRenderer().render(fileURL: fixture.fileURL, preferences: prefsB)
 
         #expect(htmlA.contains("mermaid"))
         #expect(!htmlB.contains("mermaid"), "renderer B's own Preferences instance must not see renderer A's toggle")

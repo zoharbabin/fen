@@ -28,7 +28,8 @@ public struct QuickLookPreviewRenderer: Sendable {
     /// app's `DocumentGroup` (issue #34) -- the extension constructs its own rather than reaching
     /// for `Preferences.shared` across a process boundary, where that singleton wouldn't apply
     /// anyway.
-    public func render(fileURL: URL, preferences: Preferences = Preferences()) throws -> String {
+    @MainActor
+    public func render(fileURL: URL, preferences: Preferences = Preferences()) async throws -> String {
         let attributes = try FileManager.default.attributesOfItem(atPath: fileURL.path)
         let byteCount = (attributes[.size] as? Int) ?? 0
         guard byteCount <= Self.maxPreviewableFileBytes else {
@@ -37,7 +38,7 @@ public struct QuickLookPreviewRenderer: Sendable {
         guard let markdown = try? String(contentsOf: fileURL, encoding: .utf8) else {
             throw RenderError.unreadable
         }
-        let exported = DocumentHTMLExporter().export(
+        let exported = await DocumentHTMLExporter().export(
             markdown: markdown, documentURL: fileURL, preferences: preferences, mode: .selfContained
         )
         return exported.html

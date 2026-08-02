@@ -22,13 +22,13 @@ struct ExportHTMLE2ETest {
     }
 
     @Test @MainActor
-    func selfContainedExportWritesOneStandaloneHTMLFile() throws {
+    func selfContainedExportWritesOneStandaloneHTMLFile() async throws {
         let (documentURL, tempRoot) = try makeFixture()
         defer { try? FileManager.default.removeItem(at: tempRoot) }
         let preferences =
             try Preferences(defaults: #require(UserDefaults(suiteName: "export.e2e.\(UUID().uuidString)")))
 
-        let result = DocumentHTMLExporter().export(
+        let result = await DocumentHTMLExporter().export(
             markdown: "---\ntitle: Notes\n---\n\n![photo](photo.png)",
             documentURL: documentURL,
             preferences: preferences,
@@ -45,13 +45,13 @@ struct ExportHTMLE2ETest {
     }
 
     @Test @MainActor
-    func linkedAssetsExportWritesHTMLPlusAssetsFolder() throws {
+    func linkedAssetsExportWritesHTMLPlusAssetsFolder() async throws {
         let (documentURL, tempRoot) = try makeFixture()
         defer { try? FileManager.default.removeItem(at: tempRoot) }
         let preferences =
             try Preferences(defaults: #require(UserDefaults(suiteName: "export.e2e.\(UUID().uuidString)")))
 
-        let result = DocumentHTMLExporter().export(
+        let result = await DocumentHTMLExporter().export(
             markdown: "# Notes\n\n![photo](photo.png)",
             documentURL: documentURL,
             preferences: preferences,
@@ -69,13 +69,13 @@ struct ExportHTMLE2ETest {
     }
 
     @Test @MainActor
-    func linkedAssetsExportDocumentBuildsDirectoryFileWrapperForFileExporter() throws {
+    func linkedAssetsExportDocumentBuildsDirectoryFileWrapperForFileExporter() async throws {
         let (documentURL, tempRoot) = try makeFixture()
         defer { try? FileManager.default.removeItem(at: tempRoot) }
         let preferences =
             try Preferences(defaults: #require(UserDefaults(suiteName: "export.e2e.\(UUID().uuidString)")))
 
-        let result = DocumentHTMLExporter().export(
+        let result = await DocumentHTMLExporter().export(
             markdown: "# Notes\n\n![photo](photo.png)",
             documentURL: documentURL,
             preferences: preferences,

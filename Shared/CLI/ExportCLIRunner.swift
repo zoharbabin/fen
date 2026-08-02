@@ -166,7 +166,7 @@
                 let mode: ExportAssetMode = arguments.linkedAssets
                     ? .linkedAssets(exportBaseName: baseName)
                     : .selfContained
-                let exported = DocumentHTMLExporter().export(
+                let exported = await DocumentHTMLExporter().export(
                     markdown: markdown, documentURL: inputURL, preferences: preferences, mode: mode
                 )
                 let destination = outputDirectoryURL.appendingPathComponent("\(baseName).html")
@@ -177,7 +177,7 @@
                     return CLIExportResult(outputURL: nil, errorMessage: error.localizedDescription)
                 }
             case .pdf:
-                let html = DocumentPDFExporter().export(
+                let html = await DocumentPDFExporter().export(
                     markdown: markdown, documentURL: inputURL, preferences: preferences
                 )
                 let destination = outputDirectoryURL.appendingPathComponent("\(baseName).pdf")

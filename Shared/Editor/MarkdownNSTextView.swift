@@ -149,10 +149,20 @@
         /// final newline) so callers can skip that sample.
         func lineTop(forCharacterIndex index: Int) -> CGFloat? {
             guard let layoutManager, let textContainer else { return nil }
-            let length = (string as NSString).length
-            guard index >= 0, index < length else { return nil }
+            let text = string as NSString
+            let length = text.length
+            guard index >= 0, index <= length else { return nil }
             layoutManager.ensureLayout(for: textContainer)
-            let glyphIndex = layoutManager.glyphIndexForCharacter(at: index)
+            // `index == length` is a valid caret position whenever the text has no trailing
+            // newline (e.g. after moveToEndOfDocument: on a document with no final \n) -- it
+            // sits on the last character's own line, not past it. `glyphIndexForCharacter(at:)`
+            // only resolves in-bounds character indices though, so resolve that one case against
+            // the last real character instead. A trailing newline makes `index == length` the
+            // separate, empty line *after* it, which this function still doesn't resolve.
+            let hasTrailingNewline = length > 0 && text.character(at: length - 1) == 10
+            let resolvedIndex = (index == length && length > 0 && !hasTrailingNewline) ? length - 1 : index
+            guard resolvedIndex < length else { return nil }
+            let glyphIndex = layoutManager.glyphIndexForCharacter(at: resolvedIndex)
             let rect = layoutManager.lineFragmentRect(forGlyphAt: glyphIndex, effectiveRange: nil)
             return rect.origin.y + textContainerInset.height
         }

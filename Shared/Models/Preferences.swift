@@ -65,6 +65,24 @@ public final class Preferences {
         }
     }
 
+    /// Defaults on, matching `extensionAlerts`' reasoning: the `:shortcode:` marker is specific
+    /// enough (bounded alias set, `[A-Za-z0-9_+-]+` between colons) that accidental collision
+    /// with real prose is effectively impossible -- see issue #119.
+    var extensionEmoji: Bool = true {
+        didSet { defaults.set(extensionEmoji, forKey: "extensionEmoji")
+            renderRevision += 1
+        }
+    }
+
+    /// Defaults on, matching GitHub's own rendering of raw HTML tags like `<details>`/`<sub>`/
+    /// `<kbd>` in Markdown source. Every render with this on is sanitized by `HTMLSanitizer`
+    /// (vendored DOMPurify) before the HTML reaches the preview or an export -- see issue #118.
+    var extensionSanitizeRawHTML: Bool = true {
+        didSet { defaults.set(extensionSanitizeRawHTML, forKey: "extensionSanitizeRawHTML")
+            renderRevision += 1
+        }
+    }
+
     var markdownManualRender: Bool = false {
         didSet { defaults.set(markdownManualRender, forKey: "markdownManualRender") }
     }
@@ -336,6 +354,16 @@ public final class Preferences {
         }
     }
 
+    /// Defaults off, matching `htmlMermaid`/`htmlMathJax`'s off-by-default convention for
+    /// heavier optional renderers -- see issue #120. three.js + STLLoader + OrbitControls only
+    /// load into the composed document when this is on AND the document actually contains an
+    /// `stl` fenced block (`HTMLComposer.stlViewerTags`), so documents with neither pay zero cost.
+    var htmlSTLViewer: Bool = false {
+        didSet { defaults.set(htmlSTLViewer, forKey: "htmlSTLViewer")
+            renderRevision += 1
+        }
+    }
+
     var htmlRendersTOC: Bool = false {
         didSet { defaults.set(htmlRendersTOC, forKey: "htmlRendersTOC")
             renderRevision += 1
@@ -372,6 +400,10 @@ public final class Preferences {
             ? defaults.bool(forKey: "extensionFootnotes") : true
         extensionAlerts = defaults.object(forKey: "extensionAlerts") != nil
             ? defaults.bool(forKey: "extensionAlerts") : true
+        extensionEmoji = defaults.object(forKey: "extensionEmoji") != nil
+            ? defaults.bool(forKey: "extensionEmoji") : true
+        extensionSanitizeRawHTML = defaults.object(forKey: "extensionSanitizeRawHTML") != nil
+            ? defaults.bool(forKey: "extensionSanitizeRawHTML") : true
         extensionSmartyPants = defaults.bool(forKey: "extensionSmartyPants")
         markdownManualRender = defaults.bool(forKey: "markdownManualRender")
     }
@@ -443,6 +475,7 @@ public final class Preferences {
         htmlCopyButton = defaults.object(forKey: "htmlCopyButton") != nil
             ? defaults.bool(forKey: "htmlCopyButton") : true
         htmlMermaid = defaults.bool(forKey: "htmlMermaid")
+        htmlSTLViewer = defaults.bool(forKey: "htmlSTLViewer")
         htmlRendersTOC = defaults.bool(forKey: "htmlRendersTOC")
     }
 }

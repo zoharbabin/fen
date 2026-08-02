@@ -27,11 +27,10 @@ import Foundation
         /// Composes `document` into print-ready HTML via `DocumentPDFExporter` (the same pipeline
         /// #30's PDF export uses, issue #32 rule 2.2) and presents the system print panel for it.
         public func printDocument(document: MarkdownDocument, preferences: Preferences) {
-            let html = DocumentPDFExporter().export(
-                markdown: document.text, documentURL: document.fileURL, preferences: preferences
-            )
-
             Task {
+                let html = await DocumentPDFExporter().export(
+                    markdown: document.text, documentURL: document.fileURL, preferences: preferences
+                )
                 do {
                     try await PDFRenderer().printDocument(
                         html: html, baseDirectory: document.fileURL?.deletingLastPathComponent()

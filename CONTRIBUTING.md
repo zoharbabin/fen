@@ -8,7 +8,7 @@ Thanks for considering a contribution. Fen is a small, focused project — your 
 git clone https://github.com/zoharbabin/fen.git
 cd fen
 swift build
-swift test
+swift test --no-parallel
 ```
 
 See [README.md](README.md) for project layout and [docs/RELEASING.md](docs/RELEASING.md) for how signed builds get cut.
@@ -20,8 +20,10 @@ Run these locally — they're the same checks CI runs:
 ```sh
 swiftformat .
 swiftlint
-swift test
+swift test --no-parallel
 ```
+
+Use `--no-parallel`: several suites drive a real `WKWebView`, and running them concurrently contends for shared resources (the system pasteboard, temp files, WebView startup) and produces false failures that vanish when rerun serially — see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#ci-and-releases).
 
 `.swiftformat` and `.swiftlint.yml` at the repo root define the rules; don't fight them with inline disables unless there's a real reason, and leave a comment explaining it when you do.
 
@@ -54,7 +56,7 @@ Follow the [standard git convention](http://tbaggery.com/2008/04/19/a-note-about
 
 - Keep PRs focused — one logical change per PR is easier to review and easier to revert if something's wrong.
 - Rebase onto `master` before opening the PR; keep history clean rather than merging `master` in repeatedly.
-- Make sure `swift build`, `swift test`, `swiftformat`, and `swiftlint` are all clean before requesting review.
+- Make sure `swift build`, `swift test --no-parallel`, `swiftformat`, and `swiftlint` are all clean before requesting review.
 
 ## Reporting bugs
 

@@ -35,11 +35,10 @@ import Foundation
 
             guard panel.runModal() == .OK, let destination = panel.url else { return }
 
-            let html = DocumentPDFExporter().export(
-                markdown: document.text, documentURL: document.fileURL, preferences: preferences
-            )
-
             Task {
+                let html = await DocumentPDFExporter().export(
+                    markdown: document.text, documentURL: document.fileURL, preferences: preferences
+                )
                 do {
                     try await PDFRenderer().renderPDF(
                         html: html, baseDirectory: document.fileURL?.deletingLastPathComponent(), to: destination

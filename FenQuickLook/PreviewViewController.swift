@@ -36,12 +36,14 @@ class PreviewViewController: NSViewController, @MainActor QLPreviewingController
     /// `QuickLookPreviewRenderer.render` never throws for well-formed Markdown of any content,
     /// only for the size cap and unreadable-file cases this maps to `NSError`.
     func preparePreviewOfFile(at url: URL, completionHandler handler: @escaping (Error?) -> Void) {
-        do {
-            let html = try QuickLookPreviewRenderer().render(fileURL: url)
-            webView.loadHTMLString(html, baseURL: nil)
-            handler(nil)
-        } catch {
-            handler(error)
+        Task {
+            do {
+                let html = try await QuickLookPreviewRenderer().render(fileURL: url)
+                webView.loadHTMLString(html, baseURL: nil)
+                handler(nil)
+            } catch {
+                handler(error)
+            }
         }
     }
 }

@@ -26,11 +26,11 @@ struct ClipboardExporterTests {
     }
 
     @Test @MainActor
-    func composedSelfContainedHTMLConvertsToNonEmptyRichText() throws {
+    func composedSelfContainedHTMLConvertsToNonEmptyRichText() async throws {
         let preferences =
             try Preferences(defaults: #require(UserDefaults(suiteName: "clipboard.tests.\(UUID().uuidString)")))
         let exporter = ClipboardExporter()
-        let html = exporter.composeHTML(
+        let html = await exporter.composeHTML(
             markdown: "# Title\n\nSome **bold** text.",
             documentURL: nil,
             preferences: preferences

@@ -64,6 +64,13 @@ final class FirstRunUITests: XCTestCase {
         for path in paths {
             try? fileManager.removeItem(at: path)
         }
+
+        // Deleting the plist file above doesn't tell cfprefsd -- macOS's system-wide preferences
+        // daemon -- to drop its own in-memory cache of this domain, so a Fen process launched
+        // right after a previous one can still read a stale cached `hasCompletedFirstRun = true`
+        // even though the file backing it is gone. `removePersistentDomain` goes through
+        // cfprefsd's real API instead of the filesystem, which does evict that cache.
+        UserDefaults(suiteName: Self.bundleIdentifier)?.removePersistentDomain(forName: Self.bundleIdentifier)
     }
 
     private func launchBare() throws {

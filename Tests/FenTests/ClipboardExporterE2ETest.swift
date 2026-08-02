@@ -15,11 +15,11 @@ import Testing
 struct ClipboardExporterE2ETest {
     #if os(macOS)
         @Test @MainActor
-        func copyAsRawHTMLWritesOnlyPlainTextWithLiteralMarkupToTheGeneralPasteboard() throws {
+        func copyAsRawHTMLWritesOnlyPlainTextWithLiteralMarkupToTheGeneralPasteboard() async throws {
             let preferences =
                 try Preferences(defaults: #require(UserDefaults(suiteName: "clipboard.e2e.\(UUID().uuidString)")))
 
-            ClipboardExporter().copyAsRawHTML(
+            await ClipboardExporter().copyAsRawHTML(
                 markdown: "---\ntitle: Notes\n---\n\n# Title\n\nSome **bold** text.",
                 documentURL: nil,
                 preferences: preferences
@@ -37,11 +37,11 @@ struct ClipboardExporterE2ETest {
         }
 
         @Test @MainActor
-        func copyAsRichTextFormattedWritesRTFHTMLAndPlainTextToTheGeneralPasteboard() throws {
+        func copyAsRichTextFormattedWritesRTFHTMLAndPlainTextToTheGeneralPasteboard() async throws {
             let preferences =
                 try Preferences(defaults: #require(UserDefaults(suiteName: "clipboard.e2e.\(UUID().uuidString)")))
 
-            ClipboardExporter().copyAsRichTextFormatted(
+            await ClipboardExporter().copyAsRichTextFormatted(
                 markdown: "---\ntitle: Notes\n---\n\n# Title\n\nSome **bold** text.",
                 documentURL: nil,
                 preferences: preferences
@@ -65,7 +65,7 @@ struct ClipboardExporterE2ETest {
         }
 
         @Test @MainActor
-        func copyAsRichTextFormattedOmitsRTFButStillWritesFallbacksWhenAnImageReferenceIsRemote() throws {
+        func copyAsRichTextFormattedOmitsRTFButStillWritesFallbacksWhenAnImageReferenceIsRemote() async throws {
             let preferences =
                 try Preferences(defaults: #require(UserDefaults(suiteName: "clipboard.e2e.\(UUID().uuidString)")))
 
@@ -73,7 +73,7 @@ struct ClipboardExporterE2ETest {
             // 2.3), then gets stripped by ClipboardExporter before rich-text conversion (rule
             // 2.3) -- this proves the full pipeline still produces usable fallbacks even though
             // no image makes it into the rich-text representation.
-            ClipboardExporter().copyAsRichTextFormatted(
+            await ClipboardExporter().copyAsRichTextFormatted(
                 markdown: "# Title\n\n![remote](http://example.com/photo.png)\n\nSome text.",
                 documentURL: nil,
                 preferences: preferences

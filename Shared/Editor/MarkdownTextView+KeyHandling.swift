@@ -216,8 +216,10 @@
             with replacement: String
         ) {
             guard textView.shouldChangeText(in: range, replacementString: replacement) else { return }
+            isPerformingProgrammaticTextEdit = true
             textView.textStorage?.replaceCharacters(in: range, with: replacement)
             textView.didChangeText()
+            isPerformingProgrammaticTextEdit = false
             parent.text = textView.string
             parent.onTextChange?()
         }
