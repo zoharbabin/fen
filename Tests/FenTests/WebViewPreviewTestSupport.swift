@@ -15,7 +15,8 @@ func renderPreviewWebView(
     configurePreferences: (Preferences) -> Void = { _ in },
     baseDirectory: URL? = nil,
     sourceLineCount: Int = 0,
-    documentOverrides: DocumentPreviewOverrides = .none
+    documentOverrides: DocumentPreviewOverrides = .none,
+    userScripts: [WKUserScript] = []
 ) async throws -> WKWebView {
     let renderer = MarkdownRenderer()
     let rendered = renderer.render(markdown, options: options)
@@ -36,6 +37,9 @@ func renderPreviewWebView(
 
     let config = WKWebViewConfiguration()
     config.setURLSchemeHandler(handler, forURLScheme: PreviewSchemeHandler.scheme)
+    for script in userScripts {
+        config.userContentController.addUserScript(script)
+    }
     let webView = WKWebView(frame: NSRect(x: 0, y: 0, width: 900, height: 700), configuration: config)
 
     let delegate = NavDelegate()

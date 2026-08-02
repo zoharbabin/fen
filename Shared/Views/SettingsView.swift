@@ -243,6 +243,17 @@ struct RenderingSettingsTab: View {
                 Toggle("Mermaid diagrams", isOn: $prefs.htmlMermaid)
                 Toggle("STL 3D viewer", isOn: $prefs.htmlSTLViewer)
             }
+
+            Section("GeoJSON & TopoJSON Maps") {
+                Toggle("Interactive maps", isOn: $prefs.htmlGeoJSONMaps)
+                Text(
+                    "Renders geojson/topojson code blocks as an interactive map. This is the only " +
+                        "Fen feature that makes network requests: turning it on fetches basemap tiles " +
+                        "from OpenStreetMap over the internet every time such a block is previewed."
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
         }
         .formStyle(.grouped)
         #if os(macOS)

@@ -370,6 +370,18 @@ public final class Preferences {
         }
     }
 
+    /// Defaults off, matching `htmlMermaid`/`htmlSTLViewer`'s off-by-default convention for
+    /// heavier optional renderers -- see issue #121. Unlike every other preference in this file,
+    /// enabling this makes a real network call: the vendored Leaflet.js fetches basemap tile
+    /// images from OpenStreetMap at render time. It only fires when this is on AND the document
+    /// actually contains a `geojson`/`topojson` fenced block (`HTMLComposer.geoJSONMapTags`), so
+    /// documents with neither pay zero cost and make zero network requests.
+    var htmlGeoJSONMaps: Bool = false {
+        didSet { defaults.set(htmlGeoJSONMaps, forKey: "htmlGeoJSONMaps")
+            renderRevision += 1
+        }
+    }
+
     // MARK: - Private
 
     private let defaults: UserDefaults
@@ -477,5 +489,6 @@ public final class Preferences {
         htmlMermaid = defaults.bool(forKey: "htmlMermaid")
         htmlSTLViewer = defaults.bool(forKey: "htmlSTLViewer")
         htmlRendersTOC = defaults.bool(forKey: "htmlRendersTOC")
+        htmlGeoJSONMaps = defaults.bool(forKey: "htmlGeoJSONMaps")
     }
 }
