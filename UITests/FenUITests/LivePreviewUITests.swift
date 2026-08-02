@@ -41,7 +41,15 @@ final class LivePreviewUITests: XCTestCase {
 
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.createsNewApplicationInstance = true
-        configuration.arguments = ["-editorLivePreviewEnabled", livePreviewEnabled ? "YES" : "NO"]
+        // macOS's own window-restoration (Resume) otherwise reopens whatever Fen windows were
+        // left over from an earlier test run alongside the document this test opens, and one of
+        // those leftover windows can carry an unsaved-changes autosave prompt that steals
+        // keyboard focus mid-test -- see Apple Technical Q&A QA1544, and DefaultEditorUITests'
+        // identical fix for the same failure mode.
+        configuration.arguments = [
+            "-editorLivePreviewEnabled", livePreviewEnabled ? "YES" : "NO",
+            "-ApplePersistenceIgnoreState", "YES",
+        ]
         let openedExpectation = expectation(description: "Fen opened \(fileURL.lastPathComponent)")
         NSWorkspace.shared.open([fileURL], withApplicationAt: appURL, configuration: configuration) { _, error in
             XCTAssertNil(error)

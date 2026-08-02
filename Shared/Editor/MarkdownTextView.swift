@@ -280,6 +280,17 @@ func caretColor(for background: PlatformColor) -> PlatformColor {
             /// rule 1.1) -- lives on this Coordinator instance only, never shared. Not `private`:
             /// `MarkdownTextView+FocusMode.swift`'s extension needs access from another file.
             var focusModeActiveRange: NSRange?
+            /// Set for the duration of a manual `shouldChangeText`/`replaceCharacters`/
+            /// `didChangeText()` mutation (slash-command commit, key-handling replacements).
+            /// `replaceCharacters` synchronously triggers `CodeAttributedString.processEditing()`,
+            /// which makes `NSTextView` auto-adjust and re-post its selection mid-edit --
+            /// `textViewDidChangeSelection` firing reentrantly at that point and running Focus
+            /// Mode's `dimRange` against the still-editing textStorage crashes AppKit ("attempted
+            /// glyph generation while textStorage is editing"). Mirrors `isApplyingExternalScroll`'s
+            /// guard for the analogous scroll-notification reentrancy. Not `private`:
+            /// `MarkdownTextView+SlashCommandMenu.swift` and `MarkdownTextView+KeyHandling.swift`
+            /// set this from their own extensions.
+            var isPerformingProgrammaticTextEdit = false
             /// This Coordinator's own slash-command menu state (issue #1 rule 1.1), constructed
             /// fresh per instance, never shared. Not `private` for the same cross-file reason.
             let slashMenuState = SlashCommandMenuState()
@@ -328,6 +339,7 @@ func caretColor(for background: PlatformColor) -> PlatformColor {
             }
 
             func textDidChange(_ notification: Notification) {
+                guard !isPerformingProgrammaticTextEdit else { return }
                 guard let textView = notification.object as? MarkdownNSTextView else { return }
                 parent.text = textView.string
                 parent.onTextChange?()
@@ -339,6 +351,7 @@ func caretColor(for background: PlatformColor) -> PlatformColor {
             }
 
             @MainActor func textViewDidChangeSelection(_ notification: Notification) {
+                guard !isPerformingProgrammaticTextEdit else { return }
                 guard let textView = notification.object as? MarkdownNSTextView else { return }
                 applyFocusModeIfNeeded(in: textView)
                 recenterCaretOnActiveLine(in: textView)
@@ -459,9 +472,17 @@ func caretColor(for background: PlatformColor) -> PlatformColor {
                 // detect that against dimension-wise -- so once any dimension changes, every
                 // notification for the next `reflowSettleWindow` is treated as reflow noise, not
                 // just the ones that individually changed a dimension.
+                // `lastObservedScrollWidth`/`lastObservedScrollVisibleHeight` start `nil` before
+                // this notification has ever fired -- comparing against `nil` here always reads
+                // as "changed" in Swift's optional-promoted `!=`, so without the `!= nil` guards
+                // the very first scroll notification of a document's lifetime always looked like
+                // a reflow, arming the settle window and re-homing that first real scroll back to
+                // `lastAppliedScrollFraction` instead of reporting it -- exactly the "no prior
+                // gesture" scenario `ScrollSyncUITests` exercises. Absence of a prior observation
+                // isn't itself a *change*, so it shouldn't count as one.
                 let dimensionsChanged = totalHeight != anchorHeight || visibleHeight != anchorVisibleHeight
-                    || textView.bounds.width != lastObservedScrollWidth
-                    || visibleHeight != lastObservedScrollVisibleHeight
+                    || (lastObservedScrollWidth != nil && textView.bounds.width != lastObservedScrollWidth)
+                    || (lastObservedScrollVisibleHeight != nil && visibleHeight != lastObservedScrollVisibleHeight)
                 lastObservedScrollWidth = textView.bounds.width
                 lastObservedScrollVisibleHeight = visibleHeight
                 if dimensionsChanged {
