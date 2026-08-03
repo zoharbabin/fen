@@ -127,7 +127,16 @@ struct EditorSettingsTab: View {
                 Toggle("Scroll past end", isOn: $prefs.editorScrollsPastEnd)
                 Toggle("Show word count", isOn: $prefs.editorShowWordCount)
                 Toggle("Show line numbers", isOn: $prefs.editorShowLineNumbers)
-                Toggle("Live preview", isOn: $prefs.editorLivePreviewEnabled)
+                Toggle("Live preview (Experimental)", isOn: $prefs.editorLivePreviewEnabled)
+                if prefs.editorLivePreviewEnabled {
+                    Text(
+                        "Renders bold/italic/strikethrough, inline code, headings, blockquotes, " +
+                            "checkboxes, links, and images inline as you type. Tables and fenced code " +
+                            "blocks are left as raw Markdown source for now — see issue #135."
+                    )
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
                 Toggle("Focus mode", isOn: $prefs.editorFocusModeEnabled)
                 if prefs.editorFocusModeEnabled {
                     Toggle("Dim surrounding text", isOn: $prefs.editorFocusModeDimsText)

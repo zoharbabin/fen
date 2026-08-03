@@ -33,7 +33,7 @@ If Fen ever charges for anything, we'll favor a one-time purchase over a subscri
 ## Features
 
 - **Live preview with scroll sync** — the preview pane tracks your scroll position as you type
-- **WYSIWYG-in-source live preview mode** (Cmd+Shift+P) — an optional editor mode that hides markdown markers (`**`, `#`, `` ` ``, and more) off-focus and renders the styling they imply directly in the source, without leaving plain text
+- **WYSIWYG-in-source live preview mode (Experimental)** (Cmd+Shift+P) — an optional editor mode that hides markdown markers (`**`, `#`, `` ` ``, and more) off-focus and renders the styling they imply directly in the source, without leaving plain text. It covers inline emphasis, headings, blockquotes, checkboxes, links, and images; tables and fenced code blocks stay as raw Markdown source for now (tracked in [issue #135](https://github.com/zoharbabin/fen/issues/135))
 - **Slash-command menu** — type `/` at the start of a line (or after whitespace) to insert a heading, table, image, quote, code block, horizontal rule, or Mermaid diagram from a filterable popup
 - **Outline/table of contents sidebar** (Cmd+Shift+O) — a per-document heading tree with fold/expand state; click a heading to jump both panes to it
 - **Focus/typewriter mode** (Cmd+Shift+F) — dims every paragraph except the one you're editing and keeps your cursor vertically centered as you type
