@@ -399,6 +399,15 @@
             }
             button.state = checked ? .on : .off
             button.tag = key
+            // The unchecked checkbox's native bezel is a light-mode-tuned gray outline that reads
+            // as nearly invisible against a dark editor theme -- the editor's own background
+            // color (independently switchable from the system appearance since issue #126's
+            // editorAppearanceMode) determines the button's appearance here, mirroring how
+            // `caretColor(for:)` above picks a readable caret color the same way, rather than
+            // letting the button silently inherit whatever the window's appearance happens to be.
+            let appearanceName: NSAppearance.Name = caretColor(for: textView.backgroundColor) == .white
+                ? .darkAqua : .aqua
+            button.appearance = NSAppearance(named: appearanceName)
         }
 
         /// Toggles the checkbox at this button's line, routing through the exact same
