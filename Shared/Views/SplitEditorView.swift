@@ -55,7 +55,15 @@ public struct SplitEditorView: View {
         case previewOnly = "Preview"
     }
 
-    @State private var viewMode: ViewMode = .split
+    /// Not `private` -- `SplitEditorView+LivePreviewMode.swift` reads/writes both to enforce the
+    /// Live-Preview/`.editorOnly` invariant, mirroring how the iOS export `@State` above drops
+    /// `private` for the same cross-file-extension reason.
+    @State var viewMode: ViewMode = .split
+    /// Rule 1.1 (issue #128): the `viewMode` Live Preview overrode to force `.editorOnly`, so
+    /// turning Live Preview back off restores it instead of leaving the user stuck on the single
+    /// editor pane. `nil` when Live Preview was turned on while already in `.editorOnly` (rule
+    /// 1.3, nothing to remember) or after a restore/manual-switch has consumed it.
+    @State var stashedViewModeBeforeLivePreview: ViewMode?
     @State private var editorOnRight = false
     #if os(macOS)
         @State private var hoveredLinkHref: String?
@@ -89,6 +97,7 @@ public struct SplitEditorView: View {
             .onAppear {
                 editorOnRight = preferences.editorOnRight
                 preferences.systemPrefersDarkAppearance = colorScheme == .dark
+                enforceLivePreviewViewModeInvariantOnAppear()
                 Task { await renderMarkdown() }
                 externalChangeController.start(for: document)
                 autosaveController.start(for: document)
@@ -112,6 +121,14 @@ public struct SplitEditorView: View {
             }
             .onChange(of: colorScheme) { _, newValue in
                 preferences.systemPrefersDarkAppearance = newValue == .dark
+            }
+            // Rule 1.1-1.3 (issue #128): Live Preview implies the single `.editorOnly` pane in
+            // both directions -- see `SplitEditorView+LivePreviewMode.swift`.
+            .onChange(of: preferences.editorLivePreviewEnabled) { _, isEnabled in
+                livePreviewEnabledDidChange(isEnabled: isEnabled)
+            }
+            .onChange(of: viewMode) { _, newValue in
+                viewModeDidChange(to: newValue)
             }
 
         #if os(macOS)
@@ -460,6 +477,7 @@ public struct SplitEditorView: View {
                 }
             }
             .pickerStyle(.segmented)
+            .accessibilityIdentifier("ViewModePicker")
 
             Button {
                 editorOnRight.toggle()

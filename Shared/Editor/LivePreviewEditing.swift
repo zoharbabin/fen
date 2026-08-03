@@ -251,6 +251,57 @@ public enum LivePreviewEditing {
     public static func isTableRow(line: String) -> Bool {
         line.contains("|")
     }
+
+    /// Rule 2.1 (issue #128): every fenced code block's full extent (delimiter lines included),
+    /// so `styleLine` can skip them entirely -- code content like Python's `**kwargs` or a shell
+    /// `` `cmd` `` must never be misread as Markdown emphasis/code-span syntax. Pairs each
+    /// opening ` ``` `/`~~~` delimiter (CommonMark's leading-whitespace-tolerant match, i.e. the
+    /// trimmed line's prefix) with the next line starting with the same fence character; an
+    /// unterminated trailing fence extends to the document's end rather than being ignored,
+    /// since an unclosed fence still visually behaves like code for the rest of the document.
+    public static func fencedRanges(text: String) -> [NSRange] {
+        let ns = text as NSString
+        var ranges: [NSRange] = []
+        var location = 0
+        while location < ns.length {
+            let lineRange = ns.lineRange(for: NSRange(location: location, length: 0))
+            guard lineRange.length > 0 else { break }
+            let line = ns.substring(with: lineRange)
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if let fenceChar = fenceDelimiter(trimmed) {
+                let closingRun = String(repeating: fenceChar, count: 3)
+                var end = lineRange.location + lineRange.length
+                var closed = false
+                while end < ns.length {
+                    let nextLineRange = ns.lineRange(for: NSRange(location: end, length: 0))
+                    guard nextLineRange.length > 0 else { break }
+                    end = nextLineRange.location + nextLineRange.length
+                    let nextTrimmed = ns.substring(with: nextLineRange).trimmingCharacters(in: .whitespaces)
+                    if nextTrimmed.hasPrefix(closingRun) {
+                        closed = true
+                        break
+                    }
+                }
+                ranges.append(NSRange(location: lineRange.location, length: end - lineRange.location))
+                location = end
+                if !closed {
+                    break
+                }
+                continue
+            }
+            location = lineRange.location + lineRange.length
+        }
+        return ranges
+    }
+
+    /// Whether `trimmedLine` opens a fence, and with which character run -- ` ``` ` or `~~~`,
+    /// each requiring at least 3 repeats per CommonMark's fenced-code-block rule.
+    private static func fenceDelimiter(_ trimmedLine: String) -> String? {
+        for character in ["`", "~"] where trimmedLine.hasPrefix(String(repeating: character, count: 3)) {
+            return character
+        }
+        return nil
+    }
 }
 
 /// Resolves a Markdown image reference's `path` for local-only, on-disk loading (issue #2 rule
