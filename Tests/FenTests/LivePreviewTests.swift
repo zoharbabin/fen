@@ -216,6 +216,30 @@ struct LivePreviewTests {
         }
     }
 
+    /// Regression coverage for a checkbox-overlay contrast bug found while manually verifying
+    /// issue #128's single-pane mode: an unchecked checkbox's native bezel is a light-mode-tuned
+    /// gray outline that's nearly invisible against a dark editor theme, since `NSButton` inherits
+    /// its appearance from the window rather than from the editor's own (independently
+    /// switchable, per issue #126's `editorAppearanceMode`) background color. The overlay's
+    /// `NSAppearance` must instead track the editor background's luminance, exactly like
+    /// `caretColor(for:)` already does for the caret.
+    @Test @MainActor
+    func checkboxOverlayAppearanceMatchesEditorBackgroundLuminanceNotWindow() throws {
+        let text = "- [ ] a task\n\nSecond paragraph, so the task line is inactive."
+        let (textView, coordinator) = makeAttachedTextView(text: text)
+        textView.backgroundColor = .black
+
+        let ns = text as NSString
+        textView.setSelectedRange(NSRange(location: ns.range(of: "Second").location, length: 0))
+        coordinator.applyLivePreviewStylingIfNeeded(in: textView, fullDocument: false)
+
+        let button = try #require(coordinator.livePreviewCheckboxOverlays[0])
+        #expect(
+            button.appearance?.name == .darkAqua,
+            "Expected the checkbox overlay to use a dark appearance against a black editor background"
+        )
+    }
+
     /// Rule 2.1--2.3 (issue #128): a fenced code block's content and delimiter lines are left
     /// completely unstyled, mirroring `tableSyntaxIsLeftUnstyled`'s exact assertion pattern --
     /// code content like Python's `**kwargs` or a shell `` `cmd` `` must never be misread as
