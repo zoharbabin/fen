@@ -98,6 +98,9 @@
             clearLivePreviewStyling(in: expandedRange, textStorage: textStorage)
             removeOverlays(overlapping: expandedRange, textView: textView)
             guard expandedRange.length > 0 else { return }
+            // Rule 2.1/2.2 (issue #128): computed once per call, not per line -- a fence spans
+            // multiple lines, so each line's membership can't be decided from that line alone.
+            let fencedRanges = LivePreviewEditing.fencedRanges(text: text)
 
             // Collects checkbox/image spans that need an overlay positioned, so that work --
             // which calls `rect(forCharacterRange:)` and thus triggers glyph generation -- can
@@ -118,7 +121,14 @@
                         && contentLineRange.location == activeRange.location)
                 if !isActive {
                     let line = ns.substring(with: contentLineRange)
-                    if !LivePreviewEditing.isTableRow(line: line) {
+                    // Fenced ranges are always whole lines (`LivePreviewEditing.fencedRanges`
+                    // builds them from `lineRange(for:)`), so a line belongs to one if its start
+                    // falls within it -- no need for a length-aware intersection check.
+                    let isFenced = fencedRanges.contains {
+                        contentLineRange.location >= $0.location
+                            && contentLineRange.location < $0.location + $0.length
+                    }
+                    if !LivePreviewEditing.isTableRow(line: line), !isFenced {
                         styleLine(
                             line,
                             lineStart: contentLineRange.location,

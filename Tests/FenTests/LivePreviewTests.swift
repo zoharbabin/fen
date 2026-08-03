@@ -215,4 +215,51 @@ struct LivePreviewTests {
             )
         }
     }
+
+    /// Rule 2.1--2.3 (issue #128): a fenced code block's content and delimiter lines are left
+    /// completely unstyled, mirroring `tableSyntaxIsLeftUnstyled`'s exact assertion pattern --
+    /// code content like Python's `**kwargs` or a shell `` `cmd` `` must never be misread as
+    /// Markdown emphasis/code-span syntax.
+    @Test @MainActor
+    func fencedCodeBlockSyntaxIsLeftUnstyled() throws {
+        let text = "Intro.\n\n```python\ndef f(**kwargs):\n    return `not code marker` * 2\n```\n\nOutro."
+        let (textView, coordinator) = makeAttachedTextView(text: text)
+
+        textView.setSelectedRange(NSRange(location: 0, length: 0))
+        coordinator.applyLivePreviewStylingIfNeeded(in: textView, fullDocument: false)
+
+        #expect(textView.string == text)
+        let textStorage = try #require(textView.textStorage)
+        let ns = text as NSString
+        for marker in ["```python", "kwargs", "not code marker", "```\n\nOutro"] {
+            let location = ns.range(of: marker).location
+            #expect(
+                location != NSNotFound,
+                "Expected to find '\(marker)' in the test fixture"
+            )
+            #expect(
+                textStorage.attribute(.livePreviewTouched, at: location, effectiveRange: nil) == nil,
+                "Expected fenced code block content '\(marker)' to be left completely unstyled"
+            )
+        }
+    }
+
+    /// Rule 2.1: an unterminated trailing fence (no closing delimiter before EOF) still suppresses
+    /// styling all the way to the document's end, rather than being ignored because it never closes.
+    @Test @MainActor
+    func unterminatedFenceSuppressesStylingToEndOfDocument() throws {
+        let text = "Intro.\n\n```\ndef f(**kwargs):\n    pass"
+        let (textView, coordinator) = makeAttachedTextView(text: text)
+
+        textView.setSelectedRange(NSRange(location: 0, length: 0))
+        coordinator.applyLivePreviewStylingIfNeeded(in: textView, fullDocument: false)
+
+        let textStorage = try #require(textView.textStorage)
+        let ns = text as NSString
+        let location = ns.range(of: "kwargs").location
+        #expect(
+            textStorage.attribute(.livePreviewTouched, at: location, effectiveRange: nil) == nil,
+            "Expected content after an unterminated fence to remain unstyled"
+        )
+    }
 }

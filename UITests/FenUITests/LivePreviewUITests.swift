@@ -200,6 +200,73 @@ final class LivePreviewUITests: XCTestCase {
         XCTAssertTrue(app.exists, "Fen should not have crashed rendering a document with an inactive checkbox/image")
     }
 
+    /// Rule 1.1/3.3 (issue #128): enabling Live Preview forces the single `.editorOnly` pane --
+    /// the preview pane (`PreviewWebView` accessibility identifier) disappears -- and disabling
+    /// it again restores the `.split` view the document launched in, proving the stash/restore
+    /// invariant end-to-end through the real toolbar/menu path, not just at the preference level.
+    func testEnablingLivePreviewHidesPreviewPaneAndDisablingRestoresSplitView() {
+        launchWithFreshDocument(
+            text: "First paragraph.\n\nSecond paragraph.", name: "live-preview-single-pane", livePreviewEnabled: false
+        )
+
+        let editor = documentWindow.scrollViews["EditorTextView"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 5))
+        let preview = documentWindow.otherElements["PreviewWebView"]
+        XCTAssertTrue(waitFor { preview.exists }, "Expected the preview pane to be visible in the default split view")
+
+        editor.textViews.firstMatch.click()
+        app.typeKey("p", modifierFlags: [.command, .shift])
+
+        XCTAssertTrue(
+            waitFor { !preview.exists },
+            "Expected enabling Live Preview to hide the preview pane by forcing the single editor pane"
+        )
+        attachScreenshot(named: "live-preview-single-pane-editor-only")
+
+        app.typeKey("p", modifierFlags: [.command, .shift])
+
+        XCTAssertTrue(
+            waitFor { preview.exists },
+            "Expected disabling Live Preview to restore the split view it overrode"
+        )
+        attachScreenshot(named: "live-preview-single-pane-restored-split")
+    }
+
+    /// Rule 1.2 (issue #128): the single-pane invariant holds in both directions -- manually
+    /// switching the view mode away from `.editorOnly` (via the toolbar picker) while Live
+    /// Preview is on must turn Live Preview off, rather than silently leaving it active behind a
+    /// visible preview pane.
+    func testSwitchingViewModeAwayFromEditorOnlyTurnsOffLivePreview() {
+        launchWithFreshDocument(
+            text: "First paragraph.\n\nSecond paragraph.", name: "live-preview-manual-switch", livePreviewEnabled: true
+        )
+
+        let editor = documentWindow.scrollViews["EditorTextView"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 5))
+        let preview = documentWindow.otherElements["PreviewWebView"]
+        XCTAssertTrue(waitFor { !preview.exists }, "Expected Live Preview to start in the single editor pane")
+
+        // AppKit exposes a segmented `Picker` to accessibility as a `RadioGroup` of
+        // `RadioButton`s, not a `SegmentedControl`/`Button` -- confirmed via the accessibility
+        // hierarchy dump while diagnosing this test's first failed attempt.
+        let viewModePicker = documentWindow.radioGroups["ViewModePicker"]
+        XCTAssertTrue(viewModePicker.waitForExistence(timeout: 5))
+        viewModePicker.radioButtons["Split"].click()
+
+        XCTAssertTrue(
+            waitFor { preview.exists },
+            "Expected switching to Split view to show the preview pane"
+        )
+        attachScreenshot(named: "live-preview-manual-switch-to-split")
+
+        app.typeKey("p", modifierFlags: [.command, .shift])
+
+        XCTAssertTrue(
+            waitFor { !preview.exists },
+            "Expected Live Preview to have already been turned off by the manual switch, so re-enabling it now hides the preview pane again"
+        )
+    }
+
     /// Records visible proof of the flow for harness gate 6, attached to the test result.
     private func attachScreenshot(named name: String) {
         let screenshot = documentWindow.screenshot()
