@@ -107,7 +107,7 @@ Fen is open to contributions — see [CONTRIBUTING.md](CONTRIBUTING.md) for codi
 
 ## License
 
-Fen ships under the **MIT License** ([LICENSE.md](LICENSE.md)). Full license texts for every third-party component live in the [`LICENSE/`](LICENSE/) directory, alongside the vendored resource it covers for components bundled directly under `Shared/Resources/` (`Shared/Resources/Extensions/LICENSE-dompurify`, `Shared/Resources/Emoji/LICENSE-gemoji`).
+Fen ships under the **MIT License** ([LICENSE.md](LICENSE.md)). Full license texts for every third-party component live in the [`LICENSE/`](LICENSE/) directory, alongside the vendored resource it covers for components bundled directly under `Shared/Resources/` (`Shared/Resources/Extensions/LICENSE-dompurify`, `Shared/Resources/Extensions/LICENSE-leaflet`, `Shared/Resources/Extensions/LICENSE-topojson-client`, `Shared/Resources/Emoji/LICENSE-gemoji`).
 
 ## Origin and thanks
 

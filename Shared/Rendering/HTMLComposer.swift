@@ -52,6 +52,10 @@ public struct HTMLComposer: Sendable {
         styleTags += stlViewer.styles
         scriptTags += stlViewer.scripts
 
+        let geoJSONMap = geoJSONMapTags(preferences: preferences, body: body)
+        styleTags += geoJSONMap.styles
+        scriptTags += geoJSONMap.scripts
+
         scriptTags += taskListTags(preferences: preferences)
         scriptTags.append(inlineScript(Self.listMarkerStartJS))
         scriptTags.append(inlineScript(Self.listMarkerWhitespaceJS))
@@ -462,7 +466,11 @@ public struct HTMLComposer: Sendable {
         styleTags += stlViewer.styles
         scriptTags += stlViewer.scripts
 
-        scriptTags += renderCompletionTags(preferences: preferences)
+        let geoJSONMap = geoJSONMapTags(preferences: preferences, body: body)
+        styleTags += geoJSONMap.styles
+        scriptTags += geoJSONMap.scripts
+
+        scriptTags += renderCompletionTags(preferences: preferences, body: body)
 
         if preferences.customCSSEnabled,
            !preferences.customCSS.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -473,15 +481,19 @@ public struct HTMLComposer: Sendable {
     }
 
     /// A signal `PDFRenderer` waits on (issue #84) before rasterizing exported/printed HTML to
-    /// PDF, so Mermaid's, MathJax's, and the STL viewer's (issue #120) async post-load rendering
-    /// can't race the capture and be caught half-drawn or blank. Returns no script at all when
-    /// none of the three are enabled -- `window.__fenRenderComplete` stays `undefined`, which
-    /// `PDFRenderer`'s wait treats as already-complete, so a document using none of them (or raw
-    /// HTML fed directly into `PDFRenderer` by a test, which never sees this script) never waits
-    /// on a signal nobody will ever set. Harmless when the composed HTML is opened directly in a
-    /// browser (HTML export) -- the flag is set and never read by anything there.
-    private func renderCompletionTags(preferences: Preferences) -> [String] {
-        guard preferences.htmlMermaid || preferences.htmlMathJax || preferences.htmlSTLViewer else { return [] }
+    /// PDF, so Mermaid's, MathJax's, the STL viewer's (issue #120), and the GeoJSON/TopoJSON
+    /// map's (issue #121) async post-load rendering can't race the capture and be caught
+    /// half-drawn or blank. Returns no script at all when none are enabled --
+    /// `window.__fenRenderComplete` stays `undefined`, which `PDFRenderer`'s wait treats as
+    /// already-complete, so a document using none of them (or raw HTML fed directly into
+    /// `PDFRenderer` by a test, which never sees this script) never waits on a signal nobody
+    /// will ever set. Harmless when the composed HTML is opened directly in a browser (HTML
+    /// export) -- the flag is set and never read by anything there.
+    private func renderCompletionTags(preferences: Preferences, body: String) -> [String] {
+        let geoJSONMapLoaded = preferences.htmlGeoJSONMaps &&
+            (body.contains(#"class="language-geojson""#) || body.contains(#"class="language-topojson""#))
+        guard preferences.htmlMermaid || preferences.htmlMathJax || preferences.htmlSTLViewer || geoJSONMapLoaded
+        else { return [] }
 
         let mermaidPromise = preferences.htmlMermaid
             ? "(window.__fenMermaidReadyPromise || Promise.resolve())"
@@ -492,10 +504,13 @@ public struct HTMLComposer: Sendable {
         let stlPromise = preferences.htmlSTLViewer
             ? "(window.__fenSTLReadyPromise || Promise.resolve())"
             : "Promise.resolve()"
+        let geoJSONPromise = geoJSONMapLoaded
+            ? "(window.__fenGeoJSONReadyPromise || Promise.resolve())"
+            : "Promise.resolve()"
 
         let script = """
         window.__fenRenderComplete = false;
-        Promise.all([\(mermaidPromise), \(mathJaxPromise), \(stlPromise)])
+        Promise.all([\(mermaidPromise), \(mathJaxPromise), \(stlPromise), \(geoJSONPromise)])
             .then(function () { window.__fenRenderComplete = true; })
             .catch(function () { window.__fenRenderComplete = true; });
         """
