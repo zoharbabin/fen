@@ -14,28 +14,63 @@
                 if focusModeActiveRange != nil {
                     undimRange(NSRange(location: 0, length: textStorage.length), in: textStorage)
                     focusModeActiveRange = nil
+                    focusModeDimsCurrentlyApplied = false
                 }
+                notifyFocusRangeChangeIfNeeded(text: textView.string)
                 return
             }
 
             let text = textView.string
             let caretLocation = textView.selectedRange().location
-            let newActiveRange = FocusModeEditing.activeParagraphRange(text: text, caretLocation: caretLocation)
-            guard newActiveRange != focusModeActiveRange else { return }
+            let newActiveRange = FocusModeEditing.activeDisplayRange(text: text, caretLocation: caretLocation)
+            let rangeChanged = newActiveRange != focusModeActiveRange
+            // Also re-evaluates when only `isFocusModeDimsTextEnabled` toggled with the caret
+            // unchanged (issue #127 rule 2.2) -- without this, a pure preference flip with no
+            // range change would never dim or undim anything.
+            guard rangeChanged || focusModeDimsCurrentlyApplied != parent.isFocusModeDimsTextEnabled else { return }
             let previousActiveRange = focusModeActiveRange
             focusModeActiveRange = newActiveRange
 
-            if let previousActiveRange {
+            guard parent.isFocusModeDimsTextEnabled else {
+                if focusModeDimsCurrentlyApplied {
+                    undimRange(NSRange(location: 0, length: textStorage.length), in: textStorage)
+                    focusModeDimsCurrentlyApplied = false
+                }
+                notifyFocusRangeChangeIfNeeded(text: text)
+                return
+            }
+
+            if let previousActiveRange, focusModeDimsCurrentlyApplied {
                 dimRange(previousActiveRange, in: textStorage)
             } else {
-                // First activation: nothing has been dimmed yet, so this one pass covers the
-                // whole document instead of a single paragraph -- every later call only ever
-                // touches the previously-active and newly-active paragraphs.
+                // First activation (or resuming after dimming was off): nothing in the document
+                // is currently dimmed, so this one pass covers the whole document instead of a
+                // single paragraph -- every later call only ever touches the previously-active
+                // and newly-active paragraphs.
                 for range in FocusModeEditing.dimmedRanges(text: text, activeRange: newActiveRange) {
                     dimRange(range, in: textStorage)
                 }
             }
             undimRange(newActiveRange, in: textStorage)
+            focusModeDimsCurrentlyApplied = true
+            notifyFocusRangeChangeIfNeeded(text: text)
+        }
+
+        /// Calls `parent.onFocusRangeChange` with `focusModeActiveRange` translated to raw
+        /// 1-based source line numbers (issue #127 rule 3.3), or `nil` when focus mode or its
+        /// dimming preference is off -- but only when that value actually differs from the last
+        /// one passed (rule 4.2/4.2's "does not fire redundantly"), since `applyFocusModeIfNeeded`
+        /// calls this on every text/selection change, not only ones where the range itself moved.
+        @MainActor private func notifyFocusRangeChangeIfNeeded(text: String) {
+            let newValue: FocusLineRange? = if parent.isFocusModeEnabled, parent.isFocusModeDimsTextEnabled,
+                                               let activeRange = focusModeActiveRange {
+                FocusModeEditing.lineRange(forCharacterRange: activeRange, in: text)
+            } else {
+                nil
+            }
+            guard lastNotifiedFocusRange != .some(newValue) else { return }
+            lastNotifiedFocusRange = .some(newValue)
+            parent.onFocusRangeChange?(newValue)
         }
 
         /// Applies the dimmed variant of each subrange's current foreground color, stashing
@@ -97,7 +132,8 @@
         /// than introducing a second scroll-notification mechanism; it never touches the
         /// preview's render pipeline.
         @MainActor func recenterCaretOnActiveLine(in textView: MarkdownNSTextView) {
-            guard parent.isFocusModeEnabled, let scrollView = textView.enclosingScrollView else { return }
+            guard parent.isFocusModeEnabled, parent.isFocusModeCentersCaretEnabled,
+                  let scrollView = textView.enclosingScrollView else { return }
             let contentView = scrollView.contentView
             let visibleHeight = contentView.bounds.height
             let totalHeight = textView.contentHeightExcludingScrollPastEnd

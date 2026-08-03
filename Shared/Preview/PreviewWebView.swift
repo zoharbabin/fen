@@ -9,6 +9,10 @@ import WebKit
         let baseURL: URL?
         var fontSize: CGFloat = Preferences.defaultFontSize
         var scrollFraction: CGFloat
+        /// The editor's active Focus Mode range in raw source line bounds, or `nil` when focus
+        /// mode/dimming is off (issue #127 rule 3.4) -- diffed against `Coordinator.lastFocusLineRange`
+        /// to drive `focusRangeAssignmentJS` without a page reload.
+        var focusLineRange: FocusLineRange?
         var onScrollChange: ((CGFloat) -> Void)?
         var onOpenInternalLink: ((URL) -> Void)?
         var onHoverLink: ((String?) -> Void)?
@@ -82,6 +86,10 @@ import WebKit
                     context.coordinator.applyFontSize(fontSize, to: webView)
                 }
                 context.coordinator.applyScrollFraction(scrollFraction, to: webView)
+                if context.coordinator.lastFocusLineRange != focusLineRange {
+                    context.coordinator.lastFocusLineRange = focusLineRange
+                    webView.evaluateJavaScript(focusRangeAssignmentJS(range: focusLineRange))
+                }
             }
         }
 
@@ -91,6 +99,10 @@ import WebKit
             var lastHTML: String = ""
             var lastFontSize: CGFloat = Preferences.defaultFontSize
             var savedScrollFraction: CGFloat = 0
+            /// Diffed against `parent.focusLineRange` in `updateNSView` to drive
+            /// `focusRangeAssignmentJS` only when the active range actually changes (issue #127
+            /// rule 3.4), and re-applied in `didFinish` after every reload.
+            var lastFocusLineRange: FocusLineRange?
             let schemeHandler = PreviewSchemeHandler()
             private let scrollGuard = ExternalScrollGuard()
             private var reloadGeneration = 0
@@ -149,6 +161,8 @@ import WebKit
                     // load-time snapshot below, which would visibly snap the page back.
                     scrollGuard.clearLastApplied()
                     applyScrollFraction(parent.scrollFraction, to: webView)
+                    lastFocusLineRange = parent.focusLineRange
+                    webView.evaluateJavaScript(focusRangeAssignmentJS(range: parent.focusLineRange))
                     return
                 }
                 // Restore scroll position after load. Guarded like applyScrollFraction:
@@ -159,6 +173,8 @@ import WebKit
                 webView.evaluateJavaScript(scrollAssignmentJS(fraction: fraction)) { [weak self] _, _ in
                     self?.scrollGuard.endExternalScroll(token: token)
                 }
+                lastFocusLineRange = parent.focusLineRange
+                webView.evaluateJavaScript(focusRangeAssignmentJS(range: parent.focusLineRange))
             }
 
             @MainActor func applyScrollFraction(_ fraction: CGFloat, to webView: WKWebView) {
@@ -214,6 +230,10 @@ import WebKit
         let baseURL: URL?
         var fontSize: CGFloat = Preferences.defaultFontSize
         var scrollFraction: CGFloat
+        /// The editor's active Focus Mode range in raw source line bounds, or `nil` when focus
+        /// mode/dimming is off (issue #127 rule 3.4) -- diffed against `Coordinator.lastFocusLineRange`
+        /// to drive `focusRangeAssignmentJS` without a page reload.
+        var focusLineRange: FocusLineRange?
         var onScrollChange: ((CGFloat) -> Void)?
         var onOpenInternalLink: ((URL) -> Void)?
 
@@ -254,6 +274,10 @@ import WebKit
                     context.coordinator.applyFontSize(fontSize, to: webView)
                 }
                 context.coordinator.applyScrollFraction(scrollFraction, to: webView.scrollView)
+                if context.coordinator.lastFocusLineRange != focusLineRange {
+                    context.coordinator.lastFocusLineRange = focusLineRange
+                    webView.evaluateJavaScript(focusRangeAssignmentJS(range: focusLineRange))
+                }
             }
         }
 
@@ -263,6 +287,10 @@ import WebKit
             var lastHTML: String = ""
             var lastFontSize: CGFloat = Preferences.defaultFontSize
             var savedScrollFraction: CGFloat = 0
+            /// Diffed against `parent.focusLineRange` in `updateUIView` to drive
+            /// `focusRangeAssignmentJS` only when the active range actually changes (issue #127
+            /// rule 3.4), and re-applied in `didFinish` after every reload.
+            var lastFocusLineRange: FocusLineRange?
             let schemeHandler = PreviewSchemeHandler()
             private let scrollGuard = ExternalScrollGuard()
             private var reloadGeneration = 0
@@ -316,6 +344,8 @@ import WebKit
                     // load-time snapshot below, which would visibly snap the page back.
                     scrollGuard.clearLastApplied()
                     applyScrollFraction(parent.scrollFraction, to: webView.scrollView)
+                    lastFocusLineRange = parent.focusLineRange
+                    webView.evaluateJavaScript(focusRangeAssignmentJS(range: parent.focusLineRange))
                     return
                 }
                 // Restore scroll position after load. Guarded like applyScrollFraction:
@@ -326,6 +356,8 @@ import WebKit
                 webView.evaluateJavaScript(scrollToSourceFractionJS(fraction)) { [weak self] _, _ in
                     self?.scrollGuard.endExternalScroll(token: token)
                 }
+                lastFocusLineRange = parent.focusLineRange
+                webView.evaluateJavaScript(focusRangeAssignmentJS(range: parent.focusLineRange))
             }
 
             func webView(

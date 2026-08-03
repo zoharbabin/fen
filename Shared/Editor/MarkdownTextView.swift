@@ -40,6 +40,12 @@ func caretColor(for background: PlatformColor) -> PlatformColor {
         /// itself is a single app-wide `Preferences.editorFocusModeEnabled` value, but the
         /// derived dim/centering state stays on this Coordinator instance, never shared.
         var isFocusModeEnabled: Bool = false
+        /// Gates whether `applyFocusModeIfNeeded` dims/undims at all, independent of
+        /// `isFocusModeCentersCaretEnabled` (issue #127 rule 2.2). Threaded like `isFocusModeEnabled`.
+        var isFocusModeDimsTextEnabled: Bool = true
+        /// Gates whether `recenterCaretOnActiveLine` runs, independent of
+        /// `isFocusModeDimsTextEnabled` (issue #127 rule 2.3). Threaded like `isFocusModeEnabled`.
+        var isFocusModeCentersCaretEnabled: Bool = true
         /// Live-preview (WYSIWYG-in-source) styling toggle (issue #2 rule 1.2); threaded like
         /// `isFocusModeEnabled` rather than read directly from `Preferences.shared`.
         var isLivePreviewEnabled: Bool = false
@@ -51,6 +57,10 @@ func caretColor(for background: PlatformColor) -> PlatformColor {
         var documentURL: URL?
         var onScroll: ((CGFloat) -> Void)?
         var onTextChange: (() -> Void)?
+        /// Called with the caret's active display range translated to raw 1-based source line
+        /// bounds whenever it changes, or `nil` when focus mode or its dimming preference is off
+        /// (issue #127 rule 3.3) -- threads into `PreviewWebView.focusLineRange` via `SplitEditorView`.
+        var onFocusRangeChange: ((FocusLineRange?) -> Void)?
 
         func makeCoordinator() -> Coordinator {
             Coordinator(self)
@@ -203,6 +213,8 @@ func caretColor(for background: PlatformColor) -> PlatformColor {
             textView.defaultParagraphStyle = paragraphStyle
 
             let focusModeJustToggled = context.coordinator.parent.isFocusModeEnabled != isFocusModeEnabled
+                || context.coordinator.parent.isFocusModeDimsTextEnabled != isFocusModeDimsTextEnabled
+                || context.coordinator.parent.isFocusModeCentersCaretEnabled != isFocusModeCentersCaretEnabled
             let livePreviewJustToggled = context.coordinator.parent.isLivePreviewEnabled != isLivePreviewEnabled
             context.coordinator.parent = self
             context.coordinator.documentURL = documentURL
@@ -280,6 +292,20 @@ func caretColor(for background: PlatformColor) -> PlatformColor {
             /// rule 1.1) -- lives on this Coordinator instance only, never shared. Not `private`:
             /// `MarkdownTextView+FocusMode.swift`'s extension needs access from another file.
             var focusModeActiveRange: NSRange?
+            /// Whether dimming is currently applied to the document, tracked separately from
+            /// `parent.isFocusModeDimsTextEnabled` so toggling that preference with the caret
+            /// unchanged still dims/undims immediately instead of being skipped by
+            /// `applyFocusModeIfNeeded`'s "range didn't change" early return (issue #127 rule
+            /// 2.2). Not `private` for the same cross-file reason as `focusModeActiveRange`.
+            var focusModeDimsCurrentlyApplied = false
+            /// The last value passed to `parent.onFocusRangeChange` (issue #127 rule 3.3), so
+            /// `notifyFocusRangeChangeIfNeeded` -- called on every text/selection change, not
+            /// only when the range itself changed -- never fires redundantly (rule 4.2). The
+            /// outer `FocusLineRange??` distinguishes "never notified yet" (`nil`) from "last
+            /// notification was `nil`" (`.some(nil)`) from "last notification was this range"
+            /// (`.some(.some(range))`). Not `private` for the same cross-file reason as
+            /// `focusModeActiveRange`.
+            var lastNotifiedFocusRange: FocusLineRange??
             /// Set for the duration of a manual `shouldChangeText`/`replaceCharacters`/
             /// `didChangeText()` mutation (slash-command commit, key-handling replacements).
             /// `replaceCharacters` synchronously triggers `CodeAttributedString.processEditing()`,

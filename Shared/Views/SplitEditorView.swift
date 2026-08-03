@@ -37,6 +37,9 @@ public struct SplitEditorView: View {
     /// fed to the editor as `MarkdownTextView.breakpoints` so both panes' anchor tables sample
     /// the same lines. See `EditorScrollAnchors.swift`'s `computeEditorLineAnchors` doc comment.
     @State private var blockStartLines: [Int] = []
+    /// The editor's active Focus Mode range, translated to raw source line bounds, threaded into
+    /// `PreviewWebView.focusLineRange` for preview-pane dimming sync (issue #127 rule 3.4).
+    @State private var focusLineRange: FocusLineRange?
     /// Monotonic counter guarding `renderMarkdown()`'s async sanitize step (issue #118): a
     /// render started by an earlier keystroke could otherwise finish sanitizing after a later
     /// keystroke's render and overwrite `renderedHTML` with stale content. Each call captures
@@ -289,6 +292,8 @@ public struct SplitEditorView: View {
             isScrollSyncEnabled: preferences.editorSyncScrolling,
             breakpoints: blockStartLines,
             isFocusModeEnabled: preferences.editorFocusModeEnabled,
+            isFocusModeDimsTextEnabled: preferences.editorFocusModeDimsText,
+            isFocusModeCentersCaretEnabled: preferences.editorFocusModeCentersCaret,
             isLivePreviewEnabled: preferences.editorLivePreviewEnabled,
             showLineNumbers: preferences.editorShowLineNumbers,
             documentURL: document.fileURL,
@@ -299,6 +304,9 @@ public struct SplitEditorView: View {
             },
             onTextChange: {
                 scheduleRender()
+            },
+            onFocusRangeChange: { range in
+                focusLineRange = range
             }
         )
         .accessibilityIdentifier("EditorTextView")
@@ -317,6 +325,7 @@ public struct SplitEditorView: View {
                 baseURL: document.fileURL,
                 fontSize: preferences.fontSize,
                 scrollFraction: scrollSync.previewScrollFraction,
+                focusLineRange: focusLineRange,
                 onScrollChange: { fraction in
                     if preferences.editorSyncScrolling {
                         scrollSync.previewDidScroll(to: fraction)
@@ -348,6 +357,7 @@ public struct SplitEditorView: View {
                 baseURL: document.fileURL,
                 fontSize: preferences.fontSize,
                 scrollFraction: scrollSync.previewScrollFraction,
+                focusLineRange: focusLineRange,
                 onScrollChange: { fraction in
                     if preferences.editorSyncScrolling {
                         scrollSync.previewDidScroll(to: fraction)

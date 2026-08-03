@@ -128,6 +128,11 @@ struct EditorSettingsTab: View {
                 Toggle("Show word count", isOn: $prefs.editorShowWordCount)
                 Toggle("Show line numbers", isOn: $prefs.editorShowLineNumbers)
                 Toggle("Live preview", isOn: $prefs.editorLivePreviewEnabled)
+                Toggle("Focus mode", isOn: $prefs.editorFocusModeEnabled)
+                if prefs.editorFocusModeEnabled {
+                    Toggle("Dim surrounding text", isOn: $prefs.editorFocusModeDimsText)
+                    Toggle("Center active line", isOn: $prefs.editorFocusModeCentersCaret)
+                }
                 Toggle("Editor on right", isOn: $prefs.editorOnRight)
                 #if os(macOS)
                     Toggle("Smart Home key", isOn: $prefs.editorSmartHome)
