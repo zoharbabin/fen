@@ -150,6 +150,22 @@ public final class Preferences {
         didSet { defaults.set(editorFocusModeEnabled, forKey: "editorFocusModeEnabled") }
     }
 
+    /// Whether focus mode dims paragraphs other than the active one, independent of
+    /// `editorFocusModeCentersCaret` (issue #127 rule 2.2). Only has any effect while
+    /// `editorFocusModeEnabled` is on. An editor-only display setting like
+    /// `editorFocusModeEnabled` itself -- does not bump `renderRevision`.
+    var editorFocusModeDimsText: Bool = true {
+        didSet { defaults.set(editorFocusModeDimsText, forKey: "editorFocusModeDimsText") }
+    }
+
+    /// Whether focus mode recenters the caret's line vertically, independent of
+    /// `editorFocusModeDimsText` (issue #127 rule 2.3). Only has any effect while
+    /// `editorFocusModeEnabled` is on. An editor-only display setting like
+    /// `editorFocusModeEnabled` itself -- does not bump `renderRevision`.
+    var editorFocusModeCentersCaret: Bool = true {
+        didSet { defaults.set(editorFocusModeCentersCaret, forKey: "editorFocusModeCentersCaret") }
+    }
+
     /// Live-preview (WYSIWYG-in-source) editing mode toggle (issue #2): styles Markdown syntax
     /// in place in the editor (real font weight/size, hidden markers, rendered checkboxes/images)
     /// without ever changing what's stored on disk. An editor-only display setting like
@@ -173,8 +189,29 @@ public final class Preferences {
         }
     }
 
-    var editorStyleName: String = "xcode" {
-        didSet { defaults.set(editorStyleName, forKey: "editorStyleName") }
+    /// A theme *family* name (e.g. `"xcode"`), never an exact light/dark filename -- mirrors
+    /// `htmlStyleName`'s own family convention (issue #126). `loadEditorDefaults` normalizes any
+    /// pre-#126 persisted value: a filename matching one of the 7 curated families migrates to
+    /// that family (with its matching polarity pinned into `editorAppearanceMode`); anything else
+    /// migrates unchanged into `editorAdvancedThemeOverride` instead, so no existing user's editor
+    /// silently changes color on upgrade.
+    var editorThemeFamily: String = "xcode" {
+        didSet { defaults.set(editorThemeFamily, forKey: "editorThemeFamily") }
+    }
+
+    /// Manual override for the editor's light/dark appearance (issue #126). Independent of
+    /// `previewAppearanceMode` -- deliberately not shared, since the editor and preview are both
+    /// visible at once in split view, and a user may want them in different polarities.
+    var editorAppearanceMode: PreviewAppearanceMode = .system {
+        didSet { defaults.set(editorAppearanceMode.rawValue, forKey: "editorAppearanceMode") }
+    }
+
+    /// Escape hatch pinning an exact Highlightr theme name from the full 271-theme list, bypassing
+    /// `editorThemeFamily`/`editorAppearanceMode` resolution entirely (issue #126) -- keeps every
+    /// theme outside the 7 curated families reachable. `nil` (the default) means "resolve via
+    /// family + appearance."
+    var editorAdvancedThemeOverride: String? {
+        didSet { defaults.set(editorAdvancedThemeOverride, forKey: "editorAdvancedThemeOverride") }
     }
 
     var editorHorizontalInset: CGFloat = 15 {
@@ -435,11 +472,15 @@ public final class Preferences {
         editorSyncScrolling = defaults.object(forKey: "editorSyncScrolling") != nil
             ? defaults.bool(forKey: "editorSyncScrolling") : true
         editorFocusModeEnabled = defaults.bool(forKey: "editorFocusModeEnabled")
+        editorFocusModeDimsText = defaults.object(forKey: "editorFocusModeDimsText") != nil
+            ? defaults.bool(forKey: "editorFocusModeDimsText") : true
+        editorFocusModeCentersCaret = defaults.object(forKey: "editorFocusModeCentersCaret") != nil
+            ? defaults.bool(forKey: "editorFocusModeCentersCaret") : true
         editorLivePreviewEnabled = defaults.bool(forKey: "editorLivePreviewEnabled")
         editorShowLineNumbers = defaults.bool(forKey: "editorShowLineNumbers")
         editorSmartHome = defaults.object(forKey: "editorSmartHome") != nil
             ? defaults.bool(forKey: "editorSmartHome") : true
-        editorStyleName = defaults.string(forKey: "editorStyleName") ?? "xcode"
+        migrateEditorThemeDefaults(from: defaults)
         let hInset = defaults.double(forKey: "editorHorizontalInset")
         editorHorizontalInset = hInset > 0 ? hInset : 15
         let vInset = defaults.double(forKey: "editorVerticalInset")
@@ -456,6 +497,43 @@ public final class Preferences {
         editorEnsuresNewlineAtEndOfFile = defaults.object(forKey: "editorEnsuresNewlineAtEndOfFile") != nil
             ? defaults.bool(forKey: "editorEnsuresNewlineAtEndOfFile") : true
         hasCompletedFirstRun = defaults.bool(forKey: "hasCompletedFirstRun")
+    }
+
+    /// Migrates a pre-#126 flat `editorStyleName` into the new family/appearance/advanced-override
+    /// model (rule 5). Runs only when the new keys have never been written -- once any of them
+    /// exists, this install has already migrated (or was never on the old model), so subsequent
+    /// launches just load the new keys directly and never re-derive from the legacy value.
+    private func migrateEditorThemeDefaults(from defaults: UserDefaults) {
+        guard defaults.object(forKey: "editorThemeFamily") == nil,
+              defaults.object(forKey: "editorAppearanceMode") == nil,
+              defaults.object(forKey: "editorAdvancedThemeOverride") == nil
+        else {
+            editorThemeFamily = defaults.string(forKey: "editorThemeFamily") ?? "xcode"
+            editorAppearanceMode = defaults.string(forKey: "editorAppearanceMode")
+                .flatMap(PreviewAppearanceMode.init(rawValue:)) ?? .system
+            editorAdvancedThemeOverride = defaults.string(forKey: "editorAdvancedThemeOverride")
+            return
+        }
+
+        guard let legacyStyleName = defaults.string(forKey: "editorStyleName") else {
+            editorThemeFamily = "xcode"
+            editorAppearanceMode = .system
+            editorAdvancedThemeOverride = nil
+            return
+        }
+
+        let family = MarkdownSyntaxHighlighter.editorThemeFamilies.first {
+            $0.lightFileName == legacyStyleName || $0.darkFileName == legacyStyleName
+        }
+        if let family {
+            editorThemeFamily = family.name
+            editorAppearanceMode = family.darkFileName == legacyStyleName ? .dark : .light
+            editorAdvancedThemeOverride = nil
+        } else {
+            editorThemeFamily = "xcode"
+            editorAppearanceMode = .system
+            editorAdvancedThemeOverride = legacyStyleName
+        }
     }
 
     private func loadHTMLDefaults(from defaults: UserDefaults) {

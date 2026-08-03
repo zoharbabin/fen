@@ -435,6 +435,54 @@
     return sourceFraction;
   }
 
+  // Focus mode's preview-pane sync (issue #127 rule 3.2): toggles `.fen-focus-dim` on every
+  // leaf data-sourcepos element (the same leaf set collectLeafSourceposElements already
+  // collects for the line-number gutter) whose own [start,end] source-line span doesn't
+  // overlap [startLine, endLine]. Tracks which elements it dimmed so a later call -- including
+  // (null, null), which clears everything -- only ever touches elements this function itself
+  // touched, never a class some other feature might have set.
+  var focusDimmedElements = [];
+
+  function parseLineSpan(element) {
+    var pos = element.getAttribute("data-sourcepos");
+    if (!pos) {
+      return null;
+    }
+    var parts = pos.split("-");
+    var start = parseInt(parts[0].split(":")[0], 10);
+    var end = parts.length > 1 ? parseInt(parts[1].split(":")[0], 10) : start;
+    if (isNaN(start) || isNaN(end)) {
+      return null;
+    }
+    return { start: start, end: end };
+  }
+
+  function setFocusRange(startLine, endLine) {
+    for (var i = 0; i < focusDimmedElements.length; i++) {
+      focusDimmedElements[i].classList.remove("fen-focus-dim");
+    }
+    focusDimmedElements = [];
+    if (startLine === null || endLine === null || typeof startLine === "undefined" ||
+        typeof endLine === "undefined") {
+      return;
+    }
+    var lineOffset = window.__fenSourceLineOffset || 0;
+    var elements = collectLeafSourceposElements();
+    for (var j = 0; j < elements.length; j++) {
+      var span = parseLineSpan(elements[j]);
+      if (!span) {
+        continue;
+      }
+      var elementStart = span.start + lineOffset;
+      var elementEnd = span.end + lineOffset;
+      var overlaps = elementStart <= endLine && elementEnd >= startLine;
+      if (!overlaps) {
+        elements[j].classList.add("fen-focus-dim");
+        focusDimmedElements.push(elements[j]);
+      }
+    }
+  }
+
   window.__fenScrollSync = {
     renderedFractionForSource: function (fraction) {
       refreshAnchorsIfStale();
@@ -448,6 +496,7 @@
       return source;
     },
     reconcileScroll: reconcileScroll,
+    setFocusRange: setFocusRange,
     // Exposed (pure, side-effect-free) so tests can call the exact same interpolation
     // production code uses with an arbitrary literal table, instead of only ever exercising
     // it through a table built from a real DOM's data-sourcepos layout. See

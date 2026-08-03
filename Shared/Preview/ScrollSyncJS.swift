@@ -50,6 +50,18 @@ func scrollToSourceFractionJS(_ fraction: CGFloat) -> String {
     """
 }
 
+/// Calls `window.__fenScrollSync.setFocusRange` with `range`'s raw 1-based source line bounds,
+/// or clears every dimmed element when `range` is `nil` (issue #127 rule 3.4) -- Focus Mode
+/// turning off, or the caret leaving a range with nothing left to compare against. Falls back to
+/// a no-op when the page has no anchor table script yet (e.g. mid-load), mirroring
+/// `scrollSyncCallJS`'s same guard.
+func focusRangeAssignmentJS(range: FocusLineRange?) -> String {
+    guard let range else {
+        return "if (window.__fenScrollSync) { window.__fenScrollSync.setFocusRange(null, null); }"
+    }
+    return "if (window.__fenScrollSync) { window.__fenScrollSync.setFocusRange(\(range.startLine), \(range.endLine)); }"
+}
+
 /// Applies a new font-scale ratio live, without a page reload -- used by a zoom step so the
 /// preview updates in place instead of flashing to the top and back during a WKWebView
 /// navigation. Reads the current source fraction with the same overflow guard as

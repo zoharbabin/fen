@@ -18,8 +18,12 @@ final class FocusModeUITests: XCTestCase {
     }
 
     /// Same launch strategy as `FormattingToolbarUITests.launch` -- opens a real file from this
-    /// test bundle's sibling app build, in a freshly launched process.
-    private func launch(fileURL: URL) {
+    /// test bundle's sibling app build, in a freshly launched process. `extraArguments` lets
+    /// callers override a persisted preference for just this launched process via macOS's
+    /// `NSArgumentDomain`, the same technique `EditorGutterUITests.launch` uses for
+    /// `editorShowLineNumbers` -- so rule 2.1's independent dim/center preferences (issue #127)
+    /// can be exercised without a toolbar/Settings round trip.
+    private func launch(fileURL: URL, extraArguments: [String] = []) {
         let productsDirectory = Bundle(for: Self.self).bundleURL
             .deletingLastPathComponent() // PlugIns
             .deletingLastPathComponent() // Contents
@@ -41,7 +45,7 @@ final class FocusModeUITests: XCTestCase {
         // those leftover windows can carry an unsaved-changes autosave prompt that steals
         // keyboard focus mid-test -- see Apple Technical Q&A QA1544, and DefaultEditorUITests'
         // identical fix for the same failure mode.
-        configuration.arguments = ["-ApplePersistenceIgnoreState", "YES"]
+        configuration.arguments = ["-ApplePersistenceIgnoreState", "YES"] + extraArguments
         let openedExpectation = expectation(description: "Fen opened \(fileURL.lastPathComponent)")
         NSWorkspace.shared.open([fileURL], withApplicationAt: appURL, configuration: configuration) { _, error in
             XCTAssertNil(error)
@@ -57,10 +61,10 @@ final class FocusModeUITests: XCTestCase {
         XCTAssertTrue(documentWindow.waitForExistence(timeout: 5), "Expected a window titled \(windowTitle)")
     }
 
-    private func launchWithFreshDocument(text: String) {
+    private func launchWithFreshDocument(text: String, extraArguments: [String] = []) {
         let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("focus-mode-\(UUID()).md")
         try? text.write(to: tempURL, atomically: true, encoding: .utf8)
-        launch(fileURL: tempURL)
+        launch(fileURL: tempURL, extraArguments: extraArguments)
     }
 
     private func editorScrollPercent() -> Int? {
@@ -102,6 +106,83 @@ final class FocusModeUITests: XCTestCase {
         XCTAssertNotEqual(
             scrollBefore, scrollAfter,
             "Moving the caret to the end of a long document with focus mode on should recenter the editor's scroll position"
+        )
+    }
+
+    /// Rule 2.2 (issue #127): with `editorFocusModeCentersCaret` off, moving the caret to a
+    /// mid-document line lands the editor's scroll at a materially different position than with
+    /// it on -- proving the two preferences drive genuinely independent behavior, not just
+    /// independent storage. Compares two full launches (one per preference value) rather than a
+    /// single "scroll changed / didn't change" check against a fixed threshold: moving the caret
+    /// to a mid-document line still requires *some* scroll either way once it's below the fold
+    /// (NSTextView's own "reveal the caret" behavior versus this preference's deliberate
+    /// centering), so the discriminator is which position the scroll settles at, not whether it
+    /// moves at all -- the same reasoning that ruled out reusing the sibling recentering test's
+    /// cmd+End move here, since jumping to the document's literal last line clamps both
+    /// behaviors to the same maximum scroll offset and can't tell them apart.
+    func testDisablingCentersCaretPreferenceLandsAtADifferentScrollPositionThanCentering() {
+        let paragraphs = (1 ... 200).map { "Paragraph \($0) of the document with enough text to take up a full line." }
+        let text = paragraphs.joined(separator: "\n\n")
+
+        func scrollPercentAfterMovingCaretMidDocument(focusModeEnabled: Bool, centersCaret: Bool) -> Int? {
+            // Always passes both arguments explicitly (never omits one to fall back on the
+            // in-code default) -- `Preferences`' `didSet` persists whatever value it reads at
+            // init, including one supplied only via `NSArgumentDomain`, into
+            // `com.zoharbabin.fen`'s real persistent defaults shared across every launch of this
+            // bundle identifier. Without `-editorFocusModeEnabled` pinned every time, the
+            // toolbar button below -- which toggles rather than sets -- would flip from
+            // whatever an earlier launch in this same test left persisted, not from the state
+            // this run's `focusModeEnabled` parameter actually asks for.
+            let extraArguments = [
+                "-editorFocusModeCentersCaret", centersCaret ? "YES" : "NO",
+                "-editorFocusModeEnabled", "NO",
+            ]
+            launchWithFreshDocument(text: text, extraArguments: extraArguments)
+
+            let editor = documentWindow.scrollViews["EditorTextView"]
+            XCTAssertTrue(editor.waitForExistence(timeout: 5))
+
+            if focusModeEnabled {
+                let toggleButton = documentWindow.buttons["FocusModeToggleButton"]
+                XCTAssertTrue(toggleButton.waitForExistence(timeout: 5))
+                toggleButton.click()
+            }
+
+            editor.textViews.firstMatch.click()
+            editor.typeKey(.upArrow, modifierFlags: .command) // start from a known position: document start
+            for _ in 0 ..< 200 {
+                editor.typeKey(.downArrow, modifierFlags: [])
+            }
+
+            let deadline = Date().addingTimeInterval(5)
+            var scroll = editorScrollPercent()
+            while Date() < deadline, scroll == nil {
+                RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+                scroll = editorScrollPercent()
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.5))
+            return editorScrollPercent()
+        }
+
+        let focusModeOffPercent = scrollPercentAfterMovingCaretMidDocument(focusModeEnabled: false, centersCaret: true)
+        let centeringDisabledPercent = scrollPercentAfterMovingCaretMidDocument(
+            focusModeEnabled: true, centersCaret: false
+        )
+        let centeringEnabledPercent = scrollPercentAfterMovingCaretMidDocument(
+            focusModeEnabled: true, centersCaret: true
+        )
+
+        attachScreenshot(named: "focus-mode-centers-caret-disabled")
+
+        XCTAssertEqual(
+            focusModeOffPercent,
+            centeringDisabledPercent,
+            "Expected disabling editorFocusModeCentersCaret to scroll identically to focus mode being off entirely"
+        )
+        XCTAssertNotEqual(
+            focusModeOffPercent,
+            centeringEnabledPercent,
+            "Expected focus mode's caret centering to scroll differently than focus mode being off"
         )
     }
 

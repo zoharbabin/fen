@@ -76,9 +76,20 @@ struct EditorSettingsTab: View {
             }
 
             Section("Theme") {
-                Picker("Editor Theme", selection: $prefs.editorStyleName) {
+                Picker("Editor Theme", selection: $prefs.editorThemeFamily) {
+                    ForEach(MarkdownSyntaxHighlighter.availableEditorThemeFamilyNames(), id: \.self) { family in
+                        Text(family).tag(family)
+                    }
+                }
+                Picker("Appearance", selection: $prefs.editorAppearanceMode) {
+                    Text("Follow System").tag(PreviewAppearanceMode.system)
+                    Text("Light").tag(PreviewAppearanceMode.light)
+                    Text("Dark").tag(PreviewAppearanceMode.dark)
+                }
+                Picker("Advanced (all themes)", selection: $prefs.editorAdvancedThemeOverride) {
+                    Text("None (use Theme + Appearance above)").tag(String?.none)
                     ForEach(MarkdownSyntaxHighlighter.availableThemes, id: \.self) { theme in
-                        Text(theme).tag(theme)
+                        Text(theme).tag(String?.some(theme))
                     }
                 }
             }
@@ -117,6 +128,11 @@ struct EditorSettingsTab: View {
                 Toggle("Show word count", isOn: $prefs.editorShowWordCount)
                 Toggle("Show line numbers", isOn: $prefs.editorShowLineNumbers)
                 Toggle("Live preview", isOn: $prefs.editorLivePreviewEnabled)
+                Toggle("Focus mode", isOn: $prefs.editorFocusModeEnabled)
+                if prefs.editorFocusModeEnabled {
+                    Toggle("Dim surrounding text", isOn: $prefs.editorFocusModeDimsText)
+                    Toggle("Center active line", isOn: $prefs.editorFocusModeCentersCaret)
+                }
                 Toggle("Editor on right", isOn: $prefs.editorOnRight)
                 #if os(macOS)
                     Toggle("Smart Home key", isOn: $prefs.editorSmartHome)

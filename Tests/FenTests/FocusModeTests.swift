@@ -62,14 +62,75 @@ struct FocusModeTests {
         #expect(NSMaxRange(activeRange) <= ns.length)
     }
 
+    // MARK: - Markdown-aware active range (issue #127 rules 1.1-1.4)
+
+    @Test("A heading directly above the active paragraph, separated only by blank lines, is pulled into the range")
+    func headingDirectlyAboveActiveParagraphIsIncluded() {
+        let text = "# Heading\n\nActive paragraph text."
+        let ns = text as NSString
+        let caretLocation = ns.range(of: "Active").location
+        let range = FocusModeEditing.activeDisplayRange(text: text, caretLocation: caretLocation)
+        #expect(range.location == 0)
+        #expect(ns.substring(with: range) == text)
+    }
+
+    @Test("A heading two paragraphs above the caret is never pulled into the active range")
+    func headingTwoParagraphsAboveIsNotIncluded() {
+        let text = "# Heading\n\nMiddle paragraph.\n\nActive paragraph text."
+        let ns = text as NSString
+        let caretLocation = ns.range(of: "Active").location
+        let range = FocusModeEditing.activeDisplayRange(text: text, caretLocation: caretLocation)
+        #expect(ns.substring(with: range) == "Active paragraph text.")
+    }
+
+    @Test("A heading immediately above with no blank line separator is already merged by the paragraph rule")
+    func headingWithNoBlankLineSeparatorIsAlreadyMerged() {
+        let text = "# Heading\nActive paragraph text."
+        let ns = text as NSString
+        let caretLocation = ns.range(of: "Active").location
+        let range = FocusModeEditing.activeDisplayRange(text: text, caretLocation: caretLocation)
+        #expect(ns.substring(with: range) == text)
+    }
+
+    @Test("Placing the caret on the heading line itself is a no-op -- the heading is already the active range")
+    func caretOnHeadingLineItselfIsNoOp() {
+        let text = "# Heading\n\nOther paragraph text."
+        let ns = text as NSString
+        let caretLocation = ns.range(of: "# Heading").location
+        let range = FocusModeEditing.activeDisplayRange(text: text, caretLocation: caretLocation)
+        #expect(ns.substring(with: range) == "# Heading\n")
+    }
+
+    @Test("A non-heading paragraph directly above the active paragraph is not pulled in")
+    func nonHeadingParagraphAboveIsNotIncluded() {
+        let text = "Plain paragraph.\n\nActive paragraph text."
+        let ns = text as NSString
+        let caretLocation = ns.range(of: "Active").location
+        let range = FocusModeEditing.activeDisplayRange(text: text, caretLocation: caretLocation)
+        #expect(ns.substring(with: range) == "Active paragraph text.")
+    }
+
+    @Test("lineRange(forCharacterRange:in:) converts a character range to 1-based raw source lines")
+    func lineRangeForCharacterRangeConvertsToSourceLines() {
+        let text = "# Heading\n\nSecond line of body.\nThird line."
+        let ns = text as NSString
+        let range = NSRange(location: 0, length: ns.length)
+        let lineRange = FocusModeEditing.lineRange(forCharacterRange: range, in: text)
+        #expect(lineRange.startLine == 1)
+        #expect(lineRange.endLine == 4)
+    }
+
     // MARK: - Coordinator-level dim/undim behavior (rules 3.5, 4.1, 4.3)
 
     @MainActor
     private func makeAttachedTextView(
         text: String,
         isFocusModeEnabled: Bool,
+        isFocusModeDimsTextEnabled: Bool = true,
+        isFocusModeCentersCaretEnabled: Bool = true,
         onTextChange: (() -> Void)? = nil,
-        onScroll: ((CGFloat) -> Void)? = nil
+        onScroll: ((CGFloat) -> Void)? = nil,
+        onFocusRangeChange: ((FocusLineRange?) -> Void)? = nil
     ) -> (MarkdownNSTextView, MarkdownTextView.Coordinator) {
         let font = NSFont.monospacedSystemFont(ofSize: 14, weight: .regular)
         let textStorage = CodeAttributedString()
@@ -114,8 +175,11 @@ struct FocusModeTests {
             isEditable: true,
             scrollsPastEnd: false,
             isFocusModeEnabled: isFocusModeEnabled,
+            isFocusModeDimsTextEnabled: isFocusModeDimsTextEnabled,
+            isFocusModeCentersCaretEnabled: isFocusModeCentersCaretEnabled,
             onScroll: onScroll,
-            onTextChange: onTextChange
+            onTextChange: onTextChange,
+            onFocusRangeChange: onFocusRangeChange
         )
         let coordinator = parent.makeCoordinator()
         coordinator.textView = textView
@@ -239,7 +303,9 @@ struct FocusModeTests {
     @Test("The dim attribute composes with Highlightr's syntax-highlighting color instead of replacing it")
     @MainActor
     func dimAttributeComposesWithSyntaxHighlightingAttributes() throws {
-        let text = "# Heading\n\nplain paragraph text"
+        // The heading sits two paragraphs above the caret (issue #127 rule 1.2 only pulls in a
+        // heading directly above the active paragraph), so it stays dimmed here.
+        let text = "# Heading\n\nMiddle paragraph.\n\nplain paragraph text"
         let (textView, coordinator) = makeAttachedTextView(text: text, isFocusModeEnabled: true)
         let ns = text as NSString
         let plainParagraphStart = ns.range(of: "plain").location
@@ -297,6 +363,168 @@ struct FocusModeTests {
             ) != nil,
             "Expected didHighlight to re-dim the second paragraph after Highlightr's setAttributes wiped it"
         )
+    }
+
+    // MARK: - Independent dim/center preferences (issue #127 rules 2.1-2.3)
+
+    @Test("Toggling isFocusModeDimsTextEnabled off with the caret unchanged clears dimming immediately")
+    @MainActor
+    func togglingDimsTextEnabledOffWithUnchangedCaretClearsDimming() throws {
+        let text = "First paragraph.\n\nSecond paragraph.\n\nThird paragraph."
+        let (textView, coordinator) = makeAttachedTextView(text: text, isFocusModeEnabled: true)
+        textView.setSelectedRange(NSRange(location: 0, length: 0))
+        coordinator.applyFocusModeIfNeeded(in: textView)
+
+        let textStorage = try #require(textView.textStorage)
+        #expect(
+            textStorage.attribute(.focusModeOriginalForegroundColor, at: textStorage.length - 1, effectiveRange: nil)
+                != nil,
+            "Expected the third paragraph to be dimmed while dimming is enabled"
+        )
+
+        coordinator.parent.isFocusModeDimsTextEnabled = false
+        coordinator.applyFocusModeIfNeeded(in: textView)
+
+        for index in 0 ..< textStorage.length {
+            #expect(
+                textStorage.attribute(.focusModeOriginalForegroundColor, at: index, effectiveRange: nil) == nil,
+                "Expected dimming to clear immediately once the dims-text preference turns off"
+            )
+        }
+    }
+
+    @Test("Toggling isFocusModeDimsTextEnabled back on with the caret unchanged re-dims the document")
+    @MainActor
+    func togglingDimsTextEnabledOnWithUnchangedCaretReDims() throws {
+        let text = "First paragraph.\n\nSecond paragraph.\n\nThird paragraph."
+        let (textView, coordinator) = makeAttachedTextView(
+            text: text, isFocusModeEnabled: true, isFocusModeDimsTextEnabled: false
+        )
+        textView.setSelectedRange(NSRange(location: 0, length: 0))
+        coordinator.applyFocusModeIfNeeded(in: textView)
+
+        let textStorage = try #require(textView.textStorage)
+        #expect(textStorage.attribute(
+            .focusModeOriginalForegroundColor,
+            at: textStorage.length - 1,
+            effectiveRange: nil
+        ) == nil)
+
+        coordinator.parent.isFocusModeDimsTextEnabled = true
+        coordinator.applyFocusModeIfNeeded(in: textView)
+
+        #expect(
+            textStorage.attribute(.focusModeOriginalForegroundColor, at: textStorage.length - 1, effectiveRange: nil)
+                != nil,
+            "Expected the third paragraph to become dimmed once isFocusModeDimsTextEnabled turns on"
+        )
+    }
+
+    @Test("recenterCaretOnActiveLine is a no-op when isFocusModeCentersCaretEnabled is off")
+    @MainActor
+    func recenteringNoOpWhenCentersCaretDisabled() throws {
+        let text = Array(repeating: "Paragraph.", count: 200).joined(separator: "\n\n")
+        let (textView, coordinator) = makeAttachedTextView(
+            text: text, isFocusModeEnabled: true, isFocusModeCentersCaretEnabled: false
+        )
+        let scrollView = try #require(textView.enclosingScrollView)
+        let originBefore = scrollView.contentView.bounds.origin
+        let ns = text as NSString
+        textView.setSelectedRange(NSRange(location: ns.length - 1, length: 0))
+
+        coordinator.recenterCaretOnActiveLine(in: textView)
+
+        #expect(
+            scrollView.contentView.bounds.origin == originBefore,
+            "Expected no scroll when centering is disabled independent of dimming (issue #127 rule 2.3)"
+        )
+    }
+
+    // MARK: - onFocusRangeChange notification (issue #127 rules 3.3, 4.2)
+
+    @Test("onFocusRangeChange fires with the active range's source lines when focus mode is enabled")
+    @MainActor
+    func onFocusRangeChangeFiresWithActiveLineRange() throws {
+        let text = "First paragraph.\n\nSecond paragraph."
+        var receivedValues: [FocusLineRange?] = []
+        let ns = text as NSString
+        let secondParagraphStart = ns.range(of: "Second").location
+        let (textView, coordinator) = makeAttachedTextView(
+            text: text,
+            isFocusModeEnabled: true,
+            onFocusRangeChange: { receivedValues.append($0) }
+        )
+        textView.setSelectedRange(NSRange(location: secondParagraphStart, length: 0))
+
+        coordinator.applyFocusModeIfNeeded(in: textView)
+
+        let lastValue = try #require(receivedValues.last)
+        let expected = try #require(lastValue)
+        #expect(expected.startLine == 3)
+        #expect(expected.endLine == 3)
+    }
+
+    @Test("onFocusRangeChange does not fire again when the display range hasn't changed")
+    @MainActor
+    func onFocusRangeChangeDoesNotFireRedundantly() {
+        let text = "First paragraph.\n\nSecond paragraph."
+        var callCount = 0
+        let ns = text as NSString
+        let secondParagraphStart = ns.range(of: "Second").location
+        let (textView, coordinator) = makeAttachedTextView(
+            text: text,
+            isFocusModeEnabled: true,
+            onFocusRangeChange: { _ in callCount += 1 }
+        )
+        textView.setSelectedRange(NSRange(location: secondParagraphStart, length: 0))
+        coordinator.applyFocusModeIfNeeded(in: textView)
+        #expect(callCount == 1)
+
+        // Move within the same paragraph -- the active range doesn't change, so the callback
+        // must not fire again.
+        textView.setSelectedRange(NSRange(location: secondParagraphStart + 3, length: 0))
+        coordinator.applyFocusModeIfNeeded(in: textView)
+        #expect(callCount == 1, "Expected no redundant notification when the active range is unchanged")
+    }
+
+    @Test("onFocusRangeChange fires nil when focus mode is disabled")
+    @MainActor
+    func onFocusRangeChangeFiresNilWhenDisabled() throws {
+        let text = "First paragraph.\n\nSecond paragraph."
+        var receivedValues: [FocusLineRange?] = []
+        let (textView, coordinator) = makeAttachedTextView(
+            text: text,
+            isFocusModeEnabled: true,
+            onFocusRangeChange: { receivedValues.append($0) }
+        )
+        textView.setSelectedRange(NSRange(location: 0, length: 0))
+        coordinator.applyFocusModeIfNeeded(in: textView)
+        #expect(receivedValues.last != nil)
+
+        coordinator.parent.isFocusModeEnabled = false
+        coordinator.applyFocusModeIfNeeded(in: textView)
+
+        let lastValue = try #require(receivedValues.last)
+        #expect(lastValue == nil, "Expected a nil notification once focus mode turns off")
+    }
+
+    @Test("onFocusRangeChange fires nil when dimming is disabled even though focus mode is on")
+    @MainActor
+    func onFocusRangeChangeFiresNilWhenDimmingDisabled() throws {
+        let text = "First paragraph.\n\nSecond paragraph."
+        var receivedValues: [FocusLineRange?] = []
+        let (textView, coordinator) = makeAttachedTextView(
+            text: text,
+            isFocusModeEnabled: true,
+            isFocusModeDimsTextEnabled: false,
+            onFocusRangeChange: { receivedValues.append($0) }
+        )
+        textView.setSelectedRange(NSRange(location: 0, length: 0))
+
+        coordinator.applyFocusModeIfNeeded(in: textView)
+
+        let lastValue = try #require(receivedValues.last)
+        #expect(lastValue == nil, "Expected nil when the dim preference is off (issue #127 rule 3.4)")
     }
 
     // MARK: - Typewriter recentering (rules 4.4, 4.5)
