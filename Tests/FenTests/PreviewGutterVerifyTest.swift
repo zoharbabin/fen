@@ -308,6 +308,49 @@ struct PreviewGutterVerifyTest {
         }
     }
 
+    @Test("A table wider than the viewport scrolls itself, not the document, so the gutter stays put")
+    @MainActor
+    func wideTableScrollsItselfNotTheDocumentGutter() async throws {
+        // Regression test for issue #138: no theme constrained `table` width/overflow, so a
+        // table wider than the viewport stretched `body` itself and the whole *document* became
+        // horizontally scrollable. The gutter rail (`.fen-gutter-rail`, `position: fixed`) stayed
+        // put, but each number (`.fen-gutter-line`, `position: absolute`, anchored to the
+        // document's initial containing block) scrolled away with the rest of the document's
+        // content, same as the user's screenshot. `tableOverflowCSS` scopes the table's own
+        // overflow to itself instead, the same way `pre { overflow: auto }` already does for an
+        // overlong code line.
+        var header = "| "
+        var separator = "| "
+        var row = "| "
+        for column in 1 ... 40 {
+            header += "Column \(column) |"
+            separator += "- |"
+            row += "value \(column) |"
+        }
+        let markdown = "# Heading\n\n\(header)\n\(separator)\n\(row)"
+        var opts = MarkdownRenderer.Options()
+        opts.sourcePositions = true
+        let webView = try await renderPreviewWebView(
+            markdown: markdown,
+            options: opts,
+            configurePreferences: { $0.editorShowLineNumbers = true },
+            sourceLineCount: 3
+        )
+
+        let tableOverflows = try await webView.evaluateJavaScript(
+            "document.querySelector('table').scrollWidth > document.querySelector('table').clientWidth"
+        )
+        #expect((tableOverflows as? Bool) == true, "Test setup must actually produce an overflowing table")
+
+        let documentOverflows = try await webView.evaluateJavaScript(
+            "document.documentElement.scrollWidth > document.documentElement.clientWidth"
+        )
+        #expect(
+            (documentOverflows as? Bool) == false,
+            "The table's own overflow must not force the whole document to scroll horizontally"
+        )
+    }
+
     @Test("A heading's gutter number aligns with its visible text, not its line box's half-leading")
     @MainActor
     func gutterAlignsWithHeadingGlyphsNotLineBoxAtDefaultFontSize() async throws {
