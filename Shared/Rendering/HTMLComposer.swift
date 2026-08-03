@@ -37,6 +37,7 @@ public struct HTMLComposer: Sendable {
         styleTags.append(inlineStyle(Self.listMarkerCSS))
         styleTags.append(inlineStyle(Self.alertsCSS))
         styleTags.append(inlineStyle(Self.focusModeCSS))
+        styleTags.append(inlineStyle(Self.tableOverflowCSS))
 
         let highlighting = syntaxHighlightingTags(preferences: preferences)
         styleTags += highlighting.styles
@@ -216,6 +217,21 @@ public struct HTMLComposer: Sendable {
     /// (rule 2.4), only a `.fen-focus-dim` class toggle `scroll-sync.js`'s `setFocusRange` drives.
     static let focusModeCSS = """
     .fen-focus-dim { opacity: 0.35; transition: opacity 120ms; }
+    """
+
+    /// Scopes a table wider than the viewport to its own horizontal scrollbar, the same way
+    /// `pre { overflow: auto }` already scopes an overlong code line -- without this, no theme
+    /// constrains `table`'s width, so an oversized table stretches `body` itself and the whole
+    /// *document* becomes horizontally scrollable. That's a problem beyond the table looking
+    /// wrong: the line-number gutter's `.fen-gutter-line` divs (`position: absolute`, anchored to
+    /// the document's initial containing block per `lineNumberGutterTags`'s doc comment) scroll
+    /// away with the rest of the document's content instead of staying pinned under the
+    /// viewport-fixed `.fen-gutter-rail`, which is the actual bug report this fixes. `width:
+    /// max-content` keeps the table at its natural (possibly overflowing) width instead of
+    /// shrinking its columns to fit; `max-width: 100%` is what actually triggers `overflow-x` once
+    /// that natural width exceeds the container.
+    static let tableOverflowCSS = """
+    table { display: block; width: max-content; max-width: 100%; overflow-x: auto; }
     """
 
     private func syntaxHighlightingTags(
