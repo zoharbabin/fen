@@ -27,6 +27,8 @@ struct PreferencesTests {
         #expect(prefs.htmlSyntaxHighlighting == true)
         #expect(prefs.htmlDetectFrontMatter == true)
         #expect(prefs.htmlTaskList == true)
+        #expect(prefs.editorFocusModeDimsText == true)
+        #expect(prefs.editorFocusModeCentersCaret == true)
     }
 
     @Test("Stored properties immediately reflect assigned values")
@@ -108,6 +110,8 @@ struct PreferencesTests {
         prefs.editorShowWordCount.toggle()
         prefs.editorConvertTabs.toggle()
         prefs.editorFocusModeEnabled.toggle()
+        prefs.editorFocusModeDimsText.toggle()
+        prefs.editorFocusModeCentersCaret.toggle()
         // fontSize is applied to the preview live via a CSS custom property (see
         // PreviewWebView.applyFontSize), not by recomposing/reloading, so it must not
         // bump renderRevision -- that would cause the exact reload-flash this avoids.
@@ -126,6 +130,27 @@ struct PreferencesTests {
 
         let prefsB = Preferences(defaults: ud)
         #expect(prefsB.editorFocusModeEnabled == true)
+    }
+
+    @Test("editorFocusModeDimsText and editorFocusModeCentersCaret persist independently (issue #127 rule 2.4)")
+    func editorFocusModePreferencesPersistIndependently() throws {
+        let suiteName = "test.\(UUID().uuidString)"
+        let ud = try #require(UserDefaults(suiteName: suiteName))
+        let prefsA = Preferences(defaults: ud)
+        #expect(prefsA.editorFocusModeDimsText == true)
+        #expect(prefsA.editorFocusModeCentersCaret == true)
+
+        prefsA.editorFocusModeDimsText = false
+
+        let prefsB = Preferences(defaults: ud)
+        #expect(prefsB.editorFocusModeDimsText == false, "Dimming toggle must persist")
+        #expect(prefsB.editorFocusModeCentersCaret == true, "Centering toggle must be unaffected by the dim toggle")
+
+        prefsB.editorFocusModeCentersCaret = false
+
+        let prefsC = Preferences(defaults: ud)
+        #expect(prefsC.editorFocusModeDimsText == false)
+        #expect(prefsC.editorFocusModeCentersCaret == false)
     }
 
     @Test("editorLivePreviewEnabled persists across instances sharing UserDefaults (issue #2 rule 1.2)")

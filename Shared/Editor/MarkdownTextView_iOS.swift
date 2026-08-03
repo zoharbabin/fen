@@ -24,6 +24,10 @@
         /// 1.3): the toggle itself is a single app-wide `Preferences.editorFocusModeEnabled`
         /// value, but the derived dim/centering state stays on this Coordinator instance.
         var isFocusModeEnabled: Bool = false
+        /// Mirrors the macOS `MarkdownTextView.isFocusModeDimsTextEnabled` doc comment (issue #127 rule 2.2).
+        var isFocusModeDimsTextEnabled: Bool = true
+        /// Mirrors the macOS `MarkdownTextView.isFocusModeCentersCaretEnabled` doc comment (issue #127 rule 2.3).
+        var isFocusModeCentersCaretEnabled: Bool = true
         /// Mirrors the macOS `MarkdownTextView.isLivePreviewEnabled` doc comment (issue #2 rule 1.2).
         var isLivePreviewEnabled: Bool = false
         /// Mirrors the macOS `MarkdownTextView.showLineNumbers` doc comment (issue #21).
@@ -34,6 +38,8 @@
         var documentURL: URL?
         var onScroll: ((CGFloat) -> Void)?
         var onTextChange: (() -> Void)?
+        /// Mirrors the macOS `MarkdownTextView.onFocusRangeChange` doc comment (issue #127 rule 3.3).
+        var onFocusRangeChange: ((FocusLineRange?) -> Void)?
 
         func makeCoordinator() -> Coordinator {
             Coordinator(self)
@@ -163,6 +169,8 @@
             }
 
             let focusModeJustToggled = context.coordinator.parent.isFocusModeEnabled != isFocusModeEnabled
+                || context.coordinator.parent.isFocusModeDimsTextEnabled != isFocusModeDimsTextEnabled
+                || context.coordinator.parent.isFocusModeCentersCaretEnabled != isFocusModeCentersCaretEnabled
             let livePreviewJustToggled = context.coordinator.parent.isLivePreviewEnabled != isLivePreviewEnabled
             context.coordinator.parent = self
             context.coordinator.documentURL = documentURL
@@ -312,6 +320,12 @@
             /// The gutter subview added by `makeUIView`, or `nil` before that runs. Not
             /// `private`: `updateUIView` toggles its visibility/frame directly.
             weak var gutterView: EditorGutterView?
+            /// Mirrors the macOS Coordinator's `focusModeDimsCurrentlyApplied` doc comment
+            /// (issue #127 rule 2.2).
+            var focusModeDimsCurrentlyApplied = false
+            /// Mirrors the macOS Coordinator's `lastNotifiedFocusRange` doc comment (issue #127
+            /// rule 3.3/4.2).
+            var lastNotifiedFocusRange: FocusLineRange??
             /// Mirrors the macOS Coordinator's five live-preview (issue #2) state properties
             /// verbatim, each living on this instance only (rule 1.1) -- never shared across two
             /// open documents/windows. Not `private`: `MarkdownTextView+LivePreview_iOS.swift`'s

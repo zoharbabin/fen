@@ -150,6 +150,22 @@ public final class Preferences {
         didSet { defaults.set(editorFocusModeEnabled, forKey: "editorFocusModeEnabled") }
     }
 
+    /// Whether focus mode dims paragraphs other than the active one, independent of
+    /// `editorFocusModeCentersCaret` (issue #127 rule 2.2). Only has any effect while
+    /// `editorFocusModeEnabled` is on. An editor-only display setting like
+    /// `editorFocusModeEnabled` itself -- does not bump `renderRevision`.
+    var editorFocusModeDimsText: Bool = true {
+        didSet { defaults.set(editorFocusModeDimsText, forKey: "editorFocusModeDimsText") }
+    }
+
+    /// Whether focus mode recenters the caret's line vertically, independent of
+    /// `editorFocusModeDimsText` (issue #127 rule 2.3). Only has any effect while
+    /// `editorFocusModeEnabled` is on. An editor-only display setting like
+    /// `editorFocusModeEnabled` itself -- does not bump `renderRevision`.
+    var editorFocusModeCentersCaret: Bool = true {
+        didSet { defaults.set(editorFocusModeCentersCaret, forKey: "editorFocusModeCentersCaret") }
+    }
+
     /// Live-preview (WYSIWYG-in-source) editing mode toggle (issue #2): styles Markdown syntax
     /// in place in the editor (real font weight/size, hidden markers, rendered checkboxes/images)
     /// without ever changing what's stored on disk. An editor-only display setting like
@@ -444,6 +460,10 @@ public final class Preferences {
         editorSyncScrolling = defaults.object(forKey: "editorSyncScrolling") != nil
             ? defaults.bool(forKey: "editorSyncScrolling") : true
         editorFocusModeEnabled = defaults.bool(forKey: "editorFocusModeEnabled")
+        editorFocusModeDimsText = defaults.object(forKey: "editorFocusModeDimsText") != nil
+            ? defaults.bool(forKey: "editorFocusModeDimsText") : true
+        editorFocusModeCentersCaret = defaults.object(forKey: "editorFocusModeCentersCaret") != nil
+            ? defaults.bool(forKey: "editorFocusModeCentersCaret") : true
         editorLivePreviewEnabled = defaults.bool(forKey: "editorLivePreviewEnabled")
         editorShowLineNumbers = defaults.bool(forKey: "editorShowLineNumbers")
         editorSmartHome = defaults.object(forKey: "editorSmartHome") != nil

@@ -36,6 +36,7 @@ public struct HTMLComposer: Sendable {
         styleTags.append(inlineStyle(fontScaleCSS(preferences: preferences)))
         styleTags.append(inlineStyle(Self.listMarkerCSS))
         styleTags.append(inlineStyle(Self.alertsCSS))
+        styleTags.append(inlineStyle(Self.focusModeCSS))
 
         let highlighting = syntaxHighlightingTags(preferences: preferences)
         styleTags += highlighting.styles
@@ -203,6 +204,14 @@ public struct HTMLComposer: Sendable {
     .markdown-alert-important p.markdown-alert-title { color: #8250df; }
     .markdown-alert-warning p.markdown-alert-title { color: #9a6700; }
     .markdown-alert-caution p.markdown-alert-title { color: #cf222e; }
+    """
+
+    /// Focus mode's preview-pane sync (issue #127 rule 3.1): dims a rendered block that falls
+    /// outside the editor's active Focus Mode range. Unconditionally included in every composed
+    /// document, like `listMarkerCSS` -- toggling Focus Mode on/off never triggers a recompose
+    /// (rule 2.4), only a `.fen-focus-dim` class toggle `scroll-sync.js`'s `setFocusRange` drives.
+    static let focusModeCSS = """
+    .fen-focus-dim { opacity: 0.35; transition: opacity 120ms; }
     """
 
     private func syntaxHighlightingTags(
