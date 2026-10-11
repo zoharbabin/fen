@@ -75,6 +75,8 @@
             textView.autocapitalizationType = .none
             textView.smartQuotesType = .no
             textView.smartDashesType = .no
+            // Cmd+F, Cmd+G and Cmd+Shift+G on a hardware keyboard (issue #42).
+            textView.isFindInteractionEnabled = true
 
             let background = textStorage.highlightr.theme.themeBackgroundColor ?? .systemBackground
             textView.backgroundColor = background
@@ -452,10 +454,13 @@
                     .present(alert, animated: true)
             }
 
+            /// Every open editor hears this notification. An editor in a background scene ignores it,
+            /// so a shortcut doesn't edit a second Fen window that isn't in use.
             @objc func applyFormattingNotification(_ notification: Notification) {
                 guard let identifier = notification.object as? String,
                       let action = FormattingAction(identifier: identifier),
-                      let textView else { return }
+                      let textView,
+                      textView.window?.windowScene?.activationState == .foregroundActive else { return }
                 let selection = textView.selectedRange
                 let result = MarkdownFormatting.apply(action, to: textView.text, selection: selection)
                 textView.text = result.text

@@ -13,6 +13,16 @@ struct FenApp: App {
                 .onAppear { file.document.fileURL = file.fileURL }
                 .onChange(of: file.fileURL) { _, newValue in file.document.fileURL = newValue }
         })
+        .commands {
+            FormattingCommands()
+            ViewCommands()
+            CommandGroup(after: .printItem) {
+                Button("Print…") {
+                    NotificationCenter.default.post(name: .printDocument, object: nil)
+                }
+                .keyboardShortcut("p", modifiers: .command)
+            }
+        }
 
         #if os(iOS)
             DocumentGroupLaunchScene("Fen") {

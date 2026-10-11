@@ -435,10 +435,13 @@ func caretColor(for background: PlatformColor) -> PlatformColor {
                 alert.runModal()
             }
 
+            /// Every open editor hears this notification. Only the one in the key window applies it,
+            /// so Bold in one document doesn't also edit the others.
             @MainActor @objc func applyFormattingNotification(_ notification: Notification) {
                 guard let identifier = notification.object as? String,
                       let action = FormattingAction(identifier: identifier),
-                      let textView else { return }
+                      let textView,
+                      textView.window?.isKeyWindow == true else { return }
                 let selection = textView.selectedRange()
                 let result = MarkdownFormatting.apply(action, to: textView.string, selection: selection)
                 textView.string = result.text

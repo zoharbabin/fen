@@ -43,6 +43,7 @@ If Fen ever charges for anything, we'll favor a one-time purchase over a subscri
 - **A welcome document on first launch** — a genuinely fresh install opens a bundled document that walks through formatting, math/Mermaid rendering, and the slash-command menu instead of a blank page; every document after that opens blank as usual
 - **GitHub-Flavored Markdown** via Apple's [`swift-cmark`](https://github.com/apple/swift-cmark) — tables, task lists, strikethrough, autolinks, footnotes, and `==highlight==` marks, plus GitHub-style alert/callout blocks (`> [!NOTE]`, `[!TIP]`, `[!WARNING]`, and more)
 - **A formatting toolbar and menu commands** — bold, italic, strikethrough, code, headings, lists, task items, blockquotes, links, images, tables, and more, one click or keyboard shortcut away
+- **iPad and hardware keyboards** — the same shortcuts as the Mac (hold Cmd to list them), in the iPadOS menu bar too. A narrow window, such as a phone or Slide Over, shows the editor or the preview one at a time instead of squeezing two panes side by side
 - **Editing quality-of-life** — auto-pair brackets/quotes, tabs-to-spaces, smart Home key, and list/blockquote continuation on Enter
 - **Set as your default `.md` editor** — a proper Finder document icon, Open Recent, and session restore on both platforms
 - **Autosave and crash recovery** — an unsaved buffer is periodically saved to a recovery file; Fen offers to restore it the next time you reopen that document after an unclean exit

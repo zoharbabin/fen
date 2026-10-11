@@ -59,6 +59,7 @@ public struct SplitEditorView: View {
     /// Not `private`: `SplitEditorView+LivePreviewMode.swift` reads and writes both to enforce the
     /// Live-Preview/`.editorOnly` invariant.
     @State var viewMode: ViewMode = .split
+
     /// Rule 1.1 (issue #128): the `viewMode` Live Preview overrode to force `.editorOnly`, restored
     /// when Live Preview turns off. `nil` when it was already `.editorOnly` (rule 1.3) or a
     /// restore/manual switch has consumed it.
@@ -132,21 +133,18 @@ public struct SplitEditorView: View {
                 viewModeDidChange(to: newValue)
             }
 
+        let withToggles = withChangeHandlers.modifier(
+            ViewCommandReceivers(
+                outline: { isOutlineVisible.toggle() },
+                focusMode: { preferences.editorFocusModeEnabled.toggle() },
+                livePreview: { preferences.editorLivePreviewEnabled.toggle() },
+                preview: { viewMode = viewMode.afterTogglingPreview(compactWidth: isCompactWidth) },
+                editor: { viewMode = viewMode.afterTogglingEditor(compactWidth: isCompactWidth) }
+            )
+        )
+
         #if os(macOS)
-            let withReceivers = withChangeHandlers
-                .onReceive(NotificationCenter.default.publisher(for: DocumentOutline.toggleOutlineNotification)) { _ in
-                    isOutlineVisible.toggle()
-                }
-                .onReceive(
-                    NotificationCenter.default.publisher(for: FocusModeEditing.toggleFocusModeNotification)
-                ) { _ in
-                    preferences.editorFocusModeEnabled.toggle()
-                }
-                .onReceive(
-                    NotificationCenter.default.publisher(for: LivePreviewEditing.toggleLivePreviewNotification)
-                ) { _ in
-                    preferences.editorLivePreviewEnabled.toggle()
-                }
+            let withReceivers = withToggles
                 .onReceive(NotificationCenter.default.publisher(for: .exportToHTML)) { _ in
                     htmlExportController.presentSavePanel(document: document, preferences: preferences)
                 }
@@ -171,7 +169,10 @@ public struct SplitEditorView: View {
                     }
                 }
         #else
-            let withReceivers = withChangeHandlers
+            let withReceivers = withToggles
+                .onReceive(NotificationCenter.default.publisher(for: .printDocument)) { _ in
+                    presentPrint()
+                }
         #endif
 
         #if os(iOS)
@@ -230,7 +231,7 @@ public struct SplitEditorView: View {
 
     private var centerContent: some View {
         ZStack {
-            switch viewMode {
+            switch viewMode.shown(compactWidth: isCompactWidth) {
             case .split:
                 splitView
             case .editorOnly:
@@ -463,8 +464,8 @@ public struct SplitEditorView: View {
 
             inlineAIButton
 
-            Picker("View", selection: $viewMode) {
-                ForEach(ViewMode.allCases, id: \.self) { mode in
+            Picker("View", selection: shownViewMode) {
+                ForEach(ViewMode.available(compactWidth: isCompactWidth), id: \.self) { mode in
                     Text(mode.rawValue).tag(mode)
                 }
             }
