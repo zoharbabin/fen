@@ -98,3 +98,23 @@ jobs:
             --exclude "https://highlightjs\.org/.*"
             './**/*.md' './site/*.html'
           fail: true
+
+  cask:
+    name: check Homebrew cask
+    runs-on: macos-15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # The cask must pass Homebrew's style rules, and its sha256 must match the
+      # published zip it points at. A wrong sha makes every `brew install` fail.
+      - name: Style
+        run: brew style Casks/fen.rb
+
+      - name: Check sha256 against the release
+        run: |
+          version="$(sed -n 's/^  version "\(.*\)"/\1/p' Casks/fen.rb)"
+          expected="$(sed -n 's/^  sha256 "\(.*\)"/\1/p' Casks/fen.rb)"
+          curl -fsSL -o Fen.app.zip "https://github.com/zoharbabin/fen/releases/download/v${version}/Fen.app.zip"
+          actual="$(shasum -a 256 Fen.app.zip | cut -d' ' -f1)"
+          test "$actual" = "$expected" || { echo "sha256 mismatch for v${version}: cask has ${expected}, release has ${actual}"; exit 1; }

@@ -110,6 +110,21 @@ gh release create v0.1.0 Fen.app.zip --generate-notes
 
 ---
 
+## Update the Homebrew cask
+
+`Casks/fen.rb` installs the zip from a release. After you publish a release, point the cask at it and open a PR:
+
+```sh
+scripts/update-cask.sh v0.1.0   # sets version and sha256, refuses a build that isn't notarized
+brew style Casks/fen.rb
+```
+
+CI checks the cask's style and that its sha256 matches the published zip. `master` is protected, so the workflow can't push the change for you. Until the PR merges, `brew upgrade` still installs the previous release.
+
+We don't submit to the official `homebrew-cask` repo. Users tap this repo (see [README](../README.md#install)).
+
+---
+
 ## Versioning
 
 The marketing version comes from the git tag (e.g. tag `v0.1.0` → version `0.1.0`). The build number is the commit count. Without a tag, the version is `0.0.0-dev`.
