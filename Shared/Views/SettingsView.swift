@@ -18,6 +18,9 @@ public struct SettingsView: View {
                 Tab("Rendering", systemImage: "eye") {
                     RenderingSettingsTab()
                 }
+                Tab("AI", systemImage: "sparkles") {
+                    AISettingsTab()
+                }
             }
             .frame(width: 500)
         #else
@@ -27,6 +30,7 @@ public struct SettingsView: View {
                     NavigationLink("Editor") { EditorSettingsTab() }
                     NavigationLink("Markdown") { MarkdownSettingsTab() }
                     NavigationLink("Rendering") { RenderingSettingsTab() }
+                    NavigationLink("AI") { AISettingsTab() }
                 }
                 .navigationTitle("Settings")
             }

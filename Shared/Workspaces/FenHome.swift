@@ -21,6 +21,10 @@ public struct FenHome: Sendable, Equatable {
         root.appendingPathComponent("workspaces.json")
     }
 
+    public var aiProvidersFile: URL {
+        root.appendingPathComponent("ai-providers.json")
+    }
+
     public var modelsDirectory: URL {
         root.appendingPathComponent("models", isDirectory: true)
     }

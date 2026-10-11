@@ -251,11 +251,31 @@ Per-workspace settings (`WorkspaceSettings`): AI data access (None, Local provid
 
 Fen reads and writes plain `.md` files straight through the filesystem — never a proprietary "library" or vault format. Every feature that adds structure on top (search index, tag layer, graph view) stores that structure as metadata *alongside* plain `.md` files, never as a replacement for them; that's what keeps Fen iCloud- and Finder-friendly by construction. The same holds for [workspaces](#workspaces-any-number-of-granted-folders): Fen's own state for a workspace lives in `~/.fen`, never inside your folder.
 
-This audience skews actively anti-cloud-AI, not merely indifferent: Bear's developer publicly declined in-app AI specifically because it would mean uploading user notes to a server they don't control, and Obsidian users describe keeping LLMs out of their vault as central to that tool's value. Fen's AI & Knowledge Layer epic ([issue #3](https://github.com/zoharbabin/fen/issues/3)) works within that constraint: local providers (Ollama) are the default, remote providers are opt-in and per-call, and every AI-assisted feature suggests rather than silently writes. See that issue for the full reasoning and the features built on it.
+This audience skews actively anti-cloud-AI, not merely indifferent: Bear's developer publicly declined in-app AI specifically because it would mean uploading user notes to a server they don't control, and Obsidian users describe keeping LLMs out of their vault as central to that tool's value. Fen's AI & Knowledge Layer epic ([issue #3](https://github.com/zoharbabin/fen/issues/3)) works within that constraint: with no provider set up, no AI feature runs. Local providers are the default, remote providers are opt-in, and AI edits are non-destructive: each workspace's approval mode decides whether you approve them or Fen applies them. See that issue for the full reasoning and the features built on it.
+
+## AI providers: one gate, no provider reachable around it
+
+Nothing in `Shared/AI/` runs until you add a provider in Settings, AI. With none added, Fen makes no AI request and writes no AI file. This is the second place Fen talks to the network, after the [map preference](#the-geojsontopojson-map-preference-is-the-one-deliberate-exception). It only happens for a provider you set up, and the Settings row names the host when it isn't this Mac.
+
+| Piece | What it does |
+|---|---|
+| `AIService` | The only entry point. Picks the selected provider, calls `AIGateway`, then sends. |
+| `AIGateway` | Checks the AI data access of every workspace that contributed context, before any connection opens. A workspace set to None blocks all providers. Local only blocks remote ones. Unknown workspaces are refused. |
+| `AIProvider` | Internal protocol. Providers are not `public`, so a feature can't skip the gateway. |
+| `OnDeviceProvider` | Apple's system model (FoundationModels) inside Fen's process. No server, no download. Local. |
+| `OllamaProvider` | Must be on this Mac. Local. |
+| `OpenAICompatibleProvider` | LM Studio, OpenRouter, OpenAI, and similar. Local or remote, decided by `AIEndpoint`. |
+| `AIEndpoint` | Parses the address. Loopback means `localhost`, `127.0.0.0/8` and `::1` only. LAN and public hosts count as remote. Remote hosts need `https`. |
+| `AIHTTP` | One `URLSession` for all providers. It refuses redirects, so a key or document can't be forwarded to another host. |
+| `SecretStore` | API keys live in the keychain, never in `ai-providers.json`. |
+| `ModelStore` | Downloads or imports model weights into `~/.fen/models`. A download needs a confirmation that names the host and size. Size and SHA-256 are checked against the descriptor before the file is moved into place. |
+| `EmbeddingProviderRegistry` | Refuses any embedding provider that runs off device. |
+
+The provider list is `~/.fen/ai-providers.json`. Tests drive the real providers against a loopback HTTP server (`Tests/FenTests/AITestSupport.swift`). The on-device test runs only where the OS model is available.
 
 ## Every third-party resource is vendored, not loaded from a CDN
 
-Fen's trust model is local-first: it reads and writes only inside files and folders you have granted (documents you open and workspaces you add), and — with the one documented exception above for the opt-in GeoJSON/TopoJSON map preference — it makes no runtime network calls. `HTMLComposer` (`Shared/Rendering/HTMLComposer.swift`) composes the preview and export HTML entirely from files bundled inside `Fen.app` — highlight.js lives in `Shared/Resources/Highlight/`, while Mermaid, MathJax, DOMPurify, three.js (plus `STLLoader`/`OrbitControls`), Leaflet, topojson-client, and the task-list script live in `Shared/Resources/Extensions/` (or `Styles`/`Templates` alongside them); emoji shortcode data lives in `Shared/Resources/Emoji/`. All of them load through `loadResourceFile(name:ext:subdirectory:)`, never through a `<script src="https://...">` tag — Leaflet's own basemap *tile images*, not its script, are the one exception, and only when the user has explicitly opted in.
+Fen's trust model is local-first: it reads and writes only inside files and folders you have granted (documents you open and workspaces you add), and — with the two documented exceptions, the opt-in GeoJSON/TopoJSON map preference and [AI providers you add yourself](#ai-providers-one-gate-no-provider-reachable-around-it) — it makes no runtime network calls. `HTMLComposer` (`Shared/Rendering/HTMLComposer.swift`) composes the preview and export HTML entirely from files bundled inside `Fen.app` — highlight.js lives in `Shared/Resources/Highlight/`, while Mermaid, MathJax, DOMPurify, three.js (plus `STLLoader`/`OrbitControls`), Leaflet, topojson-client, and the task-list script live in `Shared/Resources/Extensions/` (or `Styles`/`Templates` alongside them); emoji shortcode data lives in `Shared/Resources/Emoji/`. All of them load through `loadResourceFile(name:ext:subdirectory:)`, never through a `<script src="https://...">` tag — Leaflet's own basemap *tile images*, not its script, are the one exception, and only when the user has explicitly opted in.
 
 MathJax used to be the exception: earlier builds pulled `MathJax.js` from `cdnjs.cloudflare.com` at render time. That meant a delay on first render, a broken feature offline, and an unnecessary network call from a documented local-first app. It's now vendored the same way as Mermaid — `Shared/Resources/Extensions/mathjax-tex-svg.js` bundles MathJax v3's `tex-svg` output (SVG glyphs, no separate web-font files, so it stays a single self-contained file), with attribution in `LICENSE/mathjax.txt` (Apache License 2.0, compatible with bundling into an MIT-licensed app).
 
