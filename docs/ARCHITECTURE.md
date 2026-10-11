@@ -530,6 +530,25 @@ Without a provider, or without access, a pair with a mark is flagged from the ma
 
 Tests: `ConflictPassageTests`, `ConflictDeltaTests` (real git), `ConflictDetectorTests`, `ConflictUnitTests`, `ConflictRunTests` and `ConflictGitRunTests` (a real library, gate and loopback provider: no write to the folder, idle second run, caps, cancel, git boundary, stale flags), `ConflictResolverTests` (the default never writes, opt-in, branch commit, undo, bad drafts), `WriteGateBranchAsTests`, `ConflictPrecisionTests` and `ConflictCostTests`.
 
+## Version history: the system keeps versions, Fen shows them
+
+Fen stores no history of its own for a single document. `DocumentGroup` saves through `NSDocument` with autosave in place, and the system adds an `NSFileVersion` on each save (we measured it: the count of `otherVersionsOfItem` grew with every save). That is the whole macOS history, and issue #59 only makes it easy to find.
+
+| Platform | What you get |
+|---|---|
+| macOS | File > Browse Version History… (`macOS/FenApp_macOS.swift`) sends `browseVersions:` to the front document, the same action as Revert To > Browse All Versions…. Revert To Saved works too. |
+| iOS | `VersionHistoryButton` in the toolbar opens `VersionHistoryView` (`Shared/Versions/`). It lists the versions, shows the text of one, and restores it after a confirmation by setting `document.text`, which you can still undo and which saves like any edit. |
+
+`FileVersionHistory` is read-only. `versions(of:)` merges `otherVersionsOfItem` and `getNonlocalVersionsOfItem`, newest first, without the current version. `text(of:)` reads through `NSFileCoordinator`, which downloads an iCloud version first.
+
+Limits you should know:
+
+- iOS cannot create versions (`addVersionOfItem` is macOS only), so an iOS document has history only when iCloud made it.
+- The system drops versions when you copy or move a file to another volume, duplicate it, Save As, move it into or out of iCloud, or restore from a backup.
+- Since macOS Monterey, iCloud does not sync the shared version history ([Eclectic Light, 2022-08-05](https://eclecticlight.co/2022/08/05/how-macos-versions-help-you-recover-from-errors/)). Assume the other device has its own local versions plus the latest synced one. We have no iCloud account or second device in CI, so cross-device version sharing is untested.
+
+Tests: `FileVersionHistoryTests` (real `NSFileVersion`s: newest first, current version excluded, missing file, reading changes nothing). The menu item and the iOS sheet compile on both platforms. Their UI isn't covered by a test.
+
 ## Every third-party resource is vendored, not loaded from a CDN
 
 Fen's trust model is local-first: it reads and writes only inside files and folders you have granted (documents you open and workspaces you add), and — with the two documented exceptions, the opt-in GeoJSON/TopoJSON map preference and [AI providers you add yourself](#ai-providers-one-gate-no-provider-reachable-around-it) — it makes no runtime network calls. `HTMLComposer` (`Shared/Rendering/HTMLComposer.swift`) composes the preview and export HTML entirely from files bundled inside `Fen.app` — highlight.js lives in `Shared/Resources/Highlight/`, while Mermaid, MathJax, DOMPurify, three.js (plus `STLLoader`/`OrbitControls`), Leaflet, topojson-client, and the task-list script live in `Shared/Resources/Extensions/` (or `Styles`/`Templates` alongside them); emoji shortcode data lives in `Shared/Resources/Emoji/`. All of them load through `loadResourceFile(name:ext:subdirectory:)`, never through a `<script src="https://...">` tag — Leaflet's own basemap *tile images*, not its script, are the one exception, and only when the user has explicitly opted in.

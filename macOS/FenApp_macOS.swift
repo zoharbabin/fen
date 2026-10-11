@@ -129,6 +129,12 @@ struct FenApp: App {
             }
             .keyboardShortcut("a", modifiers: [.command, .option])
         }
+        // The system's Browse All Versions (issue #59). It is also under Revert To, which is easy to miss.
+        CommandGroup(after: .saveItem) {
+            Button("Browse Version History…") {
+                NSApp.sendAction(#selector(NSDocument.browseVersions(_:)), to: nil, from: nil)
+            }
+        }
         exportHTMLCommands()
         exportPDFCommands()
         printCommands()

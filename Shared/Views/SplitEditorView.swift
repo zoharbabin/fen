@@ -486,6 +486,7 @@ public struct SplitEditorView: View {
             }
 
             #if os(iOS)
+                VersionHistoryButton(document: document)
                 exportMenu
             #endif
         }
