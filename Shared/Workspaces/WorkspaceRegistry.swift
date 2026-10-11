@@ -10,7 +10,7 @@ import Observation
 public final class WorkspaceRegistry {
     public private(set) var workspaces: [Workspace] = []
 
-    private let home: FenHome
+    public let home: FenHome
     private let userHome: URL
     private var roots: [UUID: URL] = [:]
 

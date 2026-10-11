@@ -69,6 +69,8 @@ public struct WorkspaceSettings: Codable, Sendable, Equatable {
     public var aiDataAccess: AIDataAccess
     public var approvalMode: ApprovalMode
     public var mcpAccess: MCPAccess
+    /// Overrides, opt-ins and caps for AI writes (issue #140). `approvalMode` is the default.
+    public var writePolicy: WritePolicy
     /// Set when you connect a remote (#61). `nil` until then.
     public var syncMode: SyncMode?
     public var includeGlobs: [String]
@@ -79,6 +81,7 @@ public struct WorkspaceSettings: Codable, Sendable, Equatable {
         aiDataAccess: AIDataAccess = .localProvidersOnly,
         approvalMode: ApprovalMode = .ask,
         mcpAccess: MCPAccess = .disabled,
+        writePolicy: WritePolicy = WritePolicy(),
         syncMode: SyncMode? = nil,
         includeGlobs: [String] = WorkspaceSettings.defaultIncludeGlobs,
         excludeGlobs: [String] = [],
@@ -87,6 +90,7 @@ public struct WorkspaceSettings: Codable, Sendable, Equatable {
         self.aiDataAccess = aiDataAccess
         self.approvalMode = approvalMode
         self.mcpAccess = mcpAccess
+        self.writePolicy = writePolicy
         self.syncMode = syncMode
         self.includeGlobs = includeGlobs
         self.excludeGlobs = excludeGlobs
@@ -100,6 +104,7 @@ public struct WorkspaceSettings: Codable, Sendable, Equatable {
             aiDataAccess: container.decodeIfPresent(AIDataAccess.self, forKey: .aiDataAccess) ?? .localProvidersOnly,
             approvalMode: container.decodeIfPresent(ApprovalMode.self, forKey: .approvalMode) ?? .ask,
             mcpAccess: container.decodeIfPresent(MCPAccess.self, forKey: .mcpAccess) ?? .disabled,
+            writePolicy: container.decodeIfPresent(WritePolicy.self, forKey: .writePolicy) ?? WritePolicy(),
             syncMode: container.decodeIfPresent(SyncMode.self, forKey: .syncMode),
             includeGlobs: container.decodeIfPresent([String].self, forKey: .includeGlobs)
                 ?? WorkspaceSettings.defaultIncludeGlobs,

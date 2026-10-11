@@ -9,6 +9,20 @@ struct WorkspaceSettingsView: View {
     @State private var includeText: String
     @State private var excludeText: String
     @State private var errorMessage: String?
+    @State private var confirming: AutoApproveTarget?
+    @State private var replacingText: String
+
+    private enum AutoApproveTarget: Identifiable {
+        case workspace
+        case rule(UUID)
+
+        var id: String {
+            switch self {
+            case .workspace: "workspace"
+            case let .rule(id): id.uuidString
+            }
+        }
+    }
 
     init(library: WorkspaceLibrary, workspace: Workspace) {
         self.library = library
@@ -16,6 +30,9 @@ struct WorkspaceSettingsView: View {
         _draft = State(initialValue: workspace.settings)
         _includeText = State(initialValue: workspace.settings.includeGlobs.joined(separator: "\n"))
         _excludeText = State(initialValue: workspace.settings.excludeGlobs.joined(separator: "\n"))
+        _replacingText = State(
+            initialValue: workspace.settings.writePolicy.autoApproveReplacing.sorted().joined(separator: ", ")
+        )
     }
 
     var body: some View {
@@ -27,6 +44,12 @@ struct WorkspaceSettingsView: View {
                     }
                     Picker("Approve AI changes", selection: $draft.approvalMode) {
                         ForEach(ApprovalMode.allCases, id: \.self) { Text($0.title).tag($0) }
+                    }
+                    .onChange(of: draft.approvalMode) { old, new in
+                        if new == .autoApprove, !draft.writePolicy.autoApproveConfirmed {
+                            draft.approvalMode = old
+                            confirming = .workspace
+                        }
                     }
                     Picker("Agent access (MCP)", selection: $draft.mcpAccess) {
                         ForEach(MCPAccess.allCases, id: \.self) { Text($0.title).tag($0) }
@@ -40,6 +63,8 @@ struct WorkspaceSettingsView: View {
                             + "Agent access is off while AI data access is None."
                     )
                 }
+
+                writeRulesSection
 
                 Section {
                     TextEditor(text: $includeText)
@@ -87,11 +112,99 @@ struct WorkspaceSettingsView: View {
             }
         }
         .frame(minWidth: 460, minHeight: 520)
+        .confirmationDialog(
+            "Turn on auto-approve?",
+            isPresented: Binding(get: { confirming != nil }, set: {
+                if !$0 {
+                    confirming = nil
+                }
+            }),
+            titleVisibility: .visible
+        ) {
+            Button("Turn On") { confirmAutoApprove() }
+        } message: {
+            Text(
+                "Fen will add text and files without asking. You can undo every change. "
+                    + "Deleting, moving, and overwriting whole files still ask."
+            )
+        }
+    }
+
+    private var writeRulesSection: some View {
+        Section {
+            TextField("Auto-approve replacing text for", text: $replacingText, prompt: Text("enrich, tidy"))
+                .help("Operation names, separated by commas. Replacing text needs this opt-in on top of auto-approve.")
+            Stepper(
+                "At most \(draft.writePolicy.maxFilesPerRun) files per run",
+                value: $draft.writePolicy.maxFilesPerRun,
+                in: 1 ... 200
+            )
+            Stepper(
+                "Ask when a change touches over \(Int(draft.writePolicy.maxChangedFraction * 100))% of a document",
+                value: $draft.writePolicy.maxChangedFraction,
+                in: 0.1 ... 1,
+                step: 0.1
+            )
+            ForEach($draft.writePolicy.overrides) { $rule in
+                HStack {
+                    Picker("Rule", selection: $rule.kind) {
+                        ForEach(WriteRuleKind.allCases, id: \.self) { Text($0.title).tag($0) }
+                    }
+                    .labelsHidden()
+                    TextField("Match", text: $rule.match)
+                    Picker("Mode", selection: $rule.mode) {
+                        ForEach(ApprovalMode.allCases, id: \.self) { Text($0.title).tag($0) }
+                    }
+                    .labelsHidden()
+                    .onChange(of: rule.mode) { old, new in
+                        if new == .autoApprove, !rule.confirmed {
+                            rule.mode = old
+                            confirming = .rule(rule.id)
+                        }
+                    }
+                    Button("Remove rule", systemImage: "minus.circle") {
+                        draft.writePolicy.overrides.removeAll { $0.id == rule.id }
+                    }
+                    .labelStyle(.iconOnly)
+                    .buttonStyle(.borderless)
+                }
+            }
+            Button("Add Rule", systemImage: "plus") {
+                draft.writePolicy.overrides.append(.init(kind: .pathGlob, match: "", mode: .ask))
+            }
+        } header: {
+            Text("AI write rules")
+        } footer: {
+            Text(
+                "A rule beats the default. The most specific wins: MCP client, then path, then document type, "
+                    + "then operation. Deleting, moving, and overwriting whole files always ask."
+            )
+        }
+    }
+
+    private func confirmAutoApprove() {
+        switch confirming {
+        case .workspace:
+            draft.writePolicy.autoApproveConfirmed = true
+            draft.approvalMode = .autoApprove
+        case let .rule(id):
+            if let index = draft.writePolicy.overrides.firstIndex(where: { $0.id == id }) {
+                draft.writePolicy.overrides[index].confirmed = true
+                draft.writePolicy.overrides[index].mode = .autoApprove
+            }
+        case nil:
+            break
+        }
+        confirming = nil
     }
 
     private func save() {
         draft.includeGlobs = lines(includeText)
         draft.excludeGlobs = lines(excludeText)
+        draft.writePolicy.autoApproveReplacing = Set(
+            replacingText.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        )
+        draft.writePolicy.overrides.removeAll { $0.match.trimmingCharacters(in: .whitespaces).isEmpty }
         let result = draft
         do {
             try library.updateSettings(id: workspace.id) { $0 = result }

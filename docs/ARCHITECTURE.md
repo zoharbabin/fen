@@ -253,8 +253,9 @@ Fen's own state lives in one folder, `~/.fen` (`FenHome`). In a sandboxed macOS 
   ai-providers.json      AI providers (keys are in the Keychain)
   workspaces/<id>/
     index/               search and embedding index. A cache, safe to delete.
-    history/             pre-images and activity log. Worth keeping.
+    history/             pre-images and activity.jsonl. Worth keeping.
   models/                downloaded model weights
+  write-policy.json      the global "pause auto-approve" switch
 ```
 
 | Action | What it deletes |
@@ -280,7 +281,7 @@ How the rules are enforced:
 - `FolderSnapshot` (`Tests/FenTests/StorageRulesTests.swift`) records a folder's files and contents. `StorageRulesTests` adds, lists, reconfigures, clears and removes a workspace in a real git repo, then checks the snapshot is unchanged and `git status --porcelain` is empty. A new feature that reads or writes near a workspace adds a step to that test.
 - A second test edits one note with a workspace open and checks git sees that one file change and nothing else.
 
-Per-workspace settings (`WorkspaceSettings`): AI data access (None, Local providers only, Any configured provider; default Local only), approval mode (Ask, Auto-approve, Off; default Ask), MCP access (Off, On; unavailable when AI data access is None), include and exclude globs, and a maximum file size. They're stored with the workspace in `workspaces.json`.
+Per-workspace settings (`WorkspaceSettings`): AI data access (None, Local providers only, Any configured provider; default Local only), approval mode (Ask, Auto-approve, Off; default Ask) with its write policy (see [AI writes](#ai-writes-one-gate-every-change-reversible)), MCP access (Off, On; unavailable when AI data access is None), include and exclude globs, and a maximum file size. They're stored with the workspace in `workspaces.json`.
 
 ## No proprietary storage format, and no cloud AI by default
 
@@ -307,6 +308,33 @@ Nothing in `Shared/AI/` runs until you add a provider in Settings, AI. With none
 | `EmbeddingProviderRegistry` | Refuses any embedding provider that runs off device. |
 
 The provider list is `~/.fen/ai-providers.json`. Tests drive the real providers against a loopback HTTP server (`Tests/FenTests/AITestSupport.swift`). The on-device test runs only where the OS model is available.
+
+## AI writes: one gate, every change reversible
+
+AI features never write to a workspace themselves. They build a `ProposedChange` and give it to `WriteGate` (`Shared/Workspaces/Writes/`). Nothing in that folder touches the network, and a test greps for it.
+
+**What a change can be.** `EditOperation` is a fixed list: `createFile`, `append`, `setFrontMatter`, `replaceText`, `overwrite`, `delete`, `move`. `EditResultParser` turns a model's JSON into that list and rejects anything else: unknown operations, extra fields (a URL, a scope, a tool name), paths outside the run's scope, more than 100 edits. Document text is data. It can only end up as the text of an edit.
+
+| Tier | Operations | Rule |
+|---|---|---|
+| Additive | `createFile`, `append`, `setFrontMatter` for a new key | Auto-approve allowed once you opt in. |
+| Replacing | `replaceText`, `setFrontMatter` for an existing key | Auto-approve needs a separate opt-in per operation name (`autoApproveReplacing`). Schema migrations pass `exemptFromReplacingOptIn`. |
+| Destructive | `overwrite`, `delete`, `move` | Always asks, in every mode, even for a change you started. |
+
+**What the gate does with each change**, in this order:
+
+1. The workspace must exist. Every path must be in the run's `scope` and resolve inside the root through `PathGate`. Hidden parts (`.git`, `.env`), secret-looking names, binary files and files over the size limit are refused.
+2. The file must still hash to `baseHash` (compare-and-swap). If you or another tool changed it, the write fails with `targetChanged`. Nothing is overwritten. Take the hash with `WriteGate.contentHash` when you read the file for the model.
+3. `WritePolicy.mode` picks the mode, then `decide` returns apply, ask or block (below).
+4. Apply: save the old bytes to `history/preimages/<path hash>-<content hash>`, write atomically with the same permissions, append to `history/activity.jsonl`.
+
+**Modes and overrides.** The workspace default is `WorkspaceSettings.approvalMode`. Rules in `WritePolicy.overrides` match an MCP client, a path pattern, a document type or an operation. The most specific kind that matches wins (client, path, type, operation). Two matches of one kind resolve to the stricter. Off blocks. A change you start yourself counts as approved, except a destructive one.
+
+**What forces Ask.** Auto-approve is Ask until you confirm it once, for the workspace and for each rule. The global pause (`WriteGate.setPaused`, `~/.fen/write-policy.json`) turns every auto-approve into Ask. A run over `maxFilesPerRun`, or a replacing edit that changes more than `maxChangedFraction` of a document, drops to Ask.
+
+**Undo.** `WriteGate.undo` restores the saved bytes only if the file still hashes to what Fen wrote, so it never overwrites your later edit. `revertRun` undoes every change of one run, newest first, and lists the ones it left alone. The log and pre-images survive a restart. `Provenance.commitTrailer` gives the `AI-Assisted-By:` line for a commit you write. Fen adds no markers to files, and `FrontMatterEditor` changes one line and keeps every other byte.
+
+Tests: `WritePolicyTests` (matrix, precedence, parser, injection fixtures, front matter, diff) and `WriteGateTests` (CAS, scope, symlinks, caps, pause, restart, undo, and a real git repo and a plain folder end to end). The approval list and undo are in the Workspaces window, Activity.
 
 ## Every third-party resource is vendored, not loaded from a CDN
 

@@ -25,6 +25,11 @@ public struct FenHome: Sendable, Equatable {
         root.appendingPathComponent("ai-providers.json")
     }
 
+    /// The global switch that pauses every auto-approve (issue #140).
+    public var writePolicyFile: URL {
+        root.appendingPathComponent("write-policy.json")
+    }
+
     public var modelsDirectory: URL {
         root.appendingPathComponent("models", isDirectory: true)
     }
@@ -40,6 +45,15 @@ public struct FenHome: Sendable, Equatable {
 
     public func historyDirectory(id: UUID) -> URL {
         workspaceDirectory(id: id).appendingPathComponent("history", isDirectory: true)
+    }
+
+    public func activityLogFile(id: UUID) -> URL {
+        historyDirectory(id: id).appendingPathComponent("activity.jsonl")
+    }
+
+    /// Copies of files as they were before an AI change, named `<path hash>-<content hash>`.
+    public func preImagesDirectory(id: UUID) -> URL {
+        historyDirectory(id: id).appendingPathComponent("preimages", isDirectory: true)
     }
 
     public func ensureExists() throws {

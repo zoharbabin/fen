@@ -16,9 +16,11 @@ public struct WorkspacesView: View {
     @State private var message: String?
     @State private var workspaceToRemove: Workspace?
     @State private var workspaceToConfigure: Workspace?
+    private let gate: WriteGate
 
-    public init(library: WorkspaceLibrary = .shared) {
+    public init(library: WorkspaceLibrary = .shared, gate: WriteGate = .shared) {
         self.library = library
+        self.gate = gate
     }
 
     public var body: some View {
@@ -26,7 +28,7 @@ public struct WorkspacesView: View {
             sidebar
         } detail: {
             if let workspace = selectedWorkspace {
-                WorkspaceDetailView(library: library, workspace: workspace, open: open)
+                WorkspaceDetailView(library: library, gate: gate, workspace: workspace, open: open)
             } else {
                 ContentUnavailableView {
                     Label("No workspace selected", systemImage: "folder")
@@ -113,6 +115,8 @@ public struct WorkspacesView: View {
             ToolbarItem { addButton }
             ToolbarItem {
                 Menu("More", systemImage: "ellipsis.circle") {
+                    Toggle("Pause Auto-Approve", isOn: Binding(get: { gate.isPaused }, set: { setPaused($0) }))
+                    Divider()
                     Button("Clear Caches") { clearCaches() }
                 }
                 .help("Clear caches. Fen rebuilds them. Your files and settings are not touched.")
@@ -124,6 +128,14 @@ public struct WorkspacesView: View {
             }
         }
         .navigationSplitViewColumnWidth(min: 200, ideal: 240)
+    }
+
+    private func setPaused(_ paused: Bool) {
+        do {
+            try gate.setPaused(paused)
+        } catch {
+            message = error.localizedDescription
+        }
     }
 
     private func clearCaches() {
@@ -219,8 +231,10 @@ private struct WorkspaceRow: View {
 
 private struct WorkspaceDetailView: View {
     let library: WorkspaceLibrary
+    let gate: WriteGate
     let workspace: Workspace
     let open: (Workspace, WorkspaceFile) -> Void
+    @State private var showingActivity = false
 
     var body: some View {
         let state = library.state(for: workspace.id)
@@ -230,6 +244,9 @@ private struct WorkspaceDetailView: View {
             content(state)
         }
         .navigationTitle(workspace.name)
+        .sheet(isPresented: $showingActivity) {
+            WorkspaceActivityView(gate: gate, workspace: workspace)
+        }
     }
 
     private func header(_ state: WorkspaceState) -> some View {
@@ -247,6 +264,10 @@ private struct WorkspaceDetailView: View {
                 }
             }
             Spacer()
+            Button("Activity", systemImage: "clock.arrow.circlepath") { showingActivity = true }
+                .labelStyle(.iconOnly)
+                .badge(gate.pending(for: workspace.id).count)
+                .help("AI changes: approve, review, and undo")
             if case let .scanning(found) = state.phase {
                 ProgressView().controlSize(.small)
                 Text("\(found) files")
