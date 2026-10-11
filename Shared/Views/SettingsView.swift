@@ -138,8 +138,9 @@ struct EditorSettingsTab: View {
                 if prefs.editorLivePreviewEnabled {
                     Text(
                         "Renders bold/italic/strikethrough, inline code, headings, blockquotes, " +
-                            "checkboxes, links, and images inline as you type. Tables and fenced code " +
-                            "blocks are left as raw Markdown source for now — see issue #135."
+                            "checkboxes, links, images, rules, lists, footnotes, tables, and code " +
+                            "block panels inline as you type. Math, Mermaid, and map blocks stay as " +
+                            "source for now — see issue #135."
                     )
                     .font(.caption)
                     .foregroundStyle(.secondary)

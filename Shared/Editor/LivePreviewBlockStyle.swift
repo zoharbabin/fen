@@ -5,19 +5,6 @@ import Foundation
     import UIKit
 #endif
 
-public extension NSAttributedString.Key {
-    /// Marks a range `DecorationLayoutManager` draws behind or over the text. The value is a `BlockDecoration` raw
-    /// value.
-    static let fenBlockDecoration = NSAttributedString.Key("FenBlockDecoration")
-    /// A `ParagraphStash` holding the paragraph style a block styler replaced.
-    static let livePreviewOriginalParagraphStyle = NSAttributedString.Key("FenLivePreviewOriginalParagraphStyle")
-}
-
-public enum BlockDecoration: String {
-    /// A thematic break: the line's text is hidden and a thin line is drawn across the text column.
-    case rule
-}
-
 /// The paragraph style a block styler replaced, or `nil` when the range had none.
 final class ParagraphStash: NSObject {
     let style: NSParagraphStyle?
@@ -46,7 +33,7 @@ enum LivePreviewBlockStyle {
         if LivePreviewEditing.isHorizontalRule(line: line, previousLine: previousLine) {
             stashOriginal(lineRange, in: storage)
             storage.addAttribute(.foregroundColor, value: background, range: lineRange)
-            storage.addAttribute(.fenBlockDecoration, value: BlockDecoration.rule.rawValue, range: lineRange)
+            decorate(lineRange, as: .rule, background: background, in: storage)
             return true
         }
         if let item = LivePreviewEditing.listItem(line: line, lineStart: lineStart) {
@@ -69,7 +56,9 @@ enum LivePreviewBlockStyle {
             }
             storage.removeAttribute(.livePreviewOriginalParagraphStyle, range: subrange)
         }
-        storage.removeAttribute(.fenBlockDecoration, range: range)
+        for key: NSAttributedString.Key in [.fenBlockDecoration, .fenBlockInk, .fenTablePipe] {
+            storage.removeAttribute(key, range: range)
+        }
         storage.removeAttribute(.baselineOffset, range: range)
     }
 
@@ -125,7 +114,7 @@ enum LivePreviewBlockStyle {
     // MARK: - Stash
 
     /// Same rule as the platform stash: only the first touch records the original color and font.
-    private static func stashOriginal(_ range: NSRange, in storage: NSTextStorage) {
+    static func stashOriginal(_ range: NSRange, in storage: NSTextStorage) {
         guard range.length > 0 else { return }
         storage.enumerateAttributes(in: range, options: []) { attributes, subrange, _ in
             guard storage.attribute(.livePreviewTouched, at: subrange.location, effectiveRange: nil) == nil else {
@@ -145,7 +134,7 @@ enum LivePreviewBlockStyle {
         }
     }
 
-    private static func stashParagraphStyle(_ range: NSRange, in storage: NSTextStorage) {
+    static func stashParagraphStyle(_ range: NSRange, in storage: NSTextStorage) {
         storage.enumerateAttribute(.paragraphStyle, in: range) { value, subrange, _ in
             guard storage.attribute(.livePreviewOriginalParagraphStyle, at: subrange.location, effectiveRange: nil)
                 == nil else { return }
@@ -163,12 +152,12 @@ enum LivePreviewBlockStyle {
 
     // MARK: - Platform
 
-    private static func font(at location: Int, in storage: NSTextStorage) -> PlatformFont {
+    static func font(at location: Int, in storage: NSTextStorage) -> PlatformFont {
         storage.attribute(.font, at: location, effectiveRange: nil) as? PlatformFont
             ?? .systemFont(ofSize: PlatformFont.systemFontSize)
     }
 
-    private static func scaled(_ font: PlatformFont, to size: CGFloat) -> PlatformFont {
+    static func scaled(_ font: PlatformFont, to size: CGFloat) -> PlatformFont {
         #if canImport(AppKit)
             NSFont(descriptor: font.fontDescriptor, size: size) ?? font
         #else
@@ -176,7 +165,7 @@ enum LivePreviewBlockStyle {
         #endif
     }
 
-    private static var accentColor: PlatformColor {
+    static var accentColor: PlatformColor {
         #if canImport(AppKit)
             .controlAccentColor
         #else
@@ -184,58 +173,11 @@ enum LivePreviewBlockStyle {
         #endif
     }
 
-    private static var defaultColor: PlatformColor {
+    static var defaultColor: PlatformColor {
         #if canImport(AppKit)
             .textColor
         #else
             .label
-        #endif
-    }
-}
-
-/// Draws the block decorations Live Preview sets as `fenBlockDecoration` attributes. The text view uses it
-/// instead of a plain `NSLayoutManager`. Drawing happens at draw time, so a decoration follows the layout
-/// on every resize, font change and wrap with no extra bookkeeping.
-public final class DecorationLayoutManager: NSLayoutManager {
-    override public func drawBackground(forGlyphRange glyphsToShow: NSRange, at origin: CGPoint) {
-        super.drawBackground(forGlyphRange: glyphsToShow, at: origin)
-        guard let storage = textStorage else { return }
-        let characters = characterRange(forGlyphRange: glyphsToShow, actualGlyphRange: nil)
-        storage.enumerateAttribute(.fenBlockDecoration, in: characters) { value, range, _ in
-            guard let name = value as? String, let decoration = BlockDecoration(rawValue: name) else { return }
-            switch decoration {
-            case .rule: drawRule(over: range, origin: origin, in: storage)
-            }
-        }
-    }
-
-    private func drawRule(over characters: NSRange, origin: CGPoint, in storage: NSTextStorage) {
-        let glyphs = glyphRange(forCharacterRange: characters, actualCharacterRange: nil)
-        guard glyphs.length > 0,
-              let container = textContainer(forGlyphAt: glyphs.location, effectiveRange: nil) else { return }
-        let line = lineFragmentRect(forGlyphAt: glyphs.location, effectiveRange: nil)
-        let inset = container.lineFragmentPadding
-        let rule = CGRect(
-            x: origin.x + inset,
-            y: origin.y + line.midY - 0.5,
-            width: max(container.size.width - 2 * inset, 0),
-            height: 1
-        )
-        let text = storage.attribute(.livePreviewOriginalForegroundColor, at: characters.location, effectiveRange: nil)
-            as? PlatformColor
-        (text?.withAlphaComponent(0.4) ?? Self.fallbackRuleColor).setFill()
-        #if canImport(AppKit)
-            rule.fill()
-        #else
-            UIRectFill(rule)
-        #endif
-    }
-
-    private static var fallbackRuleColor: PlatformColor {
-        #if canImport(AppKit)
-            .separatorColor
-        #else
-            .separator
         #endif
     }
 }

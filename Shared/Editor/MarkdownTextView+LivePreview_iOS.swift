@@ -85,10 +85,9 @@
             clearLivePreviewStyling(in: expandedRange, textStorage: textStorage)
             removeOverlays(overlapping: expandedRange)
             guard expandedRange.length > 0 else { return }
-            // Rule 2.1/2.2 (issue #128): computed once per call, not per line -- a fence spans
-            // multiple lines, so each line's membership can't be decided from that line alone.
-            let fencedRanges = LivePreviewEditing.fencedRanges(text: text)
-            let frontMatterEnd = LivePreviewEditing.frontMatterRange(text: text).map { NSMaxRange($0) } ?? 0
+            // Rule 2.1/2.2 (issue #128), tables and front matter (issue #135): computed once per call,
+            // because a fence or a table spans lines and no single line can tell if it belongs to one.
+            let blocks = LivePreviewBlockContext(text: text)
 
             // Collects checkbox/image spans that need an overlay positioned, so that work --
             // which calls `rect(forCharacterRange:)` and thus triggers glyph generation -- can
@@ -107,39 +106,22 @@
                 let isActive = NSIntersectionRange(contentLineRange, activeRange).length > 0
                     || (contentLineRange.length == 0 && activeRange.length == 0
                         && contentLineRange.location == activeRange.location)
+                let kind = blocks.kind(ofLineAt: contentLineRange.location)
+                if kind == .code {
+                    LivePreviewBlockStyle.applyCodeBlock(
+                        lineRange: lineRange,
+                        storage: textStorage,
+                        background: textView.backgroundColor ?? .systemBackground
+                    )
+                }
                 if !isActive {
-                    let line = ns.substring(with: contentLineRange)
-                    // Fenced ranges are always whole lines (`LivePreviewEditing.fencedRanges`
-                    // builds them from `lineRange(for:)`), so a line belongs to one if its start
-                    // falls within it -- no need for a length-aware intersection check.
-                    let isFenced = fencedRanges.contains {
-                        contentLineRange.location >= $0.location
-                            && contentLineRange.location < $0.location + $0.length
-                    }
-                    if !LivePreviewEditing.isTableRow(line: line), !isFenced,
-                       contentLineRange.location >= frontMatterEnd {
-                        let previous = contentLineRange.location > 0
-                            ? ns.substring(with: strippingTrailingNewline(
-                                ns.lineRange(for: NSRange(location: contentLineRange.location - 1, length: 0)), in: ns
-                            ))
-                            : nil
-                        let isRule = LivePreviewBlockStyle.apply(
-                            line: line,
-                            lineStart: contentLineRange.location,
-                            previousLine: previous,
-                            storage: textStorage,
-                            background: textView.backgroundColor ?? .systemBackground
-                        )
-                        if !isRule {
-                            styleLine(
-                                line,
-                                lineStart: contentLineRange.location,
-                                textStorage: textStorage,
-                                textView: textView,
-                                pendingOverlaySpans: &pendingOverlaySpans
-                            )
-                        }
-                    }
+                    styleInactiveLine(
+                        kind,
+                        fullRange: lineRange,
+                        in: ns,
+                        textView: textView,
+                        pendingOverlaySpans: &pendingOverlaySpans
+                    )
                 }
                 location = lineRange.location + lineRange.length
             }
@@ -156,55 +138,12 @@
             return NSRange(location: location, length: length)
         }
 
-        private func strippingTrailingNewline(_ lineRange: NSRange, in ns: NSString) -> NSRange {
-            var contentRange = lineRange
-            guard contentRange.length > 0 else { return contentRange }
-            let lastIndex = contentRange.location + contentRange.length - 1
-            if ns.character(at: lastIndex) == 10 { // "\n"
-                contentRange.length -= 1
-            }
-            if contentRange.length > 0 {
-                let secondLastIndex = contentRange.location + contentRange.length - 1
-                if ns.character(at: secondLastIndex) == 13 { // "\r"
-                    contentRange.length -= 1
-                }
-            }
-            return contentRange
-        }
-
-        @MainActor private func styleLine(
-            _ line: String, lineStart: Int, textStorage: NSTextStorage, textView: MarkdownTextView.MarkdownUITextView,
-            pendingOverlaySpans: inout [LivePreviewEditing.Span]
-        ) {
-            var content = line
-            var contentStart = lineStart
-            if let blockSpan = LivePreviewEditing.blockPrefixSpan(line: line, lineStart: lineStart) {
-                applySpan(
-                    blockSpan, textStorage: textStorage, textView: textView, pendingOverlaySpans: &pendingOverlaySpans
-                )
-                let consumed = blockSpan.contentRange.location - lineStart
-                content = String(line.dropFirst(consumed))
-                contentStart = blockSpan.contentRange.location
-                if case .checkbox = blockSpan.kind {
-                    return
-                }
-            }
-            for inlineSpan in LivePreviewEditing.inlineSpans(in: content, textStart: contentStart) {
-                applySpan(
-                    inlineSpan,
-                    textStorage: textStorage,
-                    textView: textView,
-                    pendingOverlaySpans: &pendingOverlaySpans
-                )
-            }
-        }
-
         /// Checkbox/image overlays are only created/updated here -- never positioned, since
         /// positioning calls `rect(forCharacterRange:)`, which triggers glyph generation and
         /// crashes if run while `textStorage` is still inside `beginEditing()`/`endEditing()`.
         /// Instead, this appends `span` to `pendingOverlaySpans` so the caller can position it
         /// once editing ends.
-        @MainActor private func applySpan(
+        @MainActor func applySpan(
             _ span: LivePreviewEditing.Span, textStorage: NSTextStorage, textView: MarkdownTextView.MarkdownUITextView,
             pendingOverlaySpans: inout [LivePreviewEditing.Span]
         ) {
