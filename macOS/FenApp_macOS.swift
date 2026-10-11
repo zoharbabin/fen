@@ -44,6 +44,9 @@ struct FenApp: App {
             Button("About Fen") {
                 openWindow(id: "about")
             }
+            Button("Check for Updates…") {
+                Task { await UpdateChecker.checkAndShow() }
+            }
         }
 
         CommandGroup(replacing: .help) {

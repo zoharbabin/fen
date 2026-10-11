@@ -68,6 +68,8 @@ Download the latest `Fen.app.zip` from the [Releases page](https://github.com/zo
 
 We sign every release with an Apple Developer ID and notarize it, so it opens without Gatekeeper warnings. Requires macOS 15+.
 
+To see if a newer version exists, choose **Fen > Check for Updates…**. Fen checks only when you ask, and sends you to the Releases page to download it.
+
 ## Build from source
 
 Requirements: macOS 15+ and a recent Xcode / Swift 6 toolchain.

@@ -602,9 +602,24 @@ Tests: `ConflictSyncTests` (two clones of one remote standing in for two devices
 
 Tests: `SyncModeTests`, `PushAsPRTests` and `GitHubRESTTests` (a `URLProtocol` stub, including a redirect that must not be followed). Real GitHub is not covered by CI.
 
+## Check for updates: a menu command that reads the newest release and installs nothing
+
+**Fen > Check for Updates…** (issue #39, macOS only) asks `api.github.com/repos/zoharbabin/fen/releases/latest` for the newest release and compares its tag with the running app's `CFBundleShortVersionString` (`Shared/Updates/UpdateChecker.swift`). If a newer one exists, an alert offers to open its release page. You download the signed, notarized `Fen.app.zip` from there.
+
+| Rule | Why |
+|---|---|
+| It runs only when you choose the menu item. There is no background or launch-time check. | Fen stays offline unless you ask. |
+| It sends no token, no document and no identifier, and follows no redirect. | The request can't carry anything to another host. |
+| It offers only an https `github.com/zoharbabin/fen/releases/` page. | A bad answer can't send you somewhere else. |
+| A build from source (`0.0.0-dev`) says so and compares nothing. | There is no release to compare with. |
+
+We didn't add Sparkle. It would install updates in place, but it brings a third-party framework into the app, and it needs an EdDSA signing key that only the project owner can create and keep as a CI secret. Add it as a follow-up if you want silent updates. The Mac App Store build gets its updates from the store, so it leaves this command out ([#40](https://github.com/zoharbabin/fen/issues/40)).
+
+Tests: `UpdateCheckerTests` (version order, the request, pages outside the releases path, garbage and errors, a refused redirect) with a `URLProtocol` stub. The alert and the menu item are not covered by a test.
+
 ## Every third-party resource is vendored, not loaded from a CDN
 
-Fen's trust model is local-first: it reads and writes only inside files and folders you have granted (documents you open and workspaces you add), and — with the documented exceptions, the opt-in GeoJSON/TopoJSON map preference, [GitHub sync](#github-sync-clone-pull-and-push-with-the-git-you-have-a-scoped-token-in-the-keychain) (git, and the GitHub API for pull requests) for a workspace you cloned, and [AI providers you add yourself](#ai-providers-one-gate-no-provider-reachable-around-it) — it makes no runtime network calls. `HTMLComposer` (`Shared/Rendering/HTMLComposer.swift`) composes the preview and export HTML entirely from files bundled inside `Fen.app` — highlight.js lives in `Shared/Resources/Highlight/`, while Mermaid, MathJax, DOMPurify, three.js (plus `STLLoader`/`OrbitControls`), Leaflet, topojson-client, and the task-list script live in `Shared/Resources/Extensions/` (or `Styles`/`Templates` alongside them); emoji shortcode data lives in `Shared/Resources/Emoji/`. All of them load through `loadResourceFile(name:ext:subdirectory:)`, never through a `<script src="https://...">` tag — Leaflet's own basemap *tile images*, not its script, are the one exception, and only when the user has explicitly opted in.
+Fen's trust model is local-first: it reads and writes only inside files and folders you have granted (documents you open and workspaces you add), and — with the documented exceptions, the opt-in GeoJSON/TopoJSON map preference, [GitHub sync](#github-sync-clone-pull-and-push-with-the-git-you-have-a-scoped-token-in-the-keychain) (git, and the GitHub API for pull requests) for a workspace you cloned, the [update check](#check-for-updates-a-menu-command-that-reads-the-newest-release-and-installs-nothing) you start from the menu, and [AI providers you add yourself](#ai-providers-one-gate-no-provider-reachable-around-it) — it makes no runtime network calls. `HTMLComposer` (`Shared/Rendering/HTMLComposer.swift`) composes the preview and export HTML entirely from files bundled inside `Fen.app` — highlight.js lives in `Shared/Resources/Highlight/`, while Mermaid, MathJax, DOMPurify, three.js (plus `STLLoader`/`OrbitControls`), Leaflet, topojson-client, and the task-list script live in `Shared/Resources/Extensions/` (or `Styles`/`Templates` alongside them); emoji shortcode data lives in `Shared/Resources/Emoji/`. All of them load through `loadResourceFile(name:ext:subdirectory:)`, never through a `<script src="https://...">` tag — Leaflet's own basemap *tile images*, not its script, are the one exception, and only when the user has explicitly opted in.
 
 MathJax used to be the exception: earlier builds pulled `MathJax.js` from `cdnjs.cloudflare.com` at render time. That meant a delay on first render, a broken feature offline, and an unnecessary network call from a documented local-first app. It's now vendored the same way as Mermaid — `Shared/Resources/Extensions/mathjax-tex-svg.js` bundles MathJax v3's `tex-svg` output (SVG glyphs, no separate web-font files, so it stays a single self-contained file), with attribution in `LICENSE/mathjax.txt` (Apache License 2.0, compatible with bundling into an MIT-licensed app).
 
