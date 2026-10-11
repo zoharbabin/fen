@@ -104,7 +104,7 @@ actor SearchIndex {
         let database = try open()
         try database.transaction {
             for path in paths {
-                try delete(path: path, from: database)
+                try database.deleteContent(ofPath: path)
                 let statement = try database.prepare("DELETE FROM docs WHERE path = ?1")
                 statement.bind(1, path)
                 try statement.step()
@@ -132,7 +132,7 @@ actor SearchIndex {
     ) throws {
         let database = try open()
         try database.transaction {
-            try delete(path: path, from: database)
+            try database.deleteContent(ofPath: path)
             let doc = try database.prepare(
                 "INSERT OR REPLACE INTO docs (path, hash, size, mtime, title, stem, pathkey, inbound) "
                     + "VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 0)"
@@ -274,15 +274,6 @@ actor SearchIndex {
         return loaded
     }
 
-    private func delete(path: String, from database: SQLiteDatabase) throws {
-        for table in ["chunks", "links"] {
-            let column = table == "chunks" ? "path" : "source"
-            let statement = try database.prepare("DELETE FROM \(table) WHERE \(column) = ?1")
-            statement.bind(1, path)
-            try statement.step()
-        }
-    }
-
     private func open() throws -> SQLiteDatabase {
         if closedFlag.withLock({ $0 }) {
             throw SearchIndexError.closed
@@ -381,5 +372,18 @@ enum FTSQuery {
             expressions.append(quoted.joined(separator: " OR "))
         }
         return expressions
+    }
+}
+
+extension SQLiteDatabase {
+    /// Removes a file's chunks and links. A method here, not on the actor, so the database never
+    /// crosses an isolation boundary inside a transaction.
+    func deleteContent(ofPath path: String) throws {
+        for table in ["chunks", "links"] {
+            let column = table == "chunks" ? "path" : "source"
+            let statement = try prepare("DELETE FROM \(table) WHERE \(column) = ?1")
+            statement.bind(1, path)
+            try statement.step()
+        }
     }
 }
