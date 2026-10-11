@@ -616,6 +616,14 @@ Other apps open a Markdown file in Fen because `iOS/Info.plist` declares the doc
 
 The share button sends `SharedMarkdown` (`Shared/Models/SharedMarkdown.swift`). It is the open buffer, not the file on disk, so unsaved edits go along. File-taking apps get a temporary `.md` named after the file or the first heading, with `/`, `:` and `\` removed. Text-only apps get the Markdown text. HTML and PDF export stay in the export menu.
 
+## Vim keys: a small Normal/Insert subset, macOS only, off by default
+
+`editorVimMode` is off by default and has no iOS counterpart. The software keyboard has no Escape key, and a text view there never sees which key was pressed. When it's on, `MarkdownNSTextView.keyDown` hands each key to `handleVimKey` (`MarkdownNSTextView+Vim.swift`) before AppKit sees it. In Normal mode the key is a command and is never typed. That is why auto-pair, list continuation and smart Home (`MarkdownTextView+KeyHandling.swift`) can't fire from a letter: they only run on typed text.
+
+The key map and the caret math are plain functions in `Shared/Editor/VimMotion.swift`. `j` and `k` use AppKit's `moveDown` and `moveUp`, so they follow wrapped lines on screen. Command and Control shortcuts, arrows and the function keys go to AppKit as usual. Esc goes through `cancelOperation`, so it closes the slash menu first and leaves Insert mode only when no menu is open. The caret is a half-transparent block in Normal mode.
+
+Left out on purpose, as in [#102](https://github.com/zoharbabin/fen/issues/102): Visual mode, counts, operators, text objects, registers, `:` commands, `.` repeat and Vim-style undo. Undo is the normal Cmd-Z. Full Vim is a different-sized project, tracked in [#23](https://github.com/zoharbabin/fen/issues/23).
+
 ## Check for updates: a menu command that reads the newest release and installs nothing
 
 **Fen > Check for Updates…** (issue #39, macOS only) asks `api.github.com/repos/zoharbabin/fen/releases/latest` for the newest release and compares its tag with the running app's `CFBundleShortVersionString` (`Shared/Updates/UpdateChecker.swift`). If a newer one exists, an alert offers to open its release page. You download the signed, notarized `Fen.app.zip` from there.

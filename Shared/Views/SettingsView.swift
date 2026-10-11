@@ -152,6 +152,15 @@ struct EditorSettingsTab: View {
                 Toggle("Editor on right", isOn: $prefs.editorOnRight)
                 #if os(macOS)
                     Toggle("Smart Home key", isOn: $prefs.editorSmartHome)
+                    Toggle("Vim keys (Normal and Insert mode)", isOn: $prefs.editorVimMode)
+                    if prefs.editorVimMode {
+                        Text(
+                            "Esc leaves Insert mode. In Normal mode: h j k l, w b, 0 $, gg G move; " +
+                                "i a I A start typing. Nothing else is supported."
+                        )
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    }
                 #endif
             }
         }

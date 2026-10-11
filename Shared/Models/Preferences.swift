@@ -179,6 +179,11 @@ public final class Preferences {
         didSet { defaults.set(editorSmartHome, forKey: "editorSmartHome") }
     }
 
+    /// A small Vim subset on macOS: Normal and Insert mode only (issue #102). Off by default.
+    var editorVimMode: Bool = false {
+        didSet { defaults.set(editorVimMode, forKey: "editorVimMode") }
+    }
+
     /// Shows source-line numbers in the editor gutter and, via the matching preview-side CSS,
     /// alongside the rendered HTML (issue #21). Rendering the preview gutter needs a rebuild
     /// (it's CSS baked into the composed HTML document), so — unlike `editorFocusModeEnabled`/
@@ -493,6 +498,7 @@ public final class Preferences {
             ? defaults.bool(forKey: "editorFocusModeCentersCaret") : true
         editorLivePreviewEnabled = defaults.bool(forKey: "editorLivePreviewEnabled")
         editorShowLineNumbers = defaults.bool(forKey: "editorShowLineNumbers")
+        editorVimMode = defaults.bool(forKey: "editorVimMode")
         editorSmartHome = defaults.object(forKey: "editorSmartHome") != nil
             ? defaults.bool(forKey: "editorSmartHome") : true
         migrateEditorThemeDefaults(from: defaults)

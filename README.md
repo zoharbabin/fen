@@ -46,6 +46,7 @@ If Fen ever charges for anything, we'll favor a one-time purchase over a subscri
 - **iPad and hardware keyboards** — the same shortcuts as the Mac (hold Cmd to list them), in the iPadOS menu bar too. A narrow window, such as a phone or Slide Over, shows the editor or the preview one at a time instead of squeezing two panes side by side
 - **Share sheet in and out (iOS)** — choose Fen in another app's share sheet or Files to open a Markdown file in place. Use the share button in a document to send it out as a `.md` file, or as text to apps that only take text
 - **Editing quality-of-life** — auto-pair brackets/quotes, tabs-to-spaces, smart Home key, and list/blockquote continuation on Enter
+- **Vim keys (macOS, off by default)** — turn on Normal and Insert mode in Settings. Esc leaves Insert mode. In Normal mode `h j k l`, `w b`, `0 $`, `gg G` move, and `i a I A` start typing. Nothing else from Vim is included
 - **Set as your default `.md` editor** — a proper Finder document icon, Open Recent, and session restore on both platforms
 - **Autosave and crash recovery** — an unsaved buffer is periodically saved to a recovery file; Fen offers to restore it the next time you reopen that document after an unclean exit
 - **External change detection** — if a file you have open changes on disk (another app, `git checkout`, a sync conflict), Fen prompts you to reload it or keep your own edits
