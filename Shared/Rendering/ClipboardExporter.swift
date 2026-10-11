@@ -114,8 +114,9 @@ public struct ClipboardExporter: Sendable {
     #else
         /// iOS half of `copyAsRawHTML` -- same plain-text-only write, `UIPasteboard.general` in
         /// place of `NSPasteboard.general`.
-        public func copyAsRawHTML(markdown: String, documentURL: URL?, preferences: Preferences) {
-            let html = composeHTML(markdown: markdown, documentURL: documentURL, preferences: preferences)
+        @MainActor
+        public func copyAsRawHTML(markdown: String, documentURL: URL?, preferences: Preferences) async {
+            let html = await composeHTML(markdown: markdown, documentURL: documentURL, preferences: preferences)
             UIPasteboard.general.items = [[UTType.utf8PlainText.identifier: html]]
         }
 
@@ -123,8 +124,9 @@ public struct ClipboardExporter: Sendable {
         /// `UIPasteboard.general` in place of `NSPasteboard.general`. `UIPasteboard` has no
         /// dedicated RTF UTType constant, so `.rtf`'s own identifier is used directly, matching
         /// how RTF content is conventionally declared on iOS's pasteboard.
-        public func copyAsRichTextFormatted(markdown: String, documentURL: URL?, preferences: Preferences) {
-            let html = composeHTML(markdown: markdown, documentURL: documentURL, preferences: preferences)
+        @MainActor
+        public func copyAsRichTextFormatted(markdown: String, documentURL: URL?, preferences: Preferences) async {
+            let html = await composeHTML(markdown: markdown, documentURL: documentURL, preferences: preferences)
             let attributed = attributedString(from: strippingNonDataImages(from: html))
             var item: [String: Any] = [
                 UTType.html.identifier: html,

@@ -7,8 +7,35 @@ struct FenApp: App {
         DocumentGroup(newDocument: { MarkdownDocument.makeNew() }, editor: { file in
             SplitEditorView(document: file.document)
                 .toolbarRole(.editor)
+                .toolbar {
+                    ToolbarItem(placement: .secondaryAction) { WorkspacesButton() }
+                }
                 .onAppear { file.document.fileURL = file.fileURL }
                 .onChange(of: file.fileURL) { _, newValue in file.document.fileURL = newValue }
         })
+
+        #if os(iOS)
+            DocumentGroupLaunchScene("Fen") {
+                NewDocumentButton("New Document")
+                WorkspacesButton()
+            }
+        #endif
+    }
+}
+
+/// Opens the workspaces list as a sheet, from the launch screen or inside a document.
+private struct WorkspacesButton: View {
+    @State private var showing = false
+
+    var body: some View {
+        Button("Workspaces", systemImage: "folder.badge.gearshape") { showing = true }
+            .sheet(isPresented: $showing) {
+                NavigationStack {
+                    WorkspacesView()
+                        .toolbar {
+                            ToolbarItem(placement: .cancellationAction) { Button("Done") { showing = false } }
+                        }
+                }
+            }
     }
 }

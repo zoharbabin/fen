@@ -4,7 +4,6 @@ on:
   push:
     branches: [master]
   pull_request:
-    branches: [master]
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -43,6 +42,27 @@ jobs:
 
       - name: Run tests
         run: swift test --no-parallel
+
+  build-ios:
+    name: build iOS app (simulator)
+    runs-on: macos-15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select latest Xcode
+        run: |
+          LATEST=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -1)
+          [ -n "$LATEST" ] && sudo xcode-select -s "$LATEST"
+
+      # `swift test` compiles only the macOS side. This catches iOS-only breakage, such as an
+      # async call missing `await` inside an `#else` branch.
+      - name: Build
+        run: |
+          brew install xcodegen >/dev/null
+          xcodegen generate
+          xcodebuild -project FenUITesting.xcodeproj -scheme FeniOSApp \
+            -destination 'generic/platform=iOS Simulator' build CODE_SIGNING_ALLOWED=NO
 
   docs-links:
     name: check doc & site links

@@ -22,6 +22,11 @@ struct FenApp: App {
                 SettingsView()
             }
 
+            Window("Workspaces", id: "workspaces") {
+                WorkspacesView()
+            }
+            .defaultSize(width: 860, height: 560)
+
             Window("About Fen", id: "about") {
                 AboutView()
             }
@@ -44,9 +49,7 @@ struct FenApp: App {
         findCommands()
         formattingCommands()
         copyCommands()
-        exportHTMLCommands()
-        exportPDFCommands()
-        printCommands()
+        fileMenuCommands()
 
         CommandGroup(after: .sidebar) {
             Section {
@@ -105,6 +108,20 @@ struct FenApp: App {
                 .keyboardShortcut("0", modifiers: .command)
             }
         }
+    }
+
+    /// Grouped because `CommandsBuilder` accepts at most ten children.
+    @CommandsBuilder
+    func fileMenuCommands() -> some Commands {
+        CommandGroup(after: .newItem) {
+            Button("Workspaces…") {
+                openWindow(id: "workspaces")
+            }
+            .keyboardShortcut("l", modifiers: [.command, .shift])
+        }
+        exportHTMLCommands()
+        exportPDFCommands()
+        printCommands()
     }
 
     @CommandsBuilder

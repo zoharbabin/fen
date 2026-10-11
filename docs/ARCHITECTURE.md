@@ -130,14 +130,14 @@ flowchart TD
 
 The live preview (`Shared/Preview/PreviewWebView.swift`) renders through `WKWebView`. The obvious approach — `loadHTMLString(_:baseURL:)` — sets the document's base URL for resolving relative links, but does **not** grant the web view read access to that directory. Relative-path images in a Markdown document (`![](./img.png)`) silently failed to load under that approach.
 
-Instead, `PreviewSchemeHandler` implements `WKURLSchemeHandler` for a custom `fen-preview://` scheme. The main document loads from `fen-preview://local/index.html`; every other request resolves against the document's directory on disk (`baseDirectory`) through the shared `resolvedFileURL(for:baseDirectory:)` helper, which calls `resolvingSymlinksInPath()` on both the candidate file and `baseDirectory` before checking that the former's path starts with the latter's — resolving symlinks on both sides, not just collapsing `.`/`..` segments, closes the gap where a symlink planted inside `baseDirectory` could point outside it and pass a naive prefix check. Keep that check load-bearing — it's the only thing standing between a crafted Markdown file and arbitrary local file reads.
+Instead, `PreviewSchemeHandler` implements `WKURLSchemeHandler` for a custom `fen-preview://` scheme. The main document loads from `fen-preview://local/index.html`; every other request resolves against the document's directory on disk (`baseDirectory`) through the shared `resolvedFileURL(for:baseDirectory:)` helper, which asks `PathGate.isContained(_:in:)` (`Shared/Workspaces/PathGate.swift`, shared with workspaces) whether the candidate sits inside `baseDirectory`. The gate resolves symlinks on both sides and compares whole path components, not strings: a symlink planted inside `baseDirectory` can't point outside it, and a sibling folder that only shares a name prefix (`notes-evil` next to `notes`) isn't "inside" `notes`. The old string-prefix check let that sibling through. Keep that check load-bearing — it's the only thing standing between a crafted Markdown file and arbitrary local file reads.
 
 ```mermaid
 flowchart TD
     Request["WKURLSchemeHandler request<br/>fen-preview://local/&lt;path&gt;"] --> IsIndex{"path == index.html?"}
     IsIndex -->|yes| ServeHTML["Serve the composed HTML in memory"]
-    IsIndex -->|no| Resolve["Resolve path against baseDirectory,<br/>resolvingSymlinksInPath() on both sides"]
-    Resolve --> Guard{"resolved path starts with<br/>resolved baseDirectory path?"}
+    IsIndex -->|no| Resolve["Resolve path against baseDirectory"]
+    Resolve --> Guard{"PathGate.isContained:<br/>resolved path inside baseDirectory<br/>(by path component)?"}
     Guard -->|yes| ServeFile["Serve the file from disk<br/>(e.g. relative image)"]
     Guard -->|no: ../ traversal, symlink, absolute path| Deny["Deny — no response"]
 ```
@@ -218,15 +218,44 @@ This is Fen's first and only runtime network call: turning the preference on mak
 
 Leaflet 1.9.4 (BSD-2-Clause) and topojson-client 3.1.0 (Bostock's ISC-style permission license) are vendored into `Shared/Resources/Extensions/` the same way as every other third-party script — see the next section — with one adaptation: Leaflet's CSS references its marker/layer icons via relative `url(images/...)` paths, which would 404 under `PreviewSchemeHandler`'s document-relative asset resolution (the preview loads through `fen-preview://local/index.html` and resolves relative paths against the Markdown document's own directory, not app bundle resources). `leaflet.css` inlines all five icons as base64 `data:image/png;base64,...` URIs instead, following the same self-contained-vendored-file precedent MathJax's inlined SVG glyphs set.
 
+## Workspaces: any number of granted folders
+
+A workspace is a folder you grant to Fen. You can add as many as you like. Fen lists their Markdown files without opening each one (`Shared/Workspaces/`).
+
+| Piece | What it does |
+|---|---|
+| `WorkspaceRegistry` | The list of granted folders, saved atomically in `~/.fen/workspaces.json`. Refuses overlaps, your home folder, a volume root, and `~/.fen`. Keeps a security-scoped bookmark per folder. |
+| `PathGate` | The one containment check for the app. `isContained`, `resolve(relativePath:in:)` and `overlaps` follow symlinks (including dangling ones) and compare whole path components. The preview handler and every workspace read go through it. |
+| `LocalFolderSource` | A `WorkspaceSource` for a folder. Read-only. Skips hidden files, `.gitignore`d files, secret-looking names, binaries, files over the size limit, and symlinks that leave the folder. Never follows a symlinked folder. |
+| `GitRepository` | Reads branch, ignore rules and dirty state straight from `.git`. It runs no `git` process: the system `git` doesn't exist on iOS, and on a Mac without developer tools it opens an install prompt. A test greps `Shared/Workspaces` to keep it that way. Staged-but-uncommitted changes aren't detected. |
+| `WorkspaceJobScheduler` | One concurrency cap for all workspaces. The frontmost workspace goes first. Jobs run at utility priority off the main actor. Background jobs wait while paused or in Low Power Mode. Listing jobs have their own lane, so the sidebar still fills in. |
+| `WorkspaceChangeWatcher` | macOS: one FSEvents stream per workspace, batched into relative paths. iOS: no live watch. The library refreshes when the app returns to the foreground. |
+| `WorkspaceLibrary` | What the UI observes: workspaces, file lists, git state, scan progress. With no workspaces it reads the registry and does nothing else. |
+| `WorkspaceAccessPolicy` | Decides which workspaces a model-bound query may touch. A workspace with AI data access set to None is dropped from every such query, even for "all workspaces". |
+
+```mermaid
+flowchart LR
+    Add["Add folder"] --> Registry["WorkspaceRegistry<br/>~/.fen/workspaces.json"]
+    Registry --> Library["WorkspaceLibrary"]
+    Library --> Scheduler["WorkspaceJobScheduler"]
+    Scheduler --> Source["LocalFolderSource<br/>(PathGate, ignore rules, git)"]
+    Watcher["WorkspaceChangeWatcher<br/>(macOS)"] --> Library
+    Library --> UI["WorkspacesView"]
+```
+
+Fen's home is `~/.fen`. Workspace state lives in `~/.fen/workspaces/<id>/` (`index/`, `history/`), downloaded models in `~/.fen/models/`. Removing a workspace deletes its state and never touches your folder.
+
+Per-workspace settings (`WorkspaceSettings`): AI data access (None, Local providers only, Any configured provider; default Local only), approval mode (Ask, Auto-approve, Off; default Ask), MCP access (Off, On; unavailable when AI data access is None), include and exclude globs, and a maximum file size. They're stored with the workspace in `workspaces.json`.
+
 ## No proprietary storage format, and no cloud AI by default
 
-Fen reads and writes plain `.md` files straight through the filesystem — never a proprietary "library" or vault format. Every feature that adds structure on top (search index, tag layer, graph view) stores that structure as metadata *alongside* plain `.md` files, never as a replacement for them; that's what keeps Fen iCloud- and Finder-friendly by construction.
+Fen reads and writes plain `.md` files straight through the filesystem — never a proprietary "library" or vault format. Every feature that adds structure on top (search index, tag layer, graph view) stores that structure as metadata *alongside* plain `.md` files, never as a replacement for them; that's what keeps Fen iCloud- and Finder-friendly by construction. The same holds for [workspaces](#workspaces-any-number-of-granted-folders): Fen's own state for a workspace lives in `~/.fen`, never inside your folder.
 
 This audience skews actively anti-cloud-AI, not merely indifferent: Bear's developer publicly declined in-app AI specifically because it would mean uploading user notes to a server they don't control, and Obsidian users describe keeping LLMs out of their vault as central to that tool's value. Fen's AI & Knowledge Layer epic ([issue #3](https://github.com/zoharbabin/fen/issues/3)) works within that constraint: local providers (Ollama) are the default, remote providers are opt-in and per-call, and every AI-assisted feature suggests rather than silently writes. See that issue for the full reasoning and the features built on it.
 
 ## Every third-party resource is vendored, not loaded from a CDN
 
-Fen's trust model is local-first: it reads and writes only the files you open, and — with the one documented exception above for the opt-in GeoJSON/TopoJSON map preference — it makes no runtime network calls. `HTMLComposer` (`Shared/Rendering/HTMLComposer.swift`) composes the preview and export HTML entirely from files bundled inside `Fen.app` — highlight.js lives in `Shared/Resources/Highlight/`, while Mermaid, MathJax, DOMPurify, three.js (plus `STLLoader`/`OrbitControls`), Leaflet, topojson-client, and the task-list script live in `Shared/Resources/Extensions/` (or `Styles`/`Templates` alongside them); emoji shortcode data lives in `Shared/Resources/Emoji/`. All of them load through `loadResourceFile(name:ext:subdirectory:)`, never through a `<script src="https://...">` tag — Leaflet's own basemap *tile images*, not its script, are the one exception, and only when the user has explicitly opted in.
+Fen's trust model is local-first: it reads and writes only inside files and folders you have granted (documents you open and workspaces you add), and — with the one documented exception above for the opt-in GeoJSON/TopoJSON map preference — it makes no runtime network calls. `HTMLComposer` (`Shared/Rendering/HTMLComposer.swift`) composes the preview and export HTML entirely from files bundled inside `Fen.app` — highlight.js lives in `Shared/Resources/Highlight/`, while Mermaid, MathJax, DOMPurify, three.js (plus `STLLoader`/`OrbitControls`), Leaflet, topojson-client, and the task-list script live in `Shared/Resources/Extensions/` (or `Styles`/`Templates` alongside them); emoji shortcode data lives in `Shared/Resources/Emoji/`. All of them load through `loadResourceFile(name:ext:subdirectory:)`, never through a `<script src="https://...">` tag — Leaflet's own basemap *tile images*, not its script, are the one exception, and only when the user has explicitly opted in.
 
 MathJax used to be the exception: earlier builds pulled `MathJax.js` from `cdnjs.cloudflare.com` at render time. That meant a delay on first render, a broken feature offline, and an unnecessary network call from a documented local-first app. It's now vendored the same way as Mermaid — `Shared/Resources/Extensions/mathjax-tex-svg.js` bundles MathJax v3's `tex-svg` output (SVG glyphs, no separate web-font files, so it stays a single self-contained file), with attribution in `LICENSE/mathjax.txt` (Apache License 2.0, compatible with bundling into an MIT-licensed app).
 
@@ -234,7 +263,7 @@ MathJax used to be the exception: earlier builds pulled `MathJax.js` from `cdnjs
 
 ## CI and releases
 
-`.github/workflows/ci.yml` runs two jobs on every push and pull request against `master`: `swift test --no-parallel` (plus `swiftformat --lint`/`swiftlint`), and a separate `docs-links` job that runs `lychee` over every `.md` file and `site/*.html` to catch dead links left behind by a rename or move. `.github/workflows/release.yml` runs on a `v*` tag push (or manual dispatch): it builds and tests the same way, then signs and notarizes only if the signing secrets are present, verifies the resulting bundle structure (see [Resource bundle resolution](#resource-bundle-resolution-sharedcorebundleswift) above), zips it, and publishes it to a GitHub Release. See [RELEASING.md](RELEASING.md) for cutting a release by hand when secrets aren't configured in CI.
+`.github/workflows/ci.yml` runs three jobs on every push to `master` and every pull request (any base branch, so stacked PRs get checked): `swift test --no-parallel` (plus `swiftformat --lint`/`swiftlint`), `build-ios` (compiles the iOS app for the simulator, since `swift test` only builds the macOS side), and a separate `docs-links` job that runs `lychee` over every `.md` file and `site/*.html` to catch dead links left behind by a rename or move. `.github/workflows/release.yml` runs on a `v*` tag push (or manual dispatch): it builds and tests the same way, then signs and notarizes only if the signing secrets are present, verifies the resulting bundle structure (see [Resource bundle resolution](#resource-bundle-resolution-sharedcorebundleswift) above), zips it, and publishes it to a GitHub Release. See [RELEASING.md](RELEASING.md) for cutting a release by hand when secrets aren't configured in CI.
 
 `scripts/build-app.sh` builds the app in two passes: `swift build` for the main executable and its SwiftPM resource bundles, then `xcodegen generate` + `xcodebuild -scheme FenMacOSApp` for `FenQuickLook.appex` — SwiftPM has no app-extension concept, so the Quick Look extension can only come from the Xcode project `project.yml` already declares for `UITests/`. The extension is signed with its own entitlements before the main app is signed (Apple requires nested code signed first), and the main app's own signing step drops `--deep` so it doesn't re-sign the extension under the wrong entitlements. `release.yml`'s "Verify bundle structure" step asserts `Contents/PlugIns/FenQuickLook.appex` exists and verifies with `codesign`; a separate step registers it with `pluginkit` and renders a real thumbnail through it with `qlmanage -t`, so a build that produces a broken or unsigned extension fails release, not just a future bug report (see [issue #114](https://github.com/zoharbabin/fen/issues/114)).
 
