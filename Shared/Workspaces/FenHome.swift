@@ -46,6 +46,35 @@ public struct FenHome: Sendable, Equatable {
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
     }
 
+    /// Deletes every workspace's `index/` folder. Fen rebuilds them. History, models, settings and
+    /// the provider list stay. Returns how many were removed.
+    @discardableResult
+    public func clearCaches() throws -> Int {
+        let workspaces = root.appendingPathComponent("workspaces", isDirectory: true)
+        guard let folders = try? FileManager.default.contentsOfDirectory(
+            at: workspaces,
+            includingPropertiesForKeys: nil
+        )
+        else { return 0 }
+        var removed = 0
+        for folder in folders {
+            let index = folder.appendingPathComponent("index", isDirectory: true)
+            if FileManager.default.fileExists(atPath: index.path) {
+                try FileManager.default.removeItem(at: index)
+                removed += 1
+            }
+        }
+        return removed
+    }
+
+    /// Deletes one workspace's pre-images and activity log. This is data worth keeping, so call it
+    /// only from an action that warns first.
+    public func clearHistory(id: UUID) throws {
+        let directory = historyDirectory(id: id)
+        guard FileManager.default.fileExists(atPath: directory.path) else { return }
+        try FileManager.default.removeItem(at: directory)
+    }
+
     /// Deletes one workspace's state. Never touches the workspace folder.
     public func removeWorkspaceState(id: UUID) throws {
         let directory = workspaceDirectory(id: id)

@@ -101,6 +101,12 @@ public final class WorkspaceRegistry {
     }
 
     /// Removes the grant and the workspace's state in `~/.fen`. The folder is not touched.
+    /// See `FenHome.clearCaches()`.
+    @discardableResult
+    public func clearCaches() throws -> Int {
+        try home.clearCaches()
+    }
+
     public func remove(id: UUID) throws {
         guard let index = workspaces.firstIndex(where: { $0.id == id }) else { throw WorkspaceError.unknownWorkspace }
         let removed = workspaces.remove(at: index)

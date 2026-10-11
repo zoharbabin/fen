@@ -109,13 +109,30 @@ public struct WorkspacesView: View {
                     }
             }
         }
-        .toolbar { ToolbarItem { addButton } }
+        .toolbar {
+            ToolbarItem { addButton }
+            ToolbarItem {
+                Menu("More", systemImage: "ellipsis.circle") {
+                    Button("Clear Caches") { clearCaches() }
+                }
+                .help("Clear caches. Fen rebuilds them. Your files and settings are not touched.")
+            }
+        }
         .overlay {
             if library.workspaces.isEmpty, let error = library.loadError {
                 Text(error).foregroundStyle(.secondary).padding()
             }
         }
         .navigationSplitViewColumnWidth(min: 200, ideal: 240)
+    }
+
+    private func clearCaches() {
+        do {
+            let count = try library.registry.clearCaches()
+            message = count == 0 ? "There were no caches to clear." : "Caches cleared. Fen rebuilds them when needed."
+        } catch {
+            message = error.localizedDescription
+        }
     }
 
     private var addButton: some View {

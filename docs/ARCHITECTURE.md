@@ -243,7 +243,42 @@ flowchart LR
     Library --> UI["WorkspacesView"]
 ```
 
-Fen's home is `~/.fen`. Workspace state lives in `~/.fen/workspaces/<id>/` (`index/`, `history/`), downloaded models in `~/.fen/models/`. Removing a workspace deletes its state and never touches your folder.
+## Storage and git rules: zero footprint in folders, state in `~/.fen`
+
+Fen's own state lives in one folder, `~/.fen` (`FenHome`). In a sandboxed macOS build and on iOS, `~` is the app container, so the layout is the same at a different absolute path. Nothing is created until something writes.
+
+```
+~/.fen/
+  workspaces.json        granted folders and their settings
+  ai-providers.json      AI providers (keys are in the Keychain)
+  workspaces/<id>/
+    index/               search and embedding index. A cache, safe to delete.
+    history/             pre-images and activity log. Worth keeping.
+  models/                downloaded model weights
+```
+
+| Action | What it deletes |
+|---|---|
+| Clear Caches (Workspaces, More) | Every `index/` folder. Fen rebuilds them. |
+| `FenHome.clearHistory(id:)` | One workspace's `history/`. Call it only from an action that warns first. |
+| Remove a workspace | That workspace's `workspaces/<id>/` folder. Your folder is not touched. |
+
+Every feature that touches a workspace follows these rules.
+
+1. **Zero footprint until you opt in.** Adding a folder writes nothing into it. No `.fen/` folder, no `.gitignore` edit.
+2. **Derived state goes in `~/.fen`, never in the folder.**
+3. **In-folder files exist only because you made them.** `.fen/schema.yaml` appears when you create a schema, so a team can share it through the repo. Nothing else Fen-owned goes in your folder.
+4. **No committed index or manifest.** Graphs and indexes are computed at runtime.
+5. **`git log` is the changelog.** Fen keeps no parallel change log in the repo.
+6. **Small, deliberate diffs.** No auto-touched `modified:` dates or other noise. Every write is something you'd want to see in `git diff`.
+7. **Fen runs no mutating git command on your branch by itself.** Commits and branches come only from the flows that own them: agent branches and sync. Read-only git use is fine.
+8. **AI writes keep their provenance in the activity log** and in commit trailers on commits Fen creates, never inline in files.
+
+How the rules are enforced:
+
+- The `FenHome` root is a parameter, and tests pass a temp one. CI fails if `~/.fen` exists after `swift test` (`.github/workflows/ci.yml`).
+- `FolderSnapshot` (`Tests/FenTests/StorageRulesTests.swift`) records a folder's files and contents. `StorageRulesTests` adds, lists, reconfigures, clears and removes a workspace in a real git repo, then checks the snapshot is unchanged and `git status --porcelain` is empty. A new feature that reads or writes near a workspace adds a step to that test.
+- A second test edits one note with a workspace open and checks git sees that one file change and nothing else.
 
 Per-workspace settings (`WorkspaceSettings`): AI data access (None, Local providers only, Any configured provider; default Local only), approval mode (Ask, Auto-approve, Off; default Ask), MCP access (Off, On; unavailable when AI data access is None), include and exclude globs, and a maximum file size. They're stored with the workspace in `workspaces.json`.
 
