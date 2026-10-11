@@ -17,6 +17,12 @@ struct GitRepositoryTests {
         #expect(try await state(folder) == nil)
     }
 
+    @Test func theSearchUpwardEndsAtTheFilesystemRoot() {
+        // Some macOS versions turn "/" into "/../" when you drop its last component, which made
+        // this walk loop forever on CI.
+        #expect(GitRepository.detect(from: URL(fileURLWithPath: "/")) == nil)
+    }
+
     @Test func detectsTheBranchAndACleanTree() async throws {
         let folder = try TempFolder()
         defer { folder.cleanUp() }

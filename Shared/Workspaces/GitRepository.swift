@@ -22,8 +22,12 @@ public struct GitRepository: Sendable, Equatable {
 
     /// Finds the work tree that holds `folder`, walking up through parents like git does.
     public static func detect(from folder: URL) -> GitRepository? {
-        guard var current = PathGate.canonicalURL(of: folder) else { return nil }
-        while true {
+        guard let canonical = PathGate.canonicalURL(of: folder) else { return nil }
+        // Walk by path components, not `deletingLastPathComponent()`: on some macOS versions that
+        // turns "/" into "/../", which never reaches a fixed point.
+        var parts = canonical.pathComponents
+        while !parts.isEmpty {
+            let current = URL(fileURLWithPath: NSString.path(withComponents: parts), isDirectory: true)
             let marker = current.appendingPathComponent(".git")
             var isDirectory: ObjCBool = false
             if FileManager.default.fileExists(atPath: marker.path, isDirectory: &isDirectory) {
@@ -34,12 +38,9 @@ public struct GitRepository: Sendable, Equatable {
                     return GitRepository(workTree: current, gitDirectory: target)
                 }
             }
-            let parent = current.deletingLastPathComponent()
-            if parent.path == current.path {
-                return nil
-            }
-            current = parent
+            parts.removeLast()
         }
+        return nil
     }
 
     /// A `.git` file (linked worktree or submodule) holds `gitdir: <path>`.
