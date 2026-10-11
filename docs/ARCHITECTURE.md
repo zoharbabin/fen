@@ -585,6 +585,21 @@ You pick a mode per workspace (issue #61, `WorkspaceSettings.syncMode`). Both us
 
 **REST client.** `GitHubREST` makes two calls: list the pull requests for a head branch, and open one. It reads `html_url` only if it is an https `github.com` address. A 401, 403 or 404 shows as a token problem.
 
+### Conflicts: no silent pick, no merge tool
+
+Issue #62. Every audited git-sync competitor loses edits when two devices change the same note. Fen never picks a side.
+
+| Mode | What happens |
+|---|---|
+| Review with pull requests | GitHub does the merge. `GitHubREST` asks for the pull request's `mergeable` state. If it can't merge, the header says so and the pull request button turns orange and opens GitHub, where its resolver is. Fen has no merge tool. GitHub works the answer out in the background, so it can be unknown for a moment. |
+| Back up to GitHub | `GitSync+Merge.swift` merges what git can merge. A note both sides changed keeps both versions as conflict markers in the file, and nothing is pushed until you edit them away. |
+
+The direct-commit steps: fast-forward when you can. If GitHub and this Mac both have new commits, or your edits are in the way, Fen commits your changes (AI changes held back stay out) and runs `git merge`. Notes that merge cleanly need no input. A conflict leaves `<<<<<<<` and `>>>>>>>` markers in the note, so the editor shows both versions, and git history keeps both as the two parents of the merge. When no note has markers left, the next back up finishes the merge commit and pushes. Markdown headings underlined with `=======` don't count as markers.
+
+A file that can't hold markers (an image) keeps your version, and GitHub's version is saved next to it as `name (GitHub copy).ext`. If one side deleted a note the other edited, the note stays. A held-back AI note that GitHub also changed stops the merge before Fen touches it.
+
+Tests: `ConflictSyncTests` (two clones of one remote standing in for two devices, the `mergeable` states in `GitHubRESTTests`). Fen's sync controls are macOS only, so conflict handling is not verified on iOS.
+
 Tests: `SyncModeTests`, `PushAsPRTests` and `GitHubRESTTests` (a `URLProtocol` stub, including a redirect that must not be followed). Real GitHub is not covered by CI.
 
 ## Every third-party resource is vendored, not loaded from a CDN

@@ -20,6 +20,8 @@ final class GitHubSyncModel {
     var pullRequest: PullRequest?
     /// Notes with AI changes that a direct-commit sync leaves out, until you include them.
     var heldBack: [String] = []
+    /// Notes that hold conflict markers from a merge, until you edit them.
+    var conflicts: [String] = []
 
     let sync: GitSync?
     let api: any GitHubAPI
@@ -81,6 +83,7 @@ final class GitHubSyncModel {
             status = try await sync.status(at: root, fetch: fetch)
             let holds = mode == .directCommit && !inputs.pushesAIChanges()
             heldBack = holds ? try await heldBackPaths(sync, root) : []
+            conflicts = try await sync.conflictedNotes(at: root)
         } catch {
             fail(error)
         }
@@ -121,6 +124,12 @@ final class GitHubSyncModel {
 
     /// `true` when the folder can go on to commit and push.
     func pullStep(_ sync: GitSync, _ root: URL) async throws -> Bool {
+        if await sync.isMerging(at: root) {
+            message = conflicts.isEmpty
+                ? "A merge is waiting to finish. Back up to finish it."
+                : Self.conflictMessage(conflicts)
+            return false
+        }
         switch try await sync.pull(at: root) {
         case .upToDate:
             return true
@@ -128,7 +137,9 @@ final class GitHubSyncModel {
             changed()
             return true
         case .diverged:
-            message = "This Mac and GitHub both have new commits. Fen doesn't merge them yet. Merge with git, then sync again."
+            message = mode == .directCommit
+                ? "This Mac and GitHub both have new commits. Back up to merge them."
+                : "This Mac and GitHub both have new commits on this branch. Merge them with git, then send again."
             return false
         case let .blocked(reason):
             message = "Fen didn't pull, to keep your edits: \(reason)"

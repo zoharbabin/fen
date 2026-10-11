@@ -35,6 +35,10 @@ final class FakeGitHub: GitHubAPI, @unchecked Sendable {
     func finish(_ branch: String, as state: PullRequest.State) {
         lock.withLock { pulls[branch]?.state = state }
     }
+
+    func setConflicts(_ branch: String, _ value: Bool?) {
+        lock.withLock { pulls[branch]?.hasConflicts = value }
+    }
 }
 
 /// What a workspace's settings and activity say, changeable while a test runs.
@@ -52,8 +56,9 @@ struct SyncModeSetup {
     let api = FakeGitHub()
     let knobs = SyncKnobs()
 
-    init(token: Bool = true) async throws {
-        fixture = try SyncFixture()
+    init(fixture given: SyncFixture? = nil, token: Bool = true) async throws {
+        let fixture = try given ?? SyncFixture()
+        self.fixture = fixture
         mine = try await fixture.clone("mine", githubOrigin: true)
         if token {
             try fixture.secrets.write("github_pat_fake", account: SyncFixture.repo.tokenAccount)

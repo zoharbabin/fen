@@ -69,7 +69,7 @@ struct GitSync: Sendable {
     enum PullResult: Equatable {
         case upToDate
         case updated(commits: Int)
-        /// Both sides have new commits. Merging them is conflict handling (issue #62).
+        /// Both sides have new commits. `merge(at:)` combines them.
         case diverged
         /// A fast-forward would overwrite changes you haven't committed.
         case blocked(String)
@@ -186,10 +186,7 @@ struct GitSync: Sendable {
         guard add.succeeded else { throw SyncError.failed(Self.firstLine(add.stderr, fallback: "git add failed.")) }
         let staged = try await run(["diff", "--cached", "--name-only"], at: root)
         guard !staged.text.isEmpty else { return 0 }
-        var arguments: [String] = []
-        if try await run(["config", "user.email"], at: root, allowFailure: true).text.isEmpty {
-            arguments += ["-c", "user.name=Fen", "-c", "user.email=fen@users.noreply.github.com"]
-        }
+        var arguments = await Self.identity(at: root, using: self)
         // `--only` with the list keeps a path you staged yourself, or one held back, out of this commit.
         arguments += [
             "commit", "--quiet", "--only", "-m", message ?? Self.message(for: paths),

@@ -179,6 +179,56 @@ struct GitHubRESTTests {
         #expect(StubGitHubProtocol.requests.allSatisfy { $0.url?.host == "api.github.com" })
         #expect(StubGitHubProtocol.requests.count == 1)
     }
+
+    /// The list answer for pull request 7, and the answer for the single pull request.
+    private func session(detail: String) -> URLSession {
+        StubGitHubProtocol.install { request in
+            request.url?.path == "/repos/octo/notes/pulls/7" ? (200, [:], json(detail)) : (200, [:], json("[\(pull)]"))
+        }
+    }
+
+    private func detail(_ extra: String) -> String {
+        #"{"number": 7, "html_url": "https://github.com/octo/notes/pull/7", "state": "open", "merged_at": null, \#(extra)}"#
+    }
+
+    @Test func aPullRequestGitHubCannotMergeReadsAsHavingConflicts() async throws {
+        let dirty = session(detail: detail(#""mergeable": false, "mergeable_state": "dirty""#))
+        #expect(try await GitHubREST(session: dirty).pullRequest(head: "b", in: repo, token: nil)?.hasConflicts == true)
+        let request = try #require(StubGitHubProtocol.requests.last)
+        #expect(request.url?.host == "api.github.com")
+        #expect(request.url?.path == "/repos/octo/notes/pulls/7")
+    }
+
+    @Test func aMergeablePullRequestHasNoConflicts() async throws {
+        let clean = session(detail: detail(#""mergeable": true, "mergeable_state": "clean""#))
+        #expect(try await GitHubREST(session: clean).pullRequest(head: "b", in: repo, token: nil)?
+            .hasConflicts == false)
+    }
+
+    @Test func whileGitHubStillWorksItOutTheAnswerIsUnknown() async throws {
+        let pending = session(detail: detail(#""mergeable": null, "mergeable_state": "unknown""#))
+        let found = try await GitHubREST(session: pending).pullRequest(head: "b", in: repo, token: nil)
+        #expect(found?.number == 7)
+        #expect(found?.hasConflicts == nil)
+    }
+
+    @Test func aFailedLookupOfTheDetailStillReturnsThePullRequest() async throws {
+        let session = StubGitHubProtocol.install { request in
+            request.url?.path == "/repos/octo/notes/pulls/7" ? (500, [:], Data()) : (200, [:], json("[\(pull)]"))
+        }
+        let found = try await GitHubREST(session: session).pullRequest(head: "b", in: repo, token: nil)
+        #expect(found?.number == 7)
+        #expect(found?.hasConflicts == nil)
+    }
+
+    @Test func aFinishedPullRequestIsNotAskedAboutConflicts() async throws {
+        let body = """
+        [{"number": 3, "html_url": "https://github.com/octo/notes/pull/3", "state": "closed", "merged_at": "2026-01-01T00:00:00Z"}]
+        """
+        let session = StubGitHubProtocol.install { _ in (200, [:], json(body)) }
+        _ = try await GitHubREST(session: session).pullRequest(head: "b", in: repo, token: nil)
+        #expect(StubGitHubProtocol.requests.count == 1)
+    }
 }
 
 extension URLRequest {

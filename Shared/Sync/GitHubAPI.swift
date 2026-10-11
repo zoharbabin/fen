@@ -11,9 +11,18 @@ struct PullRequest: Equatable, Sendable {
     var number: Int
     var url: URL
     var state: State
+    /// Whether GitHub can't merge it as it is. `nil` when GitHub hasn't worked it out yet, or it isn't open.
+    var hasConflicts: Bool?
+
+    init(number: Int, url: URL, state: State, hasConflicts: Bool? = nil) {
+        self.number = number
+        self.url = url
+        self.state = state
+        self.hasConflicts = hasConflicts
+    }
 }
 
-/// The two GitHub REST calls push-as-PR mode needs. Git does everything else.
+/// The GitHub REST calls push-as-PR mode needs. Git does everything else.
 protocol GitHubAPI: Sendable {
     /// The newest pull request whose head is `branch` in `repo`, open or not. `nil` when there is none.
     func pullRequest(head branch: String, in repo: GitHubRepo, token: String?) async throws -> PullRequest?
@@ -45,7 +54,24 @@ struct GitHubREST: GitHubAPI {
         guard let list = try? JSONDecoder().decode([Item].self, from: data) else {
             throw GitSync.SyncError.failed("GitHub sent an answer Fen can't read.")
         }
-        return list.max { $0.number < $1.number }.flatMap(\.pullRequest)
+        guard var pull = list.max(by: { $0.number < $1.number }).flatMap(\.pullRequest) else { return nil }
+        if pull.state == .open {
+            pull.hasConflicts = try? await conflicts(of: pull.number, in: repo, token: token)
+        }
+        return pull
+    }
+
+    /// The list answer doesn't say if a pull request can merge, so this asks for the one pull request.
+    /// GitHub works it out in the background, so the first answer can be `nil`.
+    private func conflicts(of number: Int, in repo: GitHubRepo, token: String?) async throws -> Bool? {
+        var components = baseComponents(repo)
+        components.path += "/\(number)"
+        let data = try await send(request(components, method: "GET", token: token, body: nil), repo: repo)
+        guard let item = try? JSONDecoder().decode(Item.self, from: data) else { return nil }
+        if item.mergeable == false || item.mergeableState == "dirty" {
+            return true
+        }
+        return item.mergeable == true ? false : nil
     }
 
     func openPullRequest(
@@ -74,9 +100,12 @@ struct GitHubREST: GitHubAPI {
         var htmlURL: URL
         var state: String
         var mergedAt: String?
+        var mergeable: Bool?
+        var mergeableState: String?
 
         enum CodingKeys: String, CodingKey {
-            case number, state
+            case number, state, mergeable
+            case mergeableState = "mergeable_state"
             case htmlURL = "html_url"
             case mergedAt = "merged_at"
         }

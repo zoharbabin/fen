@@ -227,7 +227,7 @@ struct GitHubSyncModelTests {
         #expect(try fixture.git(fixture.remote, "show", "main:c.md") == "# C")
     }
 
-    @Test func syncStopsAndExplainsWhenBothSidesChanged() async throws {
+    @Test func pullOnlyStopsAndExplainsWhenBothSidesChanged() async throws {
         let fixture = try SyncFixture()
         defer { fixture.cleanUp() }
         let mine = try await fixture.clone("mine", githubOrigin: true)
@@ -237,10 +237,25 @@ struct GitHubSyncModelTests {
         try fixture.publish("c.md", "# C\n", from: theirs)
         let remoteHead = try fixture.git(fixture.remote, "rev-parse", "main")
         let model = model(fixture, root: mine, counter: Counter())
-        await model.open()
-        await model.syncNow()
+        await model.pull()
         #expect(model.message?.contains("both have new commits") == true)
         #expect(try fixture.git(fixture.remote, "rev-parse", "main") == remoteHead)
+    }
+
+    @Test func syncMergesWhenBothSidesChangedDifferentNotes() async throws {
+        let fixture = try SyncFixture()
+        defer { fixture.cleanUp() }
+        let mine = try await fixture.clone("mine", githubOrigin: true)
+        let theirs = try await fixture.clone("theirs")
+        try Data("# mine\n".utf8).write(to: mine.appendingPathComponent("d.md"))
+        try await fixture.sync.commitChanges(at: mine)
+        try fixture.publish("c.md", "# C\n", from: theirs)
+        let model = model(fixture, root: mine, counter: Counter())
+        await model.open()
+        await model.syncNow()
+        #expect(model.message == nil)
+        #expect(try fixture.git(fixture.remote, "show", "main:d.md") == "# mine")
+        #expect(try fixture.git(fixture.remote, "show", "main:c.md") == "# C")
     }
 
     @Test func aTokenIsCheckedBeforeItIsSaved() async throws {

@@ -6,14 +6,64 @@ extension GitHubSyncModel {
     // MARK: - Direct-commit
 
     /// Pulls, commits and pushes. Notes with an AI change stay out unless the workspace opted in.
+    /// When GitHub and this Mac both changed, the two are merged. A note both sides changed keeps both
+    /// versions as conflict markers, and nothing is pushed until you edit them away (issue #62).
     func backUp(_ sync: GitSync, _ root: URL, includeAIChanges: Bool) async throws {
-        guard try await leaveReviewBranch(sync, root), try await pullStep(sync, root) else { return }
+        guard try await leaveReviewBranch(sync, root) else { return }
+        if let waiting = try await sync.finishMerge(at: root) {
+            guard report(waiting) else { return changed() }
+            changed()
+        }
         let held = includeAIChanges || inputs.pushesAIChanges() ? [] : try await heldBackPaths(sync, root)
+        guard try await pullOrMerge(sync, root, held: Set(held)) else { return }
         try await sync.commitChanges(at: root, held: Set(held))
         switch try await sync.push(at: root) {
-        case .rejected: message = "GitHub has new commits. Pull first."
+        case .rejected: message = "GitHub has new commits. Back up again."
         case .nothingToPush, .pushed: break
         }
+    }
+
+    /// Fast-forwards when it can. When both sides have new commits, or your edits are in the way, it
+    /// commits your changes and merges. `true` when the folder can go on to commit and push.
+    private func pullOrMerge(_ sync: GitSync, _ root: URL, held: Set<String>) async throws -> Bool {
+        switch try await sync.pull(at: root) {
+        case .upToDate:
+            return true
+        case .updated:
+            changed()
+            return true
+        case .diverged, .blocked:
+            try await sync.commitChanges(at: root, held: held)
+            let result = try await sync.merge(at: root)
+            changed()
+            return report(result)
+        }
+    }
+
+    /// Says what a merge left for you. `true` when it is finished.
+    private func report(_ result: GitSync.MergeResult) -> Bool {
+        switch result {
+        case let .merged(copies):
+            conflicts = []
+            if !copies.isEmpty {
+                message = "GitHub's version of a note that can't show conflicts is saved as \(copies.joined(separator: ", ")). Yours stayed in place."
+            }
+            return true
+        case let .conflicts(notes):
+            conflicts = notes
+            message = Self.conflictMessage(notes)
+            return false
+        case let .blocked(reason):
+            message = "Fen didn't merge, to keep your edits: \(reason)"
+            return false
+        }
+    }
+
+    static func conflictMessage(_ notes: [String]) -> String {
+        let names = notes.prefix(3).map { ($0 as NSString).lastPathComponent }.joined(separator: ", ")
+        let more = notes.count > 3 ? " and \(notes.count - 3) more" : ""
+        return "\(notes.count == 1 ? "1 note has" : "\(notes.count) notes have") conflicts: \(names)\(more). "
+            + "Both versions are in the note, between <<<<<<< and >>>>>>>. Edit them, then back up again."
     }
 
     /// Notes with uncommitted changes where an AI change was applied after the note was last committed.

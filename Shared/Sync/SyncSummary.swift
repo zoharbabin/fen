@@ -8,11 +8,12 @@ enum SyncSummary {
         status: GitSync.Status?,
         pullRequest: PullRequest?,
         held: Int,
+        conflicts: Int = 0,
         repo: String
     ) -> String {
         guard let status else { return repo }
         switch mode {
-        case .directCommit: return backup(status, pullRequest, held)
+        case .directCommit: return conflicts > 0 ? conflictText(conflicts) : backup(status, pullRequest, held)
         case .pushAsPR: return review(status, pullRequest)
         }
     }
@@ -38,9 +39,14 @@ enum SyncSummary {
         return parts.isEmpty ? "Backed up" : parts.joined(separator: " · ")
     }
 
+    private static func conflictText(_ count: Int) -> String {
+        count == 1 ? "1 note has a conflict to fix" : "\(count) notes have conflicts to fix"
+    }
+
     private static func review(_ status: GitSync.Status, _ pullRequest: PullRequest?) -> String {
         guard let pullRequest else { return status.text }
-        return status.text + " · PR #\(pullRequest.number) \(pullRequest.state.rawValue)"
+        let conflicts = pullRequest.hasConflicts == true ? " · has conflicts, resolve on GitHub" : ""
+        return status.text + " · PR #\(pullRequest.number) \(pullRequest.state.rawValue)" + conflicts
     }
 }
 

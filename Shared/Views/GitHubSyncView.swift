@@ -46,6 +46,7 @@ struct GitHubSyncControls: View {
                             status: model.status,
                             pullRequest: model.pullRequest,
                             held: model.heldBack.count,
+                            conflicts: model.conflicts.count,
                             repo: repo.title
                         ))
                         .font(.caption)
@@ -61,7 +62,12 @@ struct GitHubSyncControls: View {
                     if let pull = model.pullRequest {
                         Button("Open Pull Request", systemImage: "arrow.up.right.square") { openURL(pull.url) }
                             .labelStyle(.iconOnly)
-                            .help("Open pull request #\(pull.number) on GitHub")
+                            .foregroundStyle(pull.hasConflicts == true ? Color.orange : Color.primary)
+                            .help(
+                                pull.hasConflicts == true
+                                    ? "Pull request #\(pull.number) has conflicts. Open it on GitHub to resolve them."
+                                    : "Open pull request #\(pull.number) on GitHub"
+                            )
                     }
                     Button(mode == .directCommit ? "Back Up" : "Sync", systemImage: "arrow.triangle.2.circlepath") {
                         Task { await model.syncNow() }
