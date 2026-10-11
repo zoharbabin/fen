@@ -135,7 +135,8 @@ public final class WriteGate {
         _ plan: WritePlan,
         _ change: ProposedChange,
         _ context: GateContext,
-        exemptFromReplacingOptIn: Bool
+        exemptFromReplacingOptIn: Bool,
+        branched: Bool = false
     ) -> WriteDecision {
         let settings = context.workspace.settings
         let mode = settings.writePolicy.mode(
@@ -145,7 +146,7 @@ public final class WriteGate {
             paths: change.edit.paths,
             client: change.client
         )
-        return settings.writePolicy.decide(WriteFacts(
+        let decision = settings.writePolicy.decide(WriteFacts(
             mode: mode,
             tier: plan.tier,
             operation: change.operation,
@@ -155,6 +156,11 @@ public final class WriteGate {
             confidence: change.basis?.confidence,
             exemptFromReplacingOptIn: exemptFromReplacingOptIn
         ))
+        // A change meant for a branch never auto-applies into your files.
+        if decision == .apply, change.branchAs != nil, !change.invokedByUser, !branched {
+            return .ask(.noBranch)
+        }
+        return decision
     }
 
     /// Applies a waiting change. Fails with `targetChanged` if the file moved on, and drops it.
@@ -359,6 +365,12 @@ public final class WriteGate {
         }
     }
 
+    struct Landed {
+        var branch: String
+        var commit: String
+        var agent: String
+    }
+
     /// Adds the line to the activity log once the change is on disk (or committed).
     func log(
         _ plan: WritePlan,
@@ -366,7 +378,7 @@ public final class WriteGate {
         _ context: GateContext,
         approvedBy: ApprovedBy,
         id: UUID = UUID(),
-        landed: (branch: String, commit: String)? = nil
+        landed: Landed? = nil
     ) throws -> ActivityEntry {
         let workspaceID = context.workspace.id
         let entry = ActivityEntry(
@@ -385,7 +397,8 @@ public final class WriteGate {
             approvedBy: approvedBy,
             diff: plan.diff,
             branch: landed?.branch,
-            commit: landed?.commit
+            commit: landed?.commit,
+            agent: landed?.agent
         )
         try ActivityLog(file: home.activityLogFile(id: workspaceID)).appendApplied(entry)
         activity[workspaceID] = entries(for: workspaceID) + [entry]

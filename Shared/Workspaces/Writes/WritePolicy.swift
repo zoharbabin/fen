@@ -13,6 +13,8 @@ public enum WriteDecision: Sendable, Equatable {
         case paused
         case overCap
         case lowConfidence
+        /// Auto-approve would apply it, but it must go to a git branch and this workspace has none.
+        case noBranch
     }
 }
 

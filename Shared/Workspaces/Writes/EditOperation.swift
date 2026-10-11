@@ -143,6 +143,10 @@ public struct ProposedChange: Identifiable, Sendable, Equatable {
     public var provenance: Provenance
     /// Why it was proposed and how sure Fen is. Features that score their proposals set it.
     public var basis: ProposalBasis?
+    /// Commit this change to that name's agent branch instead of your files (#93), when it is
+    /// applied without you. Without a git branch it can't auto-apply and asks instead. Fen's own
+    /// features that rewrite text on their own use it, such as conflict resolutions (#94).
+    public var branchAs: String?
 
     public init(
         id: UUID = UUID(),
@@ -156,7 +160,8 @@ public struct ProposedChange: Identifiable, Sendable, Equatable {
         baseHash: String?,
         invokedByUser: Bool = false,
         provenance: Provenance,
-        basis: ProposalBasis? = nil
+        basis: ProposalBasis? = nil,
+        branchAs: String? = nil
     ) {
         self.id = id
         self.workspaceID = workspaceID
@@ -170,5 +175,6 @@ public struct ProposedChange: Identifiable, Sendable, Equatable {
         self.invokedByUser = invokedByUser
         self.provenance = provenance
         self.basis = basis
+        self.branchAs = branchAs
     }
 }

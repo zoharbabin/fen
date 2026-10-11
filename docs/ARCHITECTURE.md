@@ -255,6 +255,7 @@ Fen's own state lives in one folder, `~/.fen` (`FenHome`). In a sandboxed macOS 
     index/               search.sqlite: words and vectors. A cache, safe to delete.
     history/             pre-images and activity.jsonl. Worth keeping.
     proposal-stats.json  how often you keep each kind of proposal. Counts only.
+    conflicts.json       the last conflict check: file hashes, passage hashes, open flags. Safe to delete.
   models/                downloaded model weights
   write-policy.json      the global "pause auto-approve" switch
 ```
@@ -490,12 +491,44 @@ In a git workspace, a Read-and-propose MCP client (issue #93) does not write to 
 
 - A commit is a compare-and-swap on the branch tip. If the tip moved, the write fails with `branchMoved`, and nothing is lost.
 - Two writes to one file from one agent: one wins, the other gets `targetChanged`. Both errors reach the client with `"retry": true` and a hint to read the file again and repeat the edit.
-- Two agents editing the same file each keep their own change on their own branch. Git reports a conflict when you merge both. What a collision means is up to you (issue #94).
+- Two agents editing the same file each keep their own change on their own branch. Git reports a conflict when you merge both. What a collision means is up to you. [Conflict checks](#conflict-checks-whats-new-against-whats-near-a-cheap-pass-first-a-fix-only-through-the-gate) can flag the notes that disagree.
 - **Claims.** A new file is claimed by the agent that creates it, for 10 minutes, in `refs/fen/claims/*`. Another agent that tries the same path gets an error that names the holder. Claims are advisory and cover only new paths, not every write.
 
 **When Fen falls back to in-place.** `WorkspaceSettings.agentBranches = .inPlace`, a folder with no git repo or no commit yet, or a file git doesn't track. Those changes go through the normal write flow, in your files, with the usual approval rules. The Activity view shows the branch and commit of each routed change, and Undo adds a reverse commit (it refuses if the branch file changed since).
 
 Tests: `AgentBranchesTests` (real git: no-touch guarantee, CAS, claims), `WriteGateAgentBranchTests` and `WriteGateAgentBranchUndoTests` (races, create, move, delete, undo, restart), `MCPAgentBranchTests` (end to end over the tools, plus an eight-agent load test).
+
+## Conflict checks: what's new against what's near, a cheap pass first, a fix only through the gate
+
+"Conflicts" in the workspace header (issue #94) finds notes that now disagree, such as "ship every 2 weeks" in one note and "every 4 weeks" in another. A run never reads the whole workspace. It compares what changed since the last run with the notes near it. It writes nothing to your folder.
+
+**Delta.** `ConflictDeltaFinder` lists the notes changed since the last run. In a git workspace it runs `git diff --name-only <last-run commit>` plus untracked files (read-only, through `GitTool`). Each candidate is then checked against the content hash saved in `conflicts.json`, so a commit that touched a file without changing it costs nothing. With no git, or when the saved commit is gone, the hashes alone decide. The first run takes the 40 most recently modified notes (`Options.maxDocuments`) and the rest wait. The saved commit moves forward only when nothing was left waiting. Inside a changed note, only passages whose hash is new are checked (`ConflictPassage`: paragraphs and top-level list items, not headings, code or front matter).
+
+**Neighborhood.** For each changed note, `ConflictNeighborhood` takes up to 8 notes: the ones it links to or from, then the ones whose meaning is close to its new passages (`WorkspaceSearch.related`), then notes in the same folder. Notes with the same type are not used (it costs a schema read per note for little gain).
+
+**Two tiers.**
+
+| Tier | Where | What it does |
+|---|---|---|
+| 1. Candidates | On this device, no network, no model call | Embeds the new passages and the neighbors' (cached by passage hash), keeps pairs at cosine 0.6 or more, then keeps pairs with a mark of contradiction (`ConflictSignals`: one side negates, the numbers differ, an opposite word pair, a "no longer" cue in the new text) or a near copy at 0.85 or more |
+| 2. Judge | Your provider, only if `InlineAIAccess.reason` lets it see both notes | One call per candidate, up to `Options.maxModelCalls` (20) per run. The reply is strict JSON (`ModelConflictJudge`). "No conflict" drops the pair |
+
+Without a provider, or without access, a pair with a mark is flagged from the marks alone, at a confidence of at most 0.5 (`ConflictRun.signalCeiling`). A near copy with no mark is not flagged. The run says when no model was used and why.
+
+**Cost.** A full pass compares every passage with every other, which grows with the square of the workspace. A run grows with the size of the edit. `ConflictCostTests` builds a 40-note workspace with 161 passages, runs once, edits one note and runs again with `measureFullCorpus`. A full pass would compare 12,880 pairs. The second run compared 32, kept 8 as candidates (the most model calls it can make) and found the planted conflict. Run `swift test --filter ConflictCostTests` to print the numbers on your machine. The test workspace is synthetic and the stand-in embedder is a bag of words, so use it for the shape, not as a benchmark.
+
+**Quality.** `ConflictPrecisionTests` runs 20 hand-labeled pairs (10 real conflicts, 10 that are not) through tier 1 with no model. The stand-in embedder gets full precision and recall on them. The test with the real on-device model has loose bounds, and `FEN_SPIKE=1` prints its numbers. Known false alarms: two sentences that are near copies with different numbers about different subjects, and a double negation ("never ... do not") that reads as a different polarity. The judge tier exists to catch those, so set a provider for best results.
+
+**Flags.** A flag keeps both passages' text and content hashes. `ConflictFlag.locate` finds a passage again by its hash, wherever it moved in the file. If a passage no longer exists, the flag is stale and the next run removes it. Commits in between do not matter. A dismissed pair is remembered by a key of both hashes and is not flagged again. State is `~/.fen/workspaces/<id>/conflicts.json` (`ConflictStore`). There is no log or index in the repo.
+
+**Fixes.** `ConflictResolver` asks the model to rewrite one side so it agrees with the side you keep, for a passage or for the whole note body. The draft is checked before it is queued: it must change the text, stay close in length, and add no link, web address or wiki link. The result is one `replaceText` change (operation `resolve-conflict`, `invokedByUser: false`, a `ProposalBasis` with the flag's confidence and explanation, `branchAs: "Conflicts"`).
+
+- **Default: Ask.** Replacing text asks unless the workspace's `autoApproveReplacing` includes `resolve-conflict`. With no opt-in, nothing is written.
+- **Auto-approve** needs that opt-in and a git branch. The fix is then its own commit on `fen/conflicts` (see [Agent branches](#agent-branches-an-mcp-client-commits-to-its-own-branch-your-checkout-stays-put)), with trailers that name the agent. Fen never merges that branch. Without a git branch the fix asks (`AskReason.noBranch`).
+- A rewrite that changes more than `maxChangedFraction` of the note asks even with the opt-in.
+- **Revert.** Undo from Activity, or "Undo Fix" in the Conflicts sheet, at both scopes. It adds a reverse commit, and the flag opens again. A rejected fix opens the flag again too.
+
+Tests: `ConflictPassageTests`, `ConflictDeltaTests` (real git), `ConflictDetectorTests`, `ConflictUnitTests`, `ConflictRunTests` and `ConflictGitRunTests` (a real library, gate and loopback provider: no write to the folder, idle second run, caps, cancel, git boundary, stale flags), `ConflictResolverTests` (the default never writes, opt-in, branch commit, undo, bad drafts), `WriteGateBranchAsTests`, `ConflictPrecisionTests` and `ConflictCostTests`.
 
 ## Every third-party resource is vendored, not loaded from a CDN
 

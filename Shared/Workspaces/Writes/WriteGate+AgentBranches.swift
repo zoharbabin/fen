@@ -43,7 +43,11 @@ extension WriteGate {
     @discardableResult
     public func submitRouted(_ change: ProposedChange, exemptFromReplacingOptIn: Bool = false) async throws -> Outcome {
         let context = try context(for: change.workspaceID)
-        guard let branch = await branch(for: change.client, invokedByUser: change.invokedByUser, context) else {
+        guard let branch = await branch(
+            for: change.branchAs ?? change.client,
+            invokedByUser: change.invokedByUser,
+            context
+        ) else {
             return try submit(change, exemptFromReplacingOptIn: exemptFromReplacingOptIn)
         }
         return try await locks.run(lockKey(branch)) {
@@ -51,7 +55,7 @@ extension WriteGate {
                 return try submit(change, exemptFromReplacingOptIn: exemptFromReplacingOptIn)
             }
             let plan = try makePlan(for: change, context, prefetched: route.prefetched)
-            switch decide(plan, change, context, exemptFromReplacingOptIn: exemptFromReplacingOptIn) {
+            switch decide(plan, change, context, exemptFromReplacingOptIn: exemptFromReplacingOptIn, branched: true) {
             case .blocked:
                 return .blocked
             case let .ask(reason):
@@ -79,7 +83,11 @@ extension WriteGate {
     public func approveRouted(_ id: UUID) async throws -> ActivityEntry {
         guard let item = pending.first(where: { $0.id == id }) else { throw WriteError.unknownChange }
         let context = try context(for: item.change.workspaceID)
-        guard let branch = await branch(for: item.change.client, invokedByUser: item.change.invokedByUser, context)
+        guard let branch = await branch(
+            for: item.change.branchAs ?? item.change.client,
+            invokedByUser: item.change.invokedByUser,
+            context
+        )
         else {
             return try approve(id)
         }
@@ -104,8 +112,11 @@ extension WriteGate {
         else { return try undo(entryID, workspaceID: workspaceID) }
         guard !entry.isUndone else { throw WriteError.alreadyUndone }
         let context = try context(for: workspaceID)
-        guard let branch = await agentBranches.open(directory: context.root, client: entry.provenance.model),
-              branch.name == branchName else { throw WriteError.unknownChange }
+        guard let branch = await agentBranches.open(
+            directory: context.root,
+            client: entry.agent ?? entry.provenance.model
+        ),
+            branch.name == branchName else { throw WriteError.unknownChange }
         try await locks.run(lockKey(branch)) {
             try await revert(entry, on: branch, context)
         }
@@ -205,7 +216,14 @@ extension WriteGate {
             on: branch,
             expectedTip: route.tip
         )
-        return try log(plan, change, context, approvedBy: approvedBy, id: id, landed: (branch.name, commit))
+        return try log(
+            plan,
+            change,
+            context,
+            approvedBy: approvedBy,
+            id: id,
+            landed: Landed(branch: branch.name, commit: commit, agent: branch.client)
+        )
     }
 
     private func message(
@@ -219,7 +237,7 @@ extension WriteGate {
         return AgentCommitMessage(
             subject: clean("\(change.edit.name): \(target)"),
             trailers: [
-                ("Fen-Agent", clean(change.client ?? "")),
+                ("Fen-Agent", clean(change.branchAs ?? change.client ?? "")),
                 ("Fen-Operation", clean(change.operation)),
                 ("Fen-Run", change.runID.uuidString.lowercased()),
                 ("Fen-Activity", activityID.uuidString.lowercased()),

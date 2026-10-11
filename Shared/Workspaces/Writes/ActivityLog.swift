@@ -38,6 +38,8 @@ public struct ActivityEntry: Codable, Identifiable, Sendable, Equatable {
     /// The agent branch and commit that hold this change, when it was committed there (#93).
     public var branch: String?
     public var commit: String?
+    /// Whose branch it went to, so an undo opens the same one.
+    public var agent: String?
 
     public var isUndone: Bool {
         undoneAt != nil

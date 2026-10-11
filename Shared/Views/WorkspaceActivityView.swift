@@ -163,6 +163,7 @@ private struct PendingRow: View {
         case .paused: "Auto-approve is paused."
         case .overCap: "This run changed more than the limits in the workspace settings."
         case .lowConfidence: "Fen isn't sure enough to apply this on its own. Check it first."
+        case .noBranch: "Fen applies this on its own only on a git branch. This workspace has none."
         }
     }
 }

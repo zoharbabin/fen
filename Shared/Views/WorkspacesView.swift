@@ -295,6 +295,7 @@ private struct WorkspaceDetailView: View {
     let workspace: Workspace
     let open: (Workspace, WorkspaceFile) -> Void
     @State private var showingActivity = false
+    @State private var showingConflicts = false
     @State private var enrichingPath: String?
     @State private var enrichMessage: String?
     @State private var classifyTask: Task<Void, Never>?
@@ -312,6 +313,14 @@ private struct WorkspaceDetailView: View {
         .navigationTitle(workspace.name)
         .sheet(isPresented: $showingActivity) {
             WorkspaceActivityView(gate: gate, workspace: workspace)
+        }
+        .sheet(isPresented: $showingConflicts) {
+            ConflictsView(library: library, gate: gate, workspace: workspace) { path in
+                if let file = library.state(for: workspace.id).snapshot.documents
+                    .first(where: { $0.relativePath == path }) {
+                    open(workspace, file)
+                }
+            }
         }
         .onDisappear { classifyTask?.cancel() }
         .alert("Types and Links", isPresented: Binding(get: { classifyMessage != nil }, set: {
@@ -397,6 +406,9 @@ private struct WorkspaceDetailView: View {
             Spacer()
             indexControls(library.indexStatus(for: workspace.id))
             classifyControls
+            Button("Conflicts", systemImage: "exclamationmark.arrow.triangle.2.circlepath") { showingConflicts = true }
+                .labelStyle(.iconOnly)
+                .help("Find notes that disagree with each other")
             Button("Activity", systemImage: "clock.arrow.circlepath") { showingActivity = true }
                 .labelStyle(.iconOnly)
                 .badge(gate.pending(for: workspace.id).count)

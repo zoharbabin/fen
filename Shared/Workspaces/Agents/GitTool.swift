@@ -1,8 +1,9 @@
 import Foundation
 
-/// Runs the `git` program for agent branches (issue #93). Only the agent-branch code uses it,
-/// and only plumbing commands: they read objects, write objects and move one ref. None of them
-/// touches your working tree, your index or your current branch, and none runs a hook.
+/// Runs the `git` program for agent branches (issue #93) and for the conflict check's list of
+/// changed files (#94). Agent branches use plumbing commands that read objects, write objects and
+/// move one ref. The conflict check only reads. None of them touches your working tree, your index
+/// or your current branch, and none runs a hook.
 ///
 /// Fen looks for git in fixed places and never asks `/usr/bin/git`. On a Mac without developer
 /// tools that shim opens an install prompt.

@@ -49,6 +49,11 @@ public struct FenHome: Sendable, Equatable {
         workspaceDirectory(id: id).appendingPathComponent("proposal-stats.json")
     }
 
+    /// What the conflict checks (#94) have seen and flagged. Stays on this device, never in the workspace.
+    public func conflictsFile(id: UUID) -> URL {
+        workspaceDirectory(id: id).appendingPathComponent("conflicts.json")
+    }
+
     public func indexDirectory(id: UUID) -> URL {
         workspaceDirectory(id: id).appendingPathComponent("index", isDirectory: true)
     }
