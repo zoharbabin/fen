@@ -610,6 +610,12 @@ A notification reaches every open editor, so the editor itself checks it is the 
 
 Layout follows the horizontal size class (`SplitEditorView+Layout.swift`). A regular width, such as a full-screen iPad, shows the editor and preview side by side. A compact width, such as a phone or a narrow Split View, shows one pane at a time, and the picker offers Editor and Preview only. The stored mode stays `.split`, so the window gets its two panes back when it widens.
 
+### Share sheet: files in place, a `.md` file out
+
+Other apps open a Markdown file in Fen because `iOS/Info.plist` declares the document type (`net.daringfireball.markdown` and plain text, role Editor) and sets `LSSupportsOpeningDocumentsInPlace`. Fen edits the original file, not a copy. `ShareDocumentTests` checks that every type `MarkdownDocument` can read is declared there.
+
+The share button sends `SharedMarkdown` (`Shared/Models/SharedMarkdown.swift`). It is the open buffer, not the file on disk, so unsaved edits go along. File-taking apps get a temporary `.md` named after the file or the first heading, with `/`, `:` and `\` removed. Text-only apps get the Markdown text. HTML and PDF export stay in the export menu.
+
 ## Check for updates: a menu command that reads the newest release and installs nothing
 
 **Fen > Check for Updates…** (issue #39, macOS only) asks `api.github.com/repos/zoharbabin/fen/releases/latest` for the newest release and compares its tag with the running app's `CFBundleShortVersionString` (`Shared/Updates/UpdateChecker.swift`). If a newer one exists, an alert offers to open its release page. You download the signed, notarized `Fen.app.zip` from there.

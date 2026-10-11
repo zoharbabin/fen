@@ -488,6 +488,11 @@ public struct SplitEditorView: View {
 
             #if os(iOS)
                 VersionHistoryButton(document: document)
+                ShareLink(
+                    item: SharedMarkdown(document: document),
+                    preview: SharePreview(SharedMarkdown(document: document).fileName)
+                )
+                .accessibilityIdentifier("ShareDocumentButton")
                 exportMenu
             #endif
         }
