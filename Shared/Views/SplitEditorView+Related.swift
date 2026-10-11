@@ -214,11 +214,23 @@ extension View {
 
 extension SplitEditorView {
     var outlineSidebar: some View {
-        DocumentOutlineSidebar(
-            outline: outline,
-            onSelectHeading: jumpToHeading(_:),
-            onRestOnHeading: relatedToHeading(_:)
-        )
+        VStack(spacing: 0) {
+            DocumentOutlineSidebar(
+                outline: outline,
+                onSelectHeading: jumpToHeading(_:),
+                onRestOnHeading: relatedToHeading(_:)
+            )
+            BacklinksSection(fileURL: document.fileURL, library: .shared, open: openInternalLink(_:))
+        }
+        .frame(minWidth: 140, idealWidth: 200, maxWidth: 320)
+    }
+
+    /// Resolves `[[names]]` in the open document, or `nil` when there are none to resolve or the
+    /// file is in no workspace.
+    func wikiLinkResolver() -> WikiLinkResolver? {
+        guard document.text.contains("[[") else { return nil }
+        WorkspaceLibrary.shared.start()
+        return WorkspaceLibrary.shared.wikiLinkResolver(for: document.fileURL)
     }
 
     /// Looks up documents related to the section under `heading`.

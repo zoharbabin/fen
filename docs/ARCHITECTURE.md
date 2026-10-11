@@ -366,6 +366,16 @@ Tests: `MarkdownChunkerTests`, `VectorStoreTests`, `SearchIndexTests`, `HybridRa
 
 Tests: `RelatedDocumentsTests`, `EditorSelectionTests`, `RelatedControllerTests`, `RelatedEditorE2ETests` (a real `NSTextView`, including Undo) and `RelatedPrecisionTests` (real model, hand-labeled; `FEN_SPIKE=1` prints the numbers).
 
+## Wiki links and backlinks: one resolver, the preview and the panel agree
+
+`[[name]]`, `[[name|text]]` and `[[name#heading]]` work in any file that sits in a workspace. `WikiLinkResolver` (`Shared/Rendering/WikiLinkResolver.swift`) matches a name the way the search index does (`MarkdownChunker.wikiKey`: lowercase, no extension, against a file name or the whole path). It is built from one workspace's file list, so a name cannot reach a file in another workspace. When two files share a name, the one nearest to the open document wins, then the shorter path, then the first alphabetically.
+
+**Rendering.** `applyWikiLinks` (`MarkdownRenderer+WikiLinks.swift`) is a post-processing pass like the emoji one. It skips code, existing links and tags. A found name becomes a normal relative link, so the preview opens it through the same internal-link path as any `[text](file.md)`. A missing name becomes a muted span. A file outside every workspace, or a workspace not listed yet, keeps the text as written, and `WorkspaceLibrary.listingRevision` re-renders the preview when the list arrives. `#heading` is accepted and ignored for now, because the target document only gets heading ids when its own TOC is on.
+
+**Backlinks.** `WorkspaceSearch.backlinks` (`Shared/Search/Backlinks.swift`) reads the `links` table of the index, so it lists files that are not open. A `[[name]]` counts only when the resolver sends it to this file, so a same-named file in another folder does not claim the link. `BacklinksSection` shows the list under the outline, only when it has rows. Nothing is written to the folder: the index stays in `~/.fen`.
+
+Tests: `WikiLinkTests` (including a real `WKWebView`) and `BacklinksTests`.
+
 ## Every third-party resource is vendored, not loaded from a CDN
 
 Fen's trust model is local-first: it reads and writes only inside files and folders you have granted (documents you open and workspaces you add), and — with the two documented exceptions, the opt-in GeoJSON/TopoJSON map preference and [AI providers you add yourself](#ai-providers-one-gate-no-provider-reachable-around-it) — it makes no runtime network calls. `HTMLComposer` (`Shared/Rendering/HTMLComposer.swift`) composes the preview and export HTML entirely from files bundled inside `Fen.app` — highlight.js lives in `Shared/Resources/Highlight/`, while Mermaid, MathJax, DOMPurify, three.js (plus `STLLoader`/`OrbitControls`), Leaflet, topojson-client, and the task-list script live in `Shared/Resources/Extensions/` (or `Styles`/`Templates` alongside them); emoji shortcode data lives in `Shared/Resources/Emoji/`. All of them load through `loadResourceFile(name:ext:subdirectory:)`, never through a `<script src="https://...">` tag — Leaflet's own basemap *tile images*, not its script, are the one exception, and only when the user has explicitly opted in.

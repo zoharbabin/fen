@@ -36,6 +36,7 @@ public struct HTMLComposer: Sendable {
         styleTags.append(inlineStyle(fontScaleCSS(preferences: preferences)))
         styleTags.append(inlineStyle(Self.listMarkerCSS))
         styleTags.append(inlineStyle(Self.alertsCSS))
+        styleTags.append(inlineStyle(Self.wikiLinkCSS))
         styleTags.append(inlineStyle(Self.focusModeCSS))
         styleTags.append(inlineStyle(Self.tableOverflowCSS))
 
@@ -209,6 +210,11 @@ public struct HTMLComposer: Sendable {
     .markdown-alert-important p.markdown-alert-title { color: #8250df; }
     .markdown-alert-warning p.markdown-alert-title { color: #9a6700; }
     .markdown-alert-caution p.markdown-alert-title { color: #cf222e; }
+    """
+
+    /// A `[[name]]` with no document (issue #36) reads as plain, muted text with a dotted underline.
+    private static let wikiLinkCSS = """
+    span.wikilink-unresolved { opacity: 0.6; border-bottom: 1px dotted currentColor; cursor: help; }
     """
 
     /// Focus mode's preview-pane sync (issue #127 rule 3.1): dims a rendered block that falls

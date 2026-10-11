@@ -112,6 +112,7 @@ public struct SplitEditorView: View {
             .onChange(of: preferences.renderRevision) { _, _ in
                 Task { await renderMarkdown() }
             }
+            .onChange(of: WorkspaceLibrary.shared.listingRevision) { _, _ in scheduleRender() }
             .onChange(of: document.fileURL) { _, _ in
                 externalChangeController.start(for: document)
                 autosaveController.start(for: document)
@@ -421,7 +422,7 @@ public struct SplitEditorView: View {
     /// an arbitrary file URL as its own window via `openDocument`; iOS has no equivalent
     /// arbitrary-URL API for a `DocumentGroup`-based app, so the link hands off to the system
     /// document viewer/editor instead, matching how an external link already behaves there.
-    private func openInternalLink(_ url: URL) {
+    func openInternalLink(_ url: URL) {
         #if os(macOS)
             Task {
                 try? await openDocument(at: url)
@@ -560,6 +561,7 @@ public struct SplitEditorView: View {
 
         var options = MarkdownRenderer.Options.from(preferences: preferences)
         options.sourcePositions = true
+        options.wikiLinks = wikiLinkResolver()
         options.renderTOC = documentOverrides.rendersTOC ?? options.renderTOC
         let result = renderer.render(document.text, options: options)
 

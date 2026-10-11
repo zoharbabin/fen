@@ -39,6 +39,14 @@ struct VectorCandidate: Sendable, Equatable {
     let score: Double
 }
 
+/// One link into a document: who wrote it, and the kind and target it was written with.
+struct LinkRow: Sendable, Equatable {
+    let source: String
+    let title: String
+    let kind: String
+    let target: String
+}
+
 enum SearchIndexError: Error, LocalizedError {
     case closed
 
@@ -208,6 +216,35 @@ actor SearchIndex {
             incoming.insert(into.string(0))
         }
         return (outgoing, incoming)
+    }
+
+    /// Documents that may link to `path`: the title, and for each link the kind and target it
+    /// was written with. A name shared by two files matches both here, so the caller decides.
+    func linkRows(into path: String) throws -> [LinkRow] {
+        let statement = try open().prepare("""
+        SELECT s.path, s.title, l.kind, l.target FROM links l
+        JOIN docs d ON d.path = ?1 JOIN docs s ON s.path = l.source
+        WHERE l.source != ?1 AND ((l.kind = 'path' AND l.target = d.path)
+            OR (l.kind = 'wiki' AND (l.target = d.stem OR l.target = d.pathkey)))
+        """)
+        statement.bind(1, path)
+        var rows: [LinkRow] = []
+        while try statement.step() {
+            rows.append(LinkRow(
+                source: statement.string(0), title: statement.string(1),
+                kind: statement.string(2), target: statement.string(3)
+            ))
+        }
+        return rows
+    }
+
+    func documentPaths() throws -> [String] {
+        let statement = try open().prepare("SELECT path FROM docs")
+        var paths: [String] = []
+        while try statement.step() {
+            paths.append(statement.string(0))
+        }
+        return paths
     }
 
     func summary() throws -> IndexSummary {

@@ -33,6 +33,8 @@ public final class WorkspaceLibrary {
     public private(set) var loadError: String?
     /// The workspace shown in front. Its jobs run first.
     public private(set) var currentWorkspaceID: UUID?
+    /// Bumps when a workspace's file list changes, so a rendered `[[name]]` can be checked again.
+    public private(set) var listingRevision = 0
 
     let scheduler: WorkspaceJobScheduler
     @ObservationIgnored private let watching: Bool
@@ -277,6 +279,7 @@ public final class WorkspaceLibrary {
     private func scanSucceeded(_ id: UUID, _ mine: Int, _ snapshot: WorkspaceSnapshot) {
         guard mine == generation[id], states[id] != nil else { return }
         states[id] = WorkspaceState(snapshot: snapshot, phase: .idle, hasScanned: true)
+        listingRevision += 1
         requestIndex(id)
         // Changes that arrived during the scan may not be in it.
         if let paths = pendingChanges[id], !paths.isEmpty {
@@ -334,6 +337,7 @@ public final class WorkspaceLibrary {
     private func updateSucceeded(_ id: UUID, _ mine: Int, _ snapshot: WorkspaceSnapshot, changed: Set<String>) {
         guard mine == generation[id], states[id] != nil else { return }
         states[id]?.snapshot = snapshot
+        listingRevision += 1
         requestIndex(id, recheck: changed)
     }
 
