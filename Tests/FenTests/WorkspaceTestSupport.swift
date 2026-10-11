@@ -53,6 +53,11 @@ extension TempFolder {
     /// Runs the system `git` in this folder. Test setup only: the app never does this.
     @discardableResult
     func git(_ arguments: String...) throws -> String {
+        try git(arguments)
+    }
+
+    @discardableResult
+    func git(_ arguments: [String]) throws -> String {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
         process.arguments = ["-c", "user.name=Test", "-c", "user.email=t@example.com", "-c", "commit.gpgsign=false"]

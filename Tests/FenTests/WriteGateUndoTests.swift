@@ -234,7 +234,11 @@ struct WriteGateUndoTests {
         while let url = walker?.nextObject() as? URL {
             guard url.pathExtension == "swift" else { continue }
             let source = try String(contentsOf: url, encoding: .utf8)
-            for word in ["URLSession", "NWConnection", "CFNetwork", "Process()"] {
+            // `GitTool` is the one place that starts a process (agent branches, #93).
+            let words = url.lastPathComponent == "GitTool.swift"
+                ? ["URLSession", "NWConnection", "CFNetwork"]
+                : ["URLSession", "NWConnection", "CFNetwork", "Process()"]
+            for word in words {
                 #expect(!source.contains(word), "\(url.lastPathComponent) uses \(word)")
             }
             checked += 1

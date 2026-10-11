@@ -27,7 +27,7 @@ struct MCPFixture {
         ".env": "TOKEN=abc\n",
     ]
 
-    init() async throws {
+    init(git: Bool = false) async throws {
         home = try TempHome()
         notes = try TempFolder("mcp-notes")
         secret = try TempFolder("mcp-private")
@@ -35,6 +35,10 @@ struct MCPFixture {
             try notes.write(path, text)
         }
         try secret.write("plan.md", "# Plan\n\nThe walrus launch plan.\n")
+        if git {
+            try notes.initRepo()
+            try notes.commitAll("init")
+        }
         try SchemaStore(root: notes.root).create(DocumentSchema(types: [
             DocumentType("Meeting", description: "A meeting", fields: [SchemaField("attendees", .list)]),
             DocumentType("Person", description: "A person"),
@@ -51,7 +55,14 @@ struct MCPFixture {
         }
         try #require(ready)
         self.library = library
-        gate = WriteGate(library: library)
+        gate = git
+            ? WriteGate(
+                home: library.registry.home,
+                workspaces: { library.workspaces },
+                rootURL: { try library.registry.rootURL(for: $0) },
+                agentBranches: AgentBranches(git: GitFixture.tool)
+            )
+            : WriteGate(library: library)
         clients = MCPClientStore(home: home.home)
         endpoint = MCPEndpoint(library: library, gate: gate, clients: clients)
         notesID = workspace.id

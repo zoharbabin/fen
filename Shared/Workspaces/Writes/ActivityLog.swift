@@ -35,6 +35,9 @@ public struct ActivityEntry: Codable, Identifiable, Sendable, Equatable {
     public var approvedBy: ApprovedBy
     public var diff: LineDiff
     public var undoneAt: Date?
+    /// The agent branch and commit that hold this change, when it was committed there (#93).
+    public var branch: String?
+    public var commit: String?
 
     public var isUndone: Bool {
         undoneAt != nil

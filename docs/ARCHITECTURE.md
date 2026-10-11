@@ -227,7 +227,7 @@ A workspace is a folder you grant to Fen. You can add as many as you like. Fen l
 | `WorkspaceRegistry` | The list of granted folders, saved atomically in `~/.fen/workspaces.json`. Refuses overlaps, your home folder, a volume root, and `~/.fen`. Keeps a security-scoped bookmark per folder. |
 | `PathGate` | The one containment check for the app. `isContained`, `resolve(relativePath:in:)` and `overlaps` follow symlinks (including dangling ones) and compare whole path components. The preview handler and every workspace read go through it. |
 | `LocalFolderSource` | A `WorkspaceSource` for a folder. Read-only. Skips hidden files, `.gitignore`d files, secret-looking names, binaries, files over the size limit, and symlinks that leave the folder. Never follows a symlinked folder. |
-| `GitRepository` | Reads branch, ignore rules and dirty state straight from `.git`. It runs no `git` process: the system `git` doesn't exist on iOS, and on a Mac without developer tools it opens an install prompt. A test greps `Shared/Workspaces` to keep it that way. Staged-but-uncommitted changes aren't detected. |
+| `GitRepository` | Reads branch, ignore rules and dirty state straight from `.git`. It runs no `git` process: the system `git` doesn't exist on iOS, and on a Mac without developer tools it opens an install prompt. A test greps `Shared/Workspaces` for `Process()`, and only `Agents/GitTool.swift` may use it (see [Agent branches](#agent-branches-an-mcp-client-commits-to-its-own-branch-your-checkout-stays-put)). Staged-but-uncommitted changes aren't detected. |
 | `WorkspaceJobScheduler` | One concurrency cap for all workspaces. The frontmost workspace goes first. Jobs run at utility priority off the main actor. Background jobs wait while paused or in Low Power Mode. Listing jobs have their own lane, so the sidebar still fills in. |
 | `WorkspaceChangeWatcher` | macOS: one FSEvents stream per workspace, batched into relative paths. iOS: no live watch. The library refreshes when the app returns to the foreground. |
 | `WorkspaceLibrary` | What the UI observes: workspaces, file lists, git state, scan progress. With no workspaces it reads the registry and does nothing else. |
@@ -273,7 +273,7 @@ Every feature that touches a workspace follows these rules.
 4. **No committed index or manifest.** Graphs and indexes are computed at runtime.
 5. **`git log` is the changelog.** Fen keeps no parallel change log in the repo.
 6. **Small, deliberate diffs.** No auto-touched `modified:` dates or other noise. Every write is something you'd want to see in `git diff`.
-7. **Fen runs no mutating git command on your branch by itself.** Commits and branches come only from the flows that own them: agent branches and sync. Read-only git use is fine.
+7. **Fen runs no mutating git command on your branch by itself.** Commits and branches come only from the flows that own them: [agent branches](#agent-branches-an-mcp-client-commits-to-its-own-branch-your-checkout-stays-put) and sync. Agent branches only add refs under `refs/heads/fen/` and `refs/fen/`. Read-only git use is fine.
 8. **AI writes keep their provenance in the activity log** and in commit trailers on commits Fen creates, never inline in files.
 
 How the rules are enforced:
@@ -470,6 +470,32 @@ Fen can serve your workspaces to a tool on the same Mac over [MCP](https://model
 **Tokens.** A token is `fen_` and 32 random bytes. Fen shows it once and stores only its SHA-256 hash, in a file only you can read. A new token replaces the old one at once. Removing a client ends its access on the next request. A damaged client file leaves no client able to connect.
 
 Tests: `MCPRequestGuardTests` and `MCPHTTPParserTests` (every rule, no socket), `MCPClientStoreTests`, `MCPEndpointTests` (a real library and gate: scoping, reads, Ask, rules, bad edits), `MCPWritePolicyTests`, and `MCPServerTests` (real sockets: bound to loopback, rebinding Host, size cap, slow client, connection cap).
+
+## Agent branches: an MCP client commits to its own branch, your checkout stays put
+
+In a git workspace, a Read-and-propose MCP client (issue #93) does not write to your files. Each client gets one branch, `fen/<client>`, and every applied change is a commit on it. You merge when you want: `git merge fen/claude`. Two agents never share a checkout, so one can't overwrite the other.
+
+**What Fen does in your repo.** Fen builds each commit with plumbing (`hash-object`, a private temporary index, `write-tree`, `commit-tree`) and moves the branch with `update-ref <ref> <new> <old>`. Your `HEAD`, index and working tree are never touched, and no hook runs. The branch starts at your current `HEAD`. When you merge it, the next change moves it forward to `HEAD` again. This is the only place Fen writes to `.git`, and the commit author is the client, so `git log` shows who did what.
+
+| Part | Job |
+|---|---|
+| `GitTool` | The only code that starts a process. Finds a real `git` (never `/usr/bin/git`, which opens an install prompt without developer tools). Hooks, fsmonitor, signing and gc are off. macOS only: on iOS there is no `git`, so there are no agent branches |
+| `AgentBranches` | Branch names, reads, commits, claims. Knows nothing about approval |
+| `WriteGate+AgentBranches` | `submitRouted`, `approveRouted`, `undoRouted`, `revertRunRouted`, `agentRead`. Same policy, pre-images, provenance and activity log as in-place writes. The commit carries the `Fen-*` trailers and `AI-Assisted-By` |
+| `AsyncLocks` | One writer at a time per branch inside Fen |
+
+**What an agent sees.** `get_document` returns the file as the agent's branch has it (with a `branch` field), or your version if the agent hasn't changed it. `propose_edit` checks `baseHash` against that view.
+
+**Safe when agents race.**
+
+- A commit is a compare-and-swap on the branch tip. If the tip moved, the write fails with `branchMoved`, and nothing is lost.
+- Two writes to one file from one agent: one wins, the other gets `targetChanged`. Both errors reach the client with `"retry": true` and a hint to read the file again and repeat the edit.
+- Two agents editing the same file each keep their own change on their own branch. Git reports a conflict when you merge both. What a collision means is up to you (issue #94).
+- **Claims.** A new file is claimed by the agent that creates it, for 10 minutes, in `refs/fen/claims/*`. Another agent that tries the same path gets an error that names the holder. Claims are advisory and cover only new paths, not every write.
+
+**When Fen falls back to in-place.** `WorkspaceSettings.agentBranches = .inPlace`, a folder with no git repo or no commit yet, or a file git doesn't track. Those changes go through the normal write flow, in your files, with the usual approval rules. The Activity view shows the branch and commit of each routed change, and Undo adds a reverse commit (it refuses if the branch file changed since).
+
+Tests: `AgentBranchesTests` (real git: no-touch guarantee, CAS, claims), `WriteGateAgentBranchTests` and `WriteGateAgentBranchUndoTests` (races, create, move, delete, undo, restart), `MCPAgentBranchTests` (end to end over the tools, plus an eight-agent load test).
 
 ## Every third-party resource is vendored, not loaded from a CDN
 

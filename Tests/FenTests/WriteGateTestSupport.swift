@@ -15,7 +15,8 @@ final class GateHarness {
     init(
         files: [String: String] = ["a.md": "# A\n\nOne.\n", "b.md": "# B\n"],
         settings: WorkspaceSettings = WorkspaceSettings(),
-        git: Bool = false
+        git: Bool = false,
+        agentBranches: AgentBranches? = nil
     ) throws {
         folder = try TempFolder("writes")
         homeFolder = try TempHome()
@@ -29,7 +30,12 @@ final class GateHarness {
         }
         let workspace = Workspace(id: workspaceID, name: "W", path: folder.root.path, settings: settings)
         workspaces = [workspace]
-        gate = Self.makeGate(home: homeFolder.home, root: folder.root, workspace: { [workspace] in [workspace] })
+        gate = Self.makeGate(
+            home: homeFolder.home,
+            root: folder.root,
+            workspace: { [workspace] in [workspace] },
+            agentBranches: agentBranches
+        )
     }
 
     /// A second gate over the same home, as after a restart.
@@ -41,9 +47,11 @@ final class GateHarness {
     private static func makeGate(
         home: FenHome,
         root: URL,
-        workspace: @escaping @MainActor () -> [Workspace]
+        workspace: @escaping @MainActor () -> [Workspace],
+        agentBranches: AgentBranches? = nil
     ) -> WriteGate {
-        WriteGate(home: home, workspaces: workspace, rootURL: { _ in root })
+        guard let agentBranches else { return WriteGate(home: home, workspaces: workspace, rootURL: { _ in root }) }
+        return WriteGate(home: home, workspaces: workspace, rootURL: { _ in root }, agentBranches: agentBranches)
     }
 
     func cleanUp() {
@@ -97,5 +105,19 @@ func autoSettings(replacing: Bool = true, maxFiles: Int = 20, maxFraction: Doubl
             maxFilesPerRun: maxFiles,
             maxChangedFraction: maxFraction
         )
+    )
+}
+
+/// Auto-approve for the named MCP clients only. Every other client still asks.
+func agentSettings(_ clients: String..., mode: AgentBranchMode = .perAgent) -> WorkspaceSettings {
+    WorkspaceSettings(
+        approvalMode: .ask,
+        writePolicy: WritePolicy(
+            overrides: clients.map { .init(kind: .client, match: $0, mode: .autoApprove, confirmed: true) },
+            autoApproveConfirmed: true,
+            autoApproveReplacing: ["mcp.replaceText", "mcp.overwrite"],
+            maxFilesPerRun: 100
+        ),
+        agentBranches: mode
     )
 }

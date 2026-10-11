@@ -4,9 +4,12 @@ import Foundation
 /// `isError`, not as a protocol error.
 struct MCPToolError: Error {
     let message: String
+    /// The same call can work after the client reads the file again.
+    let retry: Bool
 
-    init(_ message: String) {
+    init(_ message: String, retry: Bool = false) {
         self.message = message
+        self.retry = retry
     }
 }
 
@@ -112,8 +115,9 @@ final class MCPTools {
         Definition(
             name: "propose_edit",
             description: "Proposes one change to a file. Fen does not apply it until the person who owns "
-                + "the workspace approves it. Operations: createFile, append, setFrontMatter, replaceText, "
-                + "overwrite, delete, move.",
+                + "the workspace approves it. In a git workspace it is committed to your own branch, not to "
+                + "their files. If it fails with “try again”, read the file again and repeat. "
+                + "Operations: createFile, append, setFrontMatter, replaceText, overwrite, delete, move.",
             properties: [
                 "workspace": workspaceProperty,
                 "edit": [
@@ -148,7 +152,7 @@ final class MCPTools {
         case "get_document": return try await getDocument(arguments, client)
         case "get_links": return try await getLinks(arguments, client)
         case "get_schema": return try await getSchema(arguments, client)
-        default: return try proposeEdit(arguments, client)
+        default: return try await proposeEdit(arguments, client)
         }
     }
 
@@ -275,11 +279,12 @@ final class MCPTools {
 
     private func getDocument(_ arguments: [String: Any], _ client: MCPClient) async throws -> [String: Any] {
         let workspace = try workspace(arguments, client)
-        let (data, text, path) = try read(arguments, in: workspace)
+        let document = try await readForClient(arguments, client, in: workspace)
+        let (data, text, path, branch) = (document.data, document.text, document.path, document.branch)
         let renderer = MarkdownRenderer()
         let front = text.hasPrefix("---") ? renderer.peekFrontMatter(text) : nil
         let type = DocumentProperties.typeName(in: front)
-        return [
+        var result: [String: Any] = [
             "workspace": workspace.id.uuidString.lowercased(),
             "path": path,
             "title": MarkdownChunker.parse(text, path: path).title,
@@ -288,6 +293,35 @@ final class MCPTools {
             "contentHash": ContentHash.of(data),
             "text": text,
         ]
+        if let branch {
+            result["branch"] = branch
+        }
+        return result
+    }
+
+    /// A client that can propose changes reads what its own changes build on: the version git holds
+    /// on its branch (#93). A file git doesn't track is read from the workspace.
+    private func readForClient(
+        _ arguments: [String: Any],
+        _ client: MCPClient,
+        in workspace: Workspace
+    ) async throws -> ClientRead {
+        if client.level == .readAndPropose, let path = arguments["path"] as? String, !path.isEmpty {
+            _ = try ready(workspace)
+            if let found = try? await gate.agentRead(workspaceID: workspace.id, path: path, client: client.name),
+               let text = String(data: found.data, encoding: .utf8) {
+                return ClientRead(data: found.data, text: text, path: path, branch: found.branch)
+            }
+        }
+        let (data, text, path) = try read(arguments, in: workspace)
+        return ClientRead(data: data, text: text, path: path, branch: nil)
+    }
+
+    private struct ClientRead {
+        var data: Data
+        var text: String
+        var path: String
+        var branch: String?
     }
 
     private func getLinks(_ arguments: [String: Any], _ client: MCPClient) async throws -> [String: Any] {
@@ -371,7 +405,7 @@ final class MCPTools {
 
     // MARK: - Writing
 
-    private func proposeEdit(_ arguments: [String: Any], _ client: MCPClient) throws -> [String: Any] {
+    private func proposeEdit(_ arguments: [String: Any], _ client: MCPClient) async throws -> [String: Any] {
         let workspace = try workspace(arguments, client)
         guard let edit = arguments["edit"] as? [String: Any] else { throw MCPToolError("Give an edit.") }
         let scope = Set(["path", "from", "to"].compactMap { edit[$0] as? String })
@@ -407,9 +441,15 @@ final class MCPTools {
             provenance: Provenance(provider: "mcp", model: client.name)
         )
         do {
-            switch try gate.submit(change) {
+            switch try await gate.submitRouted(change) {
             case let .applied(entry):
-                return ["status": "applied", "id": entry.id.uuidString.lowercased()]
+                var result: [String: Any] = ["status": "applied", "id": entry.id.uuidString.lowercased()]
+                if let branch = entry.branch, let commit = entry.commit {
+                    result["branch"] = branch
+                    result["commit"] = commit
+                    result["message"] = "Committed to \(branch). The workspace owner merges it."
+                }
+                return result
             case let .pending(item):
                 return [
                     "status": "waiting_for_approval",
@@ -422,8 +462,21 @@ final class MCPTools {
         } catch let error as MCPToolError {
             throw error
         } catch {
-            throw MCPToolError(error.localizedDescription)
+            let retry = Self.isRetryable(error)
+            let hint = retry ? " Read the file again with get_document, then repeat the edit." : ""
+            throw MCPToolError(error.localizedDescription + hint, retry: retry)
         }
+    }
+
+    /// A collision the client can fix by reading the file again (the file or its branch moved).
+    private static func isRetryable(_ error: Error) -> Bool {
+        if case WriteError.targetChanged = error {
+            return true
+        }
+        if case AgentBranchError.branchMoved = error {
+            return true
+        }
+        return false
     }
 
     // MARK: - Helpers

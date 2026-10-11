@@ -71,6 +71,8 @@ public struct WorkspaceSettings: Codable, Sendable, Equatable {
     public var mcpAccess: MCPAccess
     /// Overrides, opt-ins and caps for AI writes (issue #140). `approvalMode` is the default.
     public var writePolicy: WritePolicy
+    /// Where an MCP client's changes land in a git workspace (#93).
+    public var agentBranches: AgentBranchMode
     /// Set when you connect a remote (#61). `nil` until then.
     public var syncMode: SyncMode?
     public var includeGlobs: [String]
@@ -82,6 +84,7 @@ public struct WorkspaceSettings: Codable, Sendable, Equatable {
         approvalMode: ApprovalMode = .ask,
         mcpAccess: MCPAccess = .disabled,
         writePolicy: WritePolicy = WritePolicy(),
+        agentBranches: AgentBranchMode = .perAgent,
         syncMode: SyncMode? = nil,
         includeGlobs: [String] = WorkspaceSettings.defaultIncludeGlobs,
         excludeGlobs: [String] = [],
@@ -91,6 +94,7 @@ public struct WorkspaceSettings: Codable, Sendable, Equatable {
         self.approvalMode = approvalMode
         self.mcpAccess = mcpAccess
         self.writePolicy = writePolicy
+        self.agentBranches = agentBranches
         self.syncMode = syncMode
         self.includeGlobs = includeGlobs
         self.excludeGlobs = excludeGlobs
@@ -105,6 +109,7 @@ public struct WorkspaceSettings: Codable, Sendable, Equatable {
             approvalMode: container.decodeIfPresent(ApprovalMode.self, forKey: .approvalMode) ?? .ask,
             mcpAccess: container.decodeIfPresent(MCPAccess.self, forKey: .mcpAccess) ?? .disabled,
             writePolicy: container.decodeIfPresent(WritePolicy.self, forKey: .writePolicy) ?? WritePolicy(),
+            agentBranches: container.decodeIfPresent(AgentBranchMode.self, forKey: .agentBranches) ?? .perAgent,
             syncMode: container.decodeIfPresent(SyncMode.self, forKey: .syncMode),
             includeGlobs: container.decodeIfPresent([String].self, forKey: .includeGlobs)
                 ?? WorkspaceSettings.defaultIncludeGlobs,

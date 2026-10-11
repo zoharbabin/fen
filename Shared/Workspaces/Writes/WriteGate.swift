@@ -40,17 +40,31 @@ public final class WriteGate {
     public private(set) var activity: [UUID: [ActivityEntry]] = [:]
     public private(set) var isPaused: Bool
 
-    @ObservationIgnored private let home: FenHome
+    @ObservationIgnored let home: FenHome
     @ObservationIgnored private let workspaces: @MainActor () -> [Workspace]
     @ObservationIgnored private let rootURL: @MainActor (UUID) throws -> URL
-    @ObservationIgnored private let now: @Sendable () -> Date
+    @ObservationIgnored let now: @Sendable () -> Date
+    @ObservationIgnored let agentBranches: AgentBranches
+    @ObservationIgnored let locks = AsyncLocks()
 
-    public init(
+    public convenience init(
         home: FenHome,
         workspaces: @escaping @MainActor () -> [Workspace],
         rootURL: @escaping @MainActor (UUID) throws -> URL,
         now: @escaping @Sendable () -> Date = { Date() }
     ) {
+        self.init(home: home, workspaces: workspaces, rootURL: rootURL, now: now, agentBranches: AgentBranches())
+    }
+
+    /// Tests pass their own `AgentBranches`.
+    init(
+        home: FenHome,
+        workspaces: @escaping @MainActor () -> [Workspace],
+        rootURL: @escaping @MainActor (UUID) throws -> URL,
+        now: @escaping @Sendable () -> Date = { Date() },
+        agentBranches: AgentBranches
+    ) {
+        self.agentBranches = agentBranches
         self.home = home
         self.workspaces = workspaces
         self.rootURL = rootURL
@@ -99,24 +113,7 @@ public final class WriteGate {
     public func submit(_ change: ProposedChange, exemptFromReplacingOptIn: Bool = false) throws -> Outcome {
         let context = try context(for: change.workspaceID)
         let plan = try makePlan(for: change, context)
-        let settings = context.workspace.settings
-        let mode = settings.writePolicy.mode(
-            workspaceDefault: settings.approvalMode,
-            operation: change.operation,
-            documentType: change.documentType,
-            paths: change.edit.paths,
-            client: change.client
-        )
-        let decision = settings.writePolicy.decide(WriteFacts(
-            mode: mode,
-            tier: plan.tier,
-            operation: change.operation,
-            invokedByUser: change.invokedByUser,
-            paused: isPaused,
-            overCap: isOverCap(plan, change, settings.writePolicy),
-            confidence: change.basis?.confidence,
-            exemptFromReplacingOptIn: exemptFromReplacingOptIn
-        ))
+        let decision = decide(plan, change, context, exemptFromReplacingOptIn: exemptFromReplacingOptIn)
         switch decision {
         case .blocked:
             return .blocked
@@ -132,6 +129,32 @@ public final class WriteGate {
             }
             return .applied(entry)
         }
+    }
+
+    func decide(
+        _ plan: WritePlan,
+        _ change: ProposedChange,
+        _ context: GateContext,
+        exemptFromReplacingOptIn: Bool
+    ) -> WriteDecision {
+        let settings = context.workspace.settings
+        let mode = settings.writePolicy.mode(
+            workspaceDefault: settings.approvalMode,
+            operation: change.operation,
+            documentType: change.documentType,
+            paths: change.edit.paths,
+            client: change.client
+        )
+        return settings.writePolicy.decide(WriteFacts(
+            mode: mode,
+            tier: plan.tier,
+            operation: change.operation,
+            invokedByUser: change.invokedByUser,
+            paused: isPaused,
+            overCap: isOverCap(plan, change, settings.writePolicy),
+            confidence: change.basis?.confidence,
+            exemptFromReplacingOptIn: exemptFromReplacingOptIn
+        ))
     }
 
     /// Applies a waiting change. Fails with `targetChanged` if the file moved on, and drops it.
@@ -156,6 +179,19 @@ public final class WriteGate {
     /// What you accepted and dismissed in a workspace, per operation.
     public func stats(for workspaceID: UUID) -> ProposalStats {
         ProposalStatsStore(file: home.proposalStatsFile(id: workspaceID)).load()
+    }
+
+    func enqueue(_ item: Pending) {
+        pending.removeAll { $0.id == item.id }
+        pending.append(item)
+    }
+
+    func dequeue(_ id: UUID) {
+        pending.removeAll { $0.id == id }
+    }
+
+    func count(_ outcome: ProposalStats.Outcome, _ change: ProposedChange) {
+        record(outcome, change)
     }
 
     /// Counting never blocks a write, so a failure to save a count is dropped.
@@ -189,8 +225,12 @@ public final class WriteGate {
         }
         guard !entry.isUndone else { throw WriteError.alreadyUndone }
         try restore(entry, context)
+        return try markUndone(entry)
+    }
+
+    func markUndone(_ entry: ActivityEntry) throws -> ActivityEntry {
         let date = now()
-        try ActivityLog(file: home.activityLogFile(id: workspaceID)).appendUndone(id: entryID, date: date)
+        try ActivityLog(file: home.activityLogFile(id: entry.workspaceID)).appendUndone(id: entry.id, date: date)
         var updated = entry
         updated.undoneAt = date
         replace(updated)
@@ -213,14 +253,14 @@ public final class WriteGate {
 
     // MARK: - Context
 
-    private func context(for id: UUID) throws -> Context {
+    func context(for id: UUID) throws -> GateContext {
         guard let workspace = workspaces().first(where: { $0.id == id }) else { throw WriteError.unknownWorkspace }
         let root = try rootURL(id)
-        return Context(workspace: workspace, root: PathGate.canonicalURL(of: root) ?? root)
+        return GateContext(workspace: workspace, root: PathGate.canonicalURL(of: root) ?? root)
     }
 
     /// A path Fen may write: relative, inside the root, no hidden part, not secret-looking.
-    private func resolve(_ path: String, _ context: Context) throws -> URL {
+    func resolve(_ path: String, _ context: GateContext) throws -> URL {
         let parts = path.split(separator: "/", omittingEmptySubsequences: false).map(String.init)
         guard !path.isEmpty, !path.hasPrefix("/"), !parts.contains(""), !parts.contains(".."), !parts.contains("."),
               !parts.contains(where: { $0.hasPrefix(".") }),
@@ -233,13 +273,19 @@ public final class WriteGate {
 
     // MARK: - Plan
 
-    private func makePlan(for change: ProposedChange, _ context: Context) throws -> Plan {
+    func makePlan(
+        for change: ProposedChange,
+        _ context: GateContext,
+        prefetched: Prefetched? = nil
+    ) throws -> WritePlan {
         for path in change.edit.paths where !change.scope.contains(path) {
             throw WriteError.outsideScope(path)
         }
         let path = change.edit.primaryPath
         let url = try resolve(path, context)
-        let before = try readCurrent(url, path: path, limit: context.workspace.settings.maxFileBytes)
+        let limit = context.workspace.settings.maxFileBytes
+        let before = try prefetched.map { try check($0.before, path: path, limit: limit) }
+            ?? readCurrent(url, path: path, limit: limit)
         guard before.map(ContentHash.of) == change.baseHash else { throw WriteError.targetChanged(path) }
         let oldText = before.flatMap { String(data: $0, encoding: .utf8) }
         let planned = try EditPlanner.plan(change.edit, existing: oldText)
@@ -247,7 +293,7 @@ public final class WriteGate {
         var toURL: URL?
         if case let .move(_, destination) = change.edit {
             let target = try resolve(destination, context)
-            guard !FileManager.default.fileExists(atPath: target.path)
+            guard !(prefetched?.destinationTaken ?? FileManager.default.fileExists(atPath: target.path))
             else { throw WriteError.alreadyExists(destination) }
             toPath = destination
             toURL = target
@@ -257,7 +303,7 @@ public final class WriteGate {
         if !isMove, after == before {
             throw WriteError.noChange
         }
-        return Plan(
+        return WritePlan(
             tier: planned.tier,
             path: path,
             url: url,
@@ -273,13 +319,17 @@ public final class WriteGate {
         var isDirectory: ObjCBool = false
         guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory) else { return nil }
         guard !isDirectory.boolValue else { throw WriteError.invalidPath(path) }
-        let data = try Data(contentsOf: url)
+        return try check(Data(contentsOf: url), path: path, limit: limit)
+    }
+
+    func check(_ data: Data?, path: String, limit: Int) throws -> Data? {
+        guard let data else { return nil }
         guard data.count <= limit else { throw WriteError.tooLarge(path) }
         guard String(data: data, encoding: .utf8) != nil else { throw WriteError.notText(path) }
         return data
     }
 
-    private func isOverCap(_ plan: Plan, _ change: ProposedChange, _ policy: WritePolicy) -> Bool {
+    func isOverCap(_ plan: WritePlan, _ change: ProposedChange, _ policy: WritePolicy) -> Bool {
         let paths = Set(entries(for: change.workspaceID).filter { $0.runID == change.runID }.map(\.path))
         if !paths.contains(plan.path), paths.count + 1 > policy.maxFilesPerRun {
             return true
@@ -290,18 +340,37 @@ public final class WriteGate {
     // MARK: - Write
 
     private func perform(
-        _ plan: Plan,
+        _ plan: WritePlan,
         _ change: ProposedChange,
-        _ context: Context,
+        _ context: GateContext,
         approvedBy: ApprovedBy
     ) throws -> ActivityEntry {
-        let workspaceID = context.workspace.id
-        if let before = plan.before {
-            try PreImageStore(directory: home.preImagesDirectory(id: workspaceID)).save(before, path: plan.path)
-        }
+        try savePreImage(plan, context)
         try writeToDisk(plan, change.edit)
+        return try log(plan, change, context, approvedBy: approvedBy)
+    }
+
+    func savePreImage(_ plan: WritePlan, _ context: GateContext) throws {
+        if let before = plan.before {
+            try PreImageStore(directory: home.preImagesDirectory(id: context.workspace.id)).save(
+                before,
+                path: plan.path
+            )
+        }
+    }
+
+    /// Adds the line to the activity log once the change is on disk (or committed).
+    func log(
+        _ plan: WritePlan,
+        _ change: ProposedChange,
+        _ context: GateContext,
+        approvedBy: ApprovedBy,
+        id: UUID = UUID(),
+        landed: (branch: String, commit: String)? = nil
+    ) throws -> ActivityEntry {
+        let workspaceID = context.workspace.id
         let entry = ActivityEntry(
-            id: UUID(),
+            id: id,
             runID: change.runID,
             workspaceID: workspaceID,
             date: now(),
@@ -314,14 +383,16 @@ public final class WriteGate {
             postHash: (plan.after ?? (plan.toPath == nil ? nil : plan.before)).map(ContentHash.of),
             provenance: change.provenance,
             approvedBy: approvedBy,
-            diff: plan.diff
+            diff: plan.diff,
+            branch: landed?.branch,
+            commit: landed?.commit
         )
         try ActivityLog(file: home.activityLogFile(id: workspaceID)).appendApplied(entry)
         activity[workspaceID] = entries(for: workspaceID) + [entry]
         return entry
     }
 
-    private func writeToDisk(_ plan: Plan, _ edit: EditOperation) throws {
+    private func writeToDisk(_ plan: WritePlan, _ edit: EditOperation) throws {
         let permissions = (try? FileManager.default.attributesOfItem(atPath: plan.url.path))?[.posixPermissions]
         switch edit {
         case .delete:
@@ -349,7 +420,7 @@ public final class WriteGate {
 
     // MARK: - Undo
 
-    private func restore(_ entry: ActivityEntry, _ context: Context) throws {
+    private func restore(_ entry: ActivityEntry, _ context: GateContext) throws {
         let url = try resolve(entry.path, context)
         let current = try? Data(contentsOf: url)
         if let toPath = entry.toPath {
@@ -373,7 +444,7 @@ public final class WriteGate {
         try write(data, to: url, permissions: permissions)
     }
 
-    private func replace(_ entry: ActivityEntry) {
+    func replace(_ entry: ActivityEntry) {
         guard var list = activity[entry.workspaceID], let index = list.firstIndex(where: { $0.id == entry.id }) else {
             return
         }
@@ -382,12 +453,12 @@ public final class WriteGate {
     }
 }
 
-private struct Context {
+struct GateContext {
     var workspace: Workspace
     var root: URL
 }
 
-private struct Plan {
+struct WritePlan {
     var tier: EditTier
     var path: String
     var url: URL
@@ -396,4 +467,10 @@ private struct Plan {
     var before: Data?
     var after: Data?
     var diff: LineDiff
+}
+
+/// What a read from an agent branch found, handed to `makePlan` in place of a read from disk.
+struct Prefetched {
+    var before: Data?
+    var destinationTaken = false
 }

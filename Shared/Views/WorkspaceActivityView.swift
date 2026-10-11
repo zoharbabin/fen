@@ -74,24 +74,28 @@ struct WorkspaceActivityView: View {
     }
 
     private func approve(_ item: WriteGate.Pending) {
-        do {
-            try gate.approve(item.id)
-        } catch {
-            message = error.localizedDescription
+        Task {
+            do {
+                try await gate.approveRouted(item.id)
+            } catch {
+                message = error.localizedDescription
+            }
         }
     }
 
     private func approveAll(_ items: [WriteGate.Pending]) {
-        var failures: [String] = []
-        for item in items {
-            do {
-                try gate.approve(item.id)
-            } catch {
-                failures.append("\(item.change.edit.primaryPath): \(error.localizedDescription)")
+        Task {
+            var failures: [String] = []
+            for item in items {
+                do {
+                    try await gate.approveRouted(item.id)
+                } catch {
+                    failures.append("\(item.change.edit.primaryPath): \(error.localizedDescription)")
+                }
             }
-        }
-        if !failures.isEmpty {
-            message = "Left alone:\n" + failures.joined(separator: "\n")
+            if !failures.isEmpty {
+                message = "Left alone:\n" + failures.joined(separator: "\n")
+            }
         }
     }
 
@@ -107,18 +111,22 @@ struct WorkspaceActivityView: View {
     }
 
     private func undo(_ entry: ActivityEntry) {
-        do {
-            try gate.undo(entry.id, workspaceID: workspace.id)
-        } catch {
-            message = error.localizedDescription
+        Task {
+            do {
+                try await gate.undoRouted(entry.id, workspaceID: workspace.id)
+            } catch {
+                message = error.localizedDescription
+            }
         }
     }
 
     private func revert(_ entry: ActivityEntry) {
-        let result = gate.revertRun(entry.runID, workspaceID: workspace.id)
-        message = result.failures.isEmpty
-            ? "Undid \(result.undone) change\(result.undone == 1 ? "" : "s")."
-            : "Undid \(result.undone). Left alone:\n" + result.failures.joined(separator: "\n")
+        Task {
+            let result = await gate.revertRunRouted(entry.runID, workspaceID: workspace.id)
+            message = result.failures.isEmpty
+                ? "Undid \(result.undone) change\(result.undone == 1 ? "" : "s")."
+                : "Undid \(result.undone). Left alone:\n" + result.failures.joined(separator: "\n")
+        }
     }
 }
 
@@ -189,6 +197,14 @@ private struct EntryRow: View {
             Text("\(entry.provenance.provider) \(entry.provenance.model) · \(approvedText)")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+            if let branch = entry.branch {
+                Text(
+                    "Committed to \(branch)\(entry.commit.map { " (\($0.prefix(8)))" } ?? ""). Merge it with: git merge \(branch)"
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .textSelection(.enabled)
+            }
             if !entry.provenance.sources.isEmpty {
                 Text("From: " + entry.provenance.sources.joined(separator: ", "))
                     .font(.caption)

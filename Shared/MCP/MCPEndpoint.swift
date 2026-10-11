@@ -64,7 +64,11 @@ public final class MCPEndpoint {
             let payload = try await tools.call(name, arguments, as: call.client)
             return result(call, toolResult(payload, isError: false))
         } catch let error as MCPToolError {
-            return result(call, toolResult(["error": error.message], isError: true))
+            var payload: [String: Any] = ["error": error.message]
+            if error.retry {
+                payload["retry"] = true
+            }
+            return result(call, toolResult(payload, isError: true))
         } catch {
             return result(call, toolResult(["error": error.localizedDescription], isError: true))
         }

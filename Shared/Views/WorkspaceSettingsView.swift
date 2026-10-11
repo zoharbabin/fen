@@ -56,12 +56,18 @@ struct WorkspaceSettingsView: View {
                         ForEach(MCPAccess.allCases, id: \.self) { Text($0.title).tag($0) }
                     }
                     .disabled(draft.aiDataAccess == .none)
+                    Picker("Agent changes (git)", selection: $draft.agentBranches) {
+                        ForEach(AgentBranchMode.allCases, id: \.self) { Text($0.title).tag($0) }
+                    }
                 } header: {
                     Text("AI")
                 } footer: {
                     Text(
                         "None keeps this workspace's content away from every model. "
-                            + "Agent access is off while AI data access is None."
+                            + "Agent access is off while AI data access is None. "
+                            + "In a git repository, each agent commits to its own fen/ branch. "
+                            + "Your files stay as they are. "
+                            + "A folder without git always asks first."
                     )
                 }
 
