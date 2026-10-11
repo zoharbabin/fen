@@ -61,7 +61,7 @@
             // mirrors the macOS Coordinator's wiring for issue #19 rule 4.3.
             textStorage.highlightDelegate = context.coordinator
 
-            let layoutManager = NSLayoutManager()
+            let layoutManager = DecorationLayoutManager()
             textStorage.addLayoutManager(layoutManager)
 
             let textContainer = NSTextContainer(size: CGSize(width: 0, height: CGFloat.greatestFiniteMagnitude))

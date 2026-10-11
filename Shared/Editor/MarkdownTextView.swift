@@ -97,7 +97,7 @@ func caretColor(for background: PlatformColor) -> PlatformColor {
             // dim attributes reapply after (never before) it wipes attributes (issue #19 rule 4.3).
             textStorage.highlightDelegate = context.coordinator
 
-            let layoutManager = NSLayoutManager()
+            let layoutManager = DecorationLayoutManager()
             textStorage.addLayoutManager(layoutManager)
 
             let textContainer = NSTextContainer(size: NSSize(width: 0, height: CGFloat.greatestFiniteMagnitude))

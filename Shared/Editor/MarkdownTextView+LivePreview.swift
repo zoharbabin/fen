@@ -101,6 +101,7 @@
             // Rule 2.1/2.2 (issue #128): computed once per call, not per line -- a fence spans
             // multiple lines, so each line's membership can't be decided from that line alone.
             let fencedRanges = LivePreviewEditing.fencedRanges(text: text)
+            let frontMatterEnd = LivePreviewEditing.frontMatterRange(text: text).map { NSMaxRange($0) } ?? 0
 
             // Collects checkbox/image spans that need an overlay positioned, so that work --
             // which calls `rect(forCharacterRange:)` and thus triggers glyph generation -- can
@@ -128,14 +129,29 @@
                         contentLineRange.location >= $0.location
                             && contentLineRange.location < $0.location + $0.length
                     }
-                    if !LivePreviewEditing.isTableRow(line: line), !isFenced {
-                        styleLine(
-                            line,
+                    if !LivePreviewEditing.isTableRow(line: line), !isFenced,
+                       contentLineRange.location >= frontMatterEnd {
+                        let previous = contentLineRange.location > 0
+                            ? ns.substring(with: strippingTrailingNewline(
+                                ns.lineRange(for: NSRange(location: contentLineRange.location - 1, length: 0)), in: ns
+                            ))
+                            : nil
+                        let isRule = LivePreviewBlockStyle.apply(
+                            line: line,
                             lineStart: contentLineRange.location,
-                            textStorage: textStorage,
-                            textView: textView,
-                            pendingOverlaySpans: &pendingOverlaySpans
+                            previousLine: previous,
+                            storage: textStorage,
+                            background: textView.backgroundColor
                         )
+                        if !isRule {
+                            styleLine(
+                                line,
+                                lineStart: contentLineRange.location,
+                                textStorage: textStorage,
+                                textView: textView,
+                                pendingOverlaySpans: &pendingOverlaySpans
+                            )
+                        }
                     }
                 }
                 location = lineRange.location + lineRange.length
@@ -372,6 +388,7 @@
                 textStorage.removeAttribute(.underlineStyle, range: subrange)
                 textStorage.removeAttribute(.link, range: subrange)
             }
+            LivePreviewBlockStyle.restore(in: range, storage: textStorage)
             textStorage.endEditing()
         }
 
