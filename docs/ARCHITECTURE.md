@@ -613,7 +613,7 @@ Tests: `SyncModeTests`, `PushAsPRTests` and `GitHubRESTTests` (a `URLProtocol` s
 | It offers only an https `github.com/zoharbabin/fen/releases/` page. | A bad answer can't send you somewhere else. |
 | A build from source (`0.0.0-dev`) says so and compares nothing. | There is no release to compare with. |
 
-We didn't add Sparkle. It would install updates in place, but it brings a third-party framework into the app, and it needs an EdDSA signing key that only the project owner can create and keep as a CI secret. Add it as a follow-up if you want silent updates. The Mac App Store build gets its updates from the store, so it leaves this command out ([#40](https://github.com/zoharbabin/fen/issues/40)).
+We didn't add Sparkle. It would install updates in place, but it brings a third-party framework into the app, and it needs an EdDSA signing key that only the project owner can create and keep as a CI secret. Add it as a follow-up if you want silent updates. The Mac App Store build gets its updates from the store, so it leaves this command out (see [Mac App Store: scope and plan](APP-STORE.md)).
 
 Tests: `UpdateCheckerTests` (version order, the request, pages outside the releases path, garbage and errors, a refused redirect) with a `URLProtocol` stub. The alert and the menu item are not covered by a test.
 
