@@ -65,7 +65,7 @@ struct EmbedderIdentity: Equatable, Sendable {
 /// One workspace's search index: SQLite with full-text search (FTS5) and one quantized vector per
 /// chunk (issue #35). It lives in `~/.fen` and is a cache: deleting the file is always safe.
 actor SearchIndex {
-    static let schemaVersion = "1"
+    static let schemaVersion = "2"
     static let fileName = "search.sqlite"
 
     private let url: URL
@@ -315,6 +315,14 @@ actor SearchIndex {
             ))
         }
         return found
+    }
+
+    /// The full text of the chunk that starts at `startLine` in `path`, or `nil` when there is none.
+    func chunkText(path: String, startLine: Int) throws -> String? {
+        let statement = try open().prepare("SELECT text FROM chunks WHERE path = ?1 AND start_line = ?2 LIMIT 1")
+        statement.bind(1, path)
+        statement.bind(2, startLine)
+        return try statement.step() ? statement.string(0) : nil
     }
 
     // MARK: - Private

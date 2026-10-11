@@ -30,6 +30,13 @@ public final class AIService {
         store.selected?.disclosure
     }
 
+    /// Where the selected provider sends content. Throws when none is set up or its address is bad.
+    public func destination() throws -> ModelDestination {
+        guard let config = store.selected else { throw AIError.notConfigured }
+        guard let destination = config.destination else { throw AIError.invalidEndpoint(config.baseURL) }
+        return destination
+    }
+
     public func send(prompt: String, context: [AIContextItem] = []) throws -> AsyncThrowingStream<String, Error> {
         guard let config = store.selected else { throw AIError.notConfigured }
         let provider = try store.makeProvider(for: config)

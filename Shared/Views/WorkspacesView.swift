@@ -16,6 +16,8 @@ public struct WorkspacesView: View {
     @State private var message: String?
     @State private var workspaceToRemove: Workspace?
     @State private var workspaceToConfigure: Workspace?
+    @State private var showingAsk = false
+    private let panelRequest = AskPanelRequest.shared
     @State private var query = ""
     @State private var searchScope = WorkspaceSearchScope.all
     private let gate: WriteGate
@@ -29,7 +31,9 @@ public struct WorkspacesView: View {
         NavigationSplitView {
             sidebar
         } detail: {
-            if isSearching {
+            if showingAsk {
+                AskView(library: library, service: .shared, initialWorkspace: selection, open: openPassage)
+            } else if isSearching {
                 searchResults
             } else if let workspace = selectedWorkspace {
                 WorkspaceDetailView(library: library, gate: gate, workspace: workspace, open: open)
@@ -56,7 +60,9 @@ public struct WorkspacesView: View {
         .task {
             library.start()
             selection = selection ?? library.currentWorkspaceID
+            showAskIfRequested()
         }
+        .onChange(of: panelRequest.isRequested) { _, _ in showAskIfRequested() }
         .onChange(of: selection) { _, new in library.setCurrent(new) }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {
@@ -119,6 +125,26 @@ public struct WorkspacesView: View {
         )
     }
 
+    private func showAskIfRequested() {
+        if panelRequest.isRequested {
+            showingAsk = true
+            panelRequest.isRequested = false
+        }
+    }
+
+    private func openPassage(_ passage: Passage) {
+        guard let url = library.fileURL(workspaceID: passage.workspaceID, relativePath: passage.relativePath) else {
+            message = "Fen can't open \(passage.fileName). It is outside the workspace or no longer listed."
+            return
+        }
+        DocumentJumps.shared.request(line: passage.startLine, in: url)
+        Task {
+            if await !openAsDocument(url) {
+                message = "Fen can't open \(passage.fileName) as a document."
+            }
+        }
+    }
+
     private func openResult(_ result: SearchResult) {
         guard let workspace = library.registry.workspace(id: result.workspaceID) else { return }
         open(workspace, WorkspaceFile(relativePath: result.relativePath, size: 0, modified: .distantPast))
@@ -142,6 +168,10 @@ public struct WorkspacesView: View {
             }
         }
         .toolbar {
+            ToolbarItem {
+                Toggle("Ask", systemImage: "text.bubble", isOn: $showingAsk)
+                    .help("Ask a question and get an answer from your workspaces, with sources")
+            }
             ToolbarItem { addButton }
             ToolbarItem {
                 Menu("More", systemImage: "ellipsis.circle") {

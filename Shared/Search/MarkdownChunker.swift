@@ -71,12 +71,17 @@ enum MarkdownChunker {
         var fence: (marker: Character, count: Int)?
 
         func flush() {
-            let body = section.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+            let lines = section
+            let body = lines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
             section = []
             guard !body.isEmpty else { return }
             let trail = stack.map(\.text).joined(separator: " > ")
+            var cursor = 0
             for piece in split(body, limit: maxChunkCharacters) where chunks.count < maxChunks {
-                chunks.append(DocumentChunk(heading: trail, startLine: sectionStart, text: piece, embeddable: true))
+                cursor = lineIndex(of: piece, in: lines, from: cursor)
+                chunks.append(DocumentChunk(
+                    heading: trail, startLine: sectionStart + cursor, text: piece, embeddable: true
+                ))
             }
         }
 
@@ -221,6 +226,16 @@ enum MarkdownChunker {
     }
 
     // MARK: - Splitting
+
+    /// The index in `lines`, at or after `start`, of the line a chunk's text begins on. Leading blank
+    /// lines of a section are not part of its chunks, so a citation must not point at them.
+    private static func lineIndex(of piece: String, in lines: [String], from start: Int) -> Int {
+        let first = piece.prefix { $0 != "\n" }.trimmingCharacters(in: .whitespaces)
+        for index in start ..< lines.count where lines[index].contains(first) && !first.isEmpty {
+            return index
+        }
+        return start
+    }
 
     /// Breaks `text` at blank lines, then at spaces, so no piece is longer than `limit`.
     static func split(_ text: String, limit: Int) -> [String] {

@@ -118,6 +118,12 @@ struct FenApp: App {
                 openWindow(id: "workspaces")
             }
             .keyboardShortcut("l", modifiers: [.command, .shift])
+
+            Button("Ask Your Workspaces…") {
+                AskPanelRequest.shared.isRequested = true
+                openWindow(id: "workspaces")
+            }
+            .keyboardShortcut("a", modifiers: [.command, .option])
         }
         exportHTMLCommands()
         exportPDFCommands()

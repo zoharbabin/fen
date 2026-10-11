@@ -14,6 +14,31 @@ struct MarkdownChunkerTests {
         #expect(doc.chunks[2].text == "Use the dmg.")
     }
 
+    @Test("a chunk starts on its first line of text, not on the blank lines before it")
+    func startsOnText() {
+        let text = "# Guide\n\n\nIntro text.\n\n## Decision\n\nWe charge per seat.\n"
+        let doc = MarkdownChunker.parse(text, path: "guide.md")
+        let lines = text.components(separatedBy: "\n")
+        #expect(doc.chunks.map(\.startLine) == [4, 8])
+        for chunk in doc.chunks {
+            #expect(lines[chunk.startLine - 1] == chunk.text.components(separatedBy: "\n")[0])
+        }
+    }
+
+    @Test("every piece of a long section starts on the line where its text begins")
+    func longSectionPieces() {
+        let paragraphs = (1 ... 6).map { "Paragraph \($0) " + String(repeating: "word ", count: 60) }
+        let text = "# Long\n\n" + paragraphs.joined(separator: "\n\n") + "\n"
+        let doc = MarkdownChunker.parse(text, path: "long.md")
+        let lines = text.components(separatedBy: "\n")
+        #expect(doc.chunks.count > 1)
+        for chunk in doc.chunks {
+            let first = chunk.text.components(separatedBy: "\n")[0]
+            #expect(lines[chunk.startLine - 1].hasPrefix(first.prefix(20)))
+        }
+        #expect(Set(doc.chunks.map(\.startLine)).count == doc.chunks.count)
+    }
+
     @Test("front matter is one chunk that is not embedded, and gives the title")
     func frontMatter() {
         let text = "---\ntitle: \"My Note\"\ntags: [a, b]\n---\n# Heading\nBody\n"

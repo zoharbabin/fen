@@ -19,7 +19,7 @@ public struct SplitEditorView: View {
     @State private var renderer = MarkdownRenderer()
     @State private var composer = HTMLComposer()
     @State private var htmlSanitizer = HTMLSanitizer()
-    @State private var scrollSync = ScrollSync()
+    @State var scrollSync = ScrollSync()
     @State var outline = DocumentOutline()
     @State private var externalChangeController = ExternalChangeController()
     @State private var autosaveController = AutosaveController()
@@ -31,8 +31,8 @@ public struct SplitEditorView: View {
     @State private var renderedHTML: String = ""
     @State private var renderTask: Task<Void, Never>?
     @State private var isOutlineVisible = false
-    @State private var sourceLineCount = 1
-    @State private var sourceLineOffset = 0
+    @State var sourceLineCount = 1
+    @State var sourceLineOffset = 0
     /// Raw-source-line-adjusted `MarkdownRenderer.RenderResult.blockStartLines` (issue #113),
     /// fed to the editor as `MarkdownTextView.breakpoints` so both panes' anchor tables sample
     /// the same lines. See `EditorScrollAnchors.swift`'s `computeEditorLineAnchors` doc comment.
@@ -238,18 +238,6 @@ public struct SplitEditorView: View {
         }
     }
 
-    // MARK: - Outline
-
-    /// Scrolls both panes to a heading's source line, expressed as the same source-fraction
-    /// `ScrollSync` already shares between the editor and preview -- reusing the identical
-    /// `(startLine - 1 + lineOffset) / totalLines` formula `scroll-sync.js` uses for its own
-    /// `data-sourcepos` anchors, so a jump lands exactly where scroll-sync would place that line.
-    func jumpToHeading(_ heading: Heading) {
-        guard let startLine = heading.startLine, sourceLineCount > 0 else { return }
-        let fraction = CGFloat(startLine - 1 + sourceLineOffset) / CGFloat(sourceLineCount)
-        scrollSync.jumpToSourceFraction(min(1, max(0, fraction)))
-    }
-
     // MARK: - Split View
 
     @ViewBuilder
@@ -325,6 +313,7 @@ public struct SplitEditorView: View {
         .accessibilityIdentifier("EditorTextView")
         .accessibilityValue(scrollFractionLabel(scrollSync.editorScrollFraction))
         .relatedSuggestions(related)
+        .requestedLineJumps(fileURL: document.fileURL, lineCount: sourceLineCount, jump: jumpToLine(_:))
         #if os(macOS)
             .frame(minWidth: 200)
         #endif
