@@ -73,12 +73,12 @@ struct ZoomOutScrollPositionVerifyTest {
         let midScrollTop = try await webView.evaluateJavaScript("document.documentElement.scrollTop") as? Double ?? 0
         #expect(midScrollTop > 0, "Expected the page to be scrollable and scrolled down before zooming out")
 
-        /// Mirrors updateNSView's save-scroll/reload/restore round trip for a zoom-out step
-        /// whose new fontSize shrinks the page below the viewport height. The caller polls
-        /// for the specific post-reload condition it cares about (collapsed height, restored
-        /// scrollTop) rather than sleeping a fixed duration that isn't reliably long enough
-        /// once `didFinish`'s async scroll-restore JS call is still in flight on a loaded CI
-        /// runner.
+        // Mirrors updateNSView's save-scroll/reload/restore round trip for a zoom-out step
+        // whose new fontSize shrinks the page below the viewport height. The caller polls
+        // for the specific post-reload condition it cares about (collapsed height, restored
+        // scrollTop) rather than sleeping a fixed duration that isn't reliably long enough
+        // once `didFinish`'s async scroll-restore JS call is still in flight on a loaded CI
+        // runner.
         func reloadTo(_ newHTML: String) async {
             let generation = coordinator.beginReload()
             let result = try? await webView.evaluateJavaScript(currentSourceFractionJS)

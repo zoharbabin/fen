@@ -26,11 +26,11 @@ public struct AboutView: View {
     public var body: some View {
         content
         #if os(macOS)
-        .padding(24)
-        .frame(width: 360)
+            .padding(24)
+            .frame(width: 360)
         #else
-        .padding()
-        .navigationTitle("About")
+            .padding()
+            .navigationTitle("About")
         #endif
     }
 
