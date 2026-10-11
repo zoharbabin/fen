@@ -15,10 +15,14 @@ struct SearchPerformanceTests {
 
     private func populate(_ folder: TempFolder, files: Int, seed: Int) throws {
         for index in 0 ..< files {
-            let words = (0 ..< 40)
-                .map { vocabulary[($0 * 7 + index * 3 + seed) % vocabulary.count] + "\(($0 + index) % 13)" }
-            let body = "# Note \(index)\n\n" + words.joined(separator: " ") + ".\n\n## Part two\n\n" + words.reversed()
-                .joined(separator: " ") + ".\n"
+            var words: [String] = []
+            for position in 0 ..< 40 {
+                let word: String = vocabulary[(position * 7 + index * 3 + seed) % vocabulary.count]
+                words.append(word + String((position + index) % 13))
+            }
+            let forward = words.joined(separator: " ")
+            let backward = Array(words.reversed()).joined(separator: " ")
+            let body = "# Note \(index)\n\n" + forward + ".\n\n## Part two\n\n" + backward + ".\n"
             try folder.write("section-\(index / 25)/note-\(index).md", body)
         }
     }
