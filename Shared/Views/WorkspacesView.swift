@@ -17,6 +17,7 @@ public struct WorkspacesView: View {
     @State private var workspaceToRemove: Workspace?
     @State private var workspaceToConfigure: Workspace?
     @State private var showingAsk = false
+    @State private var showingClone = false
     private let panelRequest = AskPanelRequest.shared
     @State private var query = ""
     @State private var searchScope = WorkspaceSearchScope.all
@@ -105,6 +106,9 @@ public struct WorkspacesView: View {
         }
         .sheet(item: $workspaceToConfigure) { workspace in
             WorkspaceSettingsView(library: library, workspace: workspace)
+        }
+        .sheet(isPresented: $showingClone) {
+            GitHubCloneView(library: library) { selection = $0.id }
         }
         .frame(minWidth: 640, minHeight: 420)
     }
@@ -207,9 +211,22 @@ public struct WorkspacesView: View {
         }
     }
 
+    @ViewBuilder
     private var addButton: some View {
-        Button("Add Folder…", systemImage: "plus") { showingImporter = true }
-            .help("Add a folder as a workspace")
+        if GitTool.locate() != nil {
+            Menu {
+                Button("Add Folder…") { showingImporter = true }
+                Button("Clone from GitHub…") { showingClone = true }
+            } label: {
+                Label("Add", systemImage: "plus")
+            } primaryAction: {
+                showingImporter = true
+            }
+            .help("Add a folder as a workspace, or clone a GitHub repository")
+        } else {
+            Button("Add Folder…", systemImage: "plus") { showingImporter = true }
+                .help("Add a folder as a workspace")
+        }
     }
 
     private func add(_ url: URL) {
@@ -404,6 +421,7 @@ private struct WorkspaceDetailView: View {
                 }
             }
             Spacer()
+            GitHubSyncControls(library: library, workspaceID: workspace.id).id(workspace.id)
             indexControls(library.indexStatus(for: workspace.id))
             classifyControls
             Button("Conflicts", systemImage: "exclamationmark.arrow.triangle.2.circlepath") { showingConflicts = true }

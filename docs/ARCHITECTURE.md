@@ -549,9 +549,30 @@ Limits you should know:
 
 Tests: `FileVersionHistoryTests` (real `NSFileVersion`s: newest first, current version excluded, missing file, reading changes nothing). The menu item and the iOS sheet compile on both platforms. Their UI isn't covered by a test.
 
+## GitHub sync: clone, pull and push with the git you have, a scoped token in the Keychain
+
+A GitHub workspace is a normal git work tree (issue #60). You clone a repository into a new folder, and the folder becomes a workspace like any other (#5). Fen adds no file to it: no index, no manifest, no timestamps touched on sync. `git log` is the history, and a sync commit holds only the notes you changed.
+
+| Step | What runs (`Shared/Sync/GitSync.swift`) |
+|---|---|
+| Clone | `git clone` into an empty folder Fen made. `GitHubCloner` checks the folder against your other workspaces first, and removes the folder it made if anything fails. |
+| Pull | `git fetch`, then `git merge --ff-only`. It never creates a merge commit and never overwrites a file you edited. If both sides have new commits, it stops and says so. Merging is conflict handling, which comes later. |
+| Commit | One commit for the changed notes. Files that look like secrets (`.env`, keys, `secrets.md`) are never added. |
+| Push | `git push` of the current branch. It never forces. If GitHub has new commits, it says to pull first. |
+
+Opening a GitHub workspace pulls once, when that is safe. The Sync button pulls, commits and pushes, and stops at the first step it can't do safely.
+
+**Token.** A fine-grained token for one repository (or a GitHub App token) is the only kind Fen accepts. A classic `ghp_` token is refused, because it reaches every repository you have. The token lives in the Keychain (`KeychainSecretStore`, service `app.fen.github`, one item per repository, this device only), and is saved only after a clone or a token check worked. It reaches git as an HTTP header in the process environment, for `https://github.com/` only. It is never in a command line, in `.git/config` or in a URL, and stored git logins are switched off. Errors are cleaned of the token before you see them.
+
+**Network.** This is the one place besides AI providers where Fen talks to a server for your files, and only for a workspace you cloned from GitHub. It uses the `git` program, not `URLSession`, and only the one remote you cloned from.
+
+**macOS only for now.** iOS can't run the `git` program, so the Clone menu and the sync controls don't appear there. A cloned folder you open on iOS (through iCloud or Files) is a plain folder. Syncing on iOS needs a git library or the GitHub API, which is a separate decision.
+
+Tests use a local bare repository in place of GitHub (`GitSyncTests`, `GitHubSyncModelTests`): clone, fast-forward pulls, diverged and blocked pulls, one-file commits with a one-line diff, the secret filter, no force push, the token header going to github.com only, and that Fen writes nothing into the folder. The real GitHub round trip, with a token, is not covered by CI.
+
 ## Every third-party resource is vendored, not loaded from a CDN
 
-Fen's trust model is local-first: it reads and writes only inside files and folders you have granted (documents you open and workspaces you add), and — with the two documented exceptions, the opt-in GeoJSON/TopoJSON map preference and [AI providers you add yourself](#ai-providers-one-gate-no-provider-reachable-around-it) — it makes no runtime network calls. `HTMLComposer` (`Shared/Rendering/HTMLComposer.swift`) composes the preview and export HTML entirely from files bundled inside `Fen.app` — highlight.js lives in `Shared/Resources/Highlight/`, while Mermaid, MathJax, DOMPurify, three.js (plus `STLLoader`/`OrbitControls`), Leaflet, topojson-client, and the task-list script live in `Shared/Resources/Extensions/` (or `Styles`/`Templates` alongside them); emoji shortcode data lives in `Shared/Resources/Emoji/`. All of them load through `loadResourceFile(name:ext:subdirectory:)`, never through a `<script src="https://...">` tag — Leaflet's own basemap *tile images*, not its script, are the one exception, and only when the user has explicitly opted in.
+Fen's trust model is local-first: it reads and writes only inside files and folders you have granted (documents you open and workspaces you add), and — with the documented exceptions, the opt-in GeoJSON/TopoJSON map preference, [GitHub sync](#github-sync-clone-pull-and-push-with-the-git-you-have-a-scoped-token-in-the-keychain) for a workspace you cloned, and [AI providers you add yourself](#ai-providers-one-gate-no-provider-reachable-around-it) — it makes no runtime network calls. `HTMLComposer` (`Shared/Rendering/HTMLComposer.swift`) composes the preview and export HTML entirely from files bundled inside `Fen.app` — highlight.js lives in `Shared/Resources/Highlight/`, while Mermaid, MathJax, DOMPurify, three.js (plus `STLLoader`/`OrbitControls`), Leaflet, topojson-client, and the task-list script live in `Shared/Resources/Extensions/` (or `Styles`/`Templates` alongside them); emoji shortcode data lives in `Shared/Resources/Emoji/`. All of them load through `loadResourceFile(name:ext:subdirectory:)`, never through a `<script src="https://...">` tag — Leaflet's own basemap *tile images*, not its script, are the one exception, and only when the user has explicitly opted in.
 
 MathJax used to be the exception: earlier builds pulled `MathJax.js` from `cdnjs.cloudflare.com` at render time. That meant a delay on first render, a broken feature offline, and an unnecessary network call from a documented local-first app. It's now vendored the same way as Mermaid — `Shared/Resources/Extensions/mathjax-tex-svg.js` bundles MathJax v3's `tex-svg` output (SVG glyphs, no separate web-font files, so it stays a single self-contained file), with attribution in `LICENSE/mathjax.txt` (Apache License 2.0, compatible with bundling into an MIT-licensed app).
 
