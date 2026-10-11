@@ -35,6 +35,6 @@ struct SharedMarkdown: Transferable {
             try Data(item.text.utf8).write(to: url, options: .atomic)
             return SentTransferredFile(url)
         }
-        ProxyRepresentation(exporting: \.text)
+        DataRepresentation(exportedContentType: .plainText) { Data($0.text.utf8) }
     }
 }
