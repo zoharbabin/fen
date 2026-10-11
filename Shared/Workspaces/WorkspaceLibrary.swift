@@ -22,11 +22,13 @@ public struct WorkspaceState: Equatable, Sendable {
 /// - Lists run off the main actor through `WorkspaceJobScheduler`. Typing is never blocked.
 /// - macOS watches each folder and updates the list incrementally. iOS refreshes when the app
 ///   returns to the foreground.
+/// - Each listed workspace is indexed in the background for search (issue #35), through `search`.
 @MainActor @Observable
 public final class WorkspaceLibrary {
     public static let shared = WorkspaceLibrary()
 
     public let registry: WorkspaceRegistry
+    public let search: WorkspaceSearch
     public private(set) var states: [UUID: WorkspaceState] = [:]
     public private(set) var loadError: String?
     /// The workspace shown in front. Its jobs run first.
@@ -34,6 +36,7 @@ public final class WorkspaceLibrary {
 
     let scheduler: WorkspaceJobScheduler
     @ObservationIgnored private let watching: Bool
+    @ObservationIgnored private let indexing: Bool
     @ObservationIgnored private var sources: [UUID: LocalFolderSource] = [:]
     @ObservationIgnored private var watchers: [UUID: WorkspaceChangeWatcher] = [:]
     @ObservationIgnored private var generation: [UUID: Int] = [:]
@@ -44,11 +47,15 @@ public final class WorkspaceLibrary {
     public init(
         home: FenHome = .standard,
         scheduler: WorkspaceJobScheduler = WorkspaceJobScheduler(),
-        watching: Bool = WorkspaceChangeWatcher.isLive
+        watching: Bool = WorkspaceChangeWatcher.isLive,
+        indexing: Bool = true,
+        embedder: (any EmbeddingProvider)? = AppleSentenceEmbeddingProvider()
     ) {
         registry = WorkspaceRegistry(home: home)
+        search = WorkspaceSearch(home: home, scheduler: scheduler, embedder: embedder)
         self.scheduler = scheduler
         self.watching = watching
+        self.indexing = indexing
     }
 
     public var workspaces: [Workspace] {
@@ -103,6 +110,7 @@ public final class WorkspaceLibrary {
 
     /// Removes the grant and Fen's state for it. The folder itself is not touched.
     public func remove(id: UUID) throws {
+        search.forget(id: id)
         try registry.remove(id: id)
         watchers.removeValue(forKey: id)?.stop()
         sources[id] = nil
@@ -127,6 +135,18 @@ public final class WorkspaceLibrary {
         }
     }
 
+    /// Deletes every workspace's search index and builds them again. Settings, history and the
+    /// workspace list stay. Returns how many indexes were deleted.
+    @discardableResult
+    public func clearCaches() throws -> Int {
+        search.closeAll()
+        let removed = try registry.clearCaches()
+        for workspace in registry.workspaces {
+            requestIndex(workspace.id)
+        }
+        return removed
+    }
+
     public func setCurrent(_ id: UUID?) {
         currentWorkspaceID = id
         Task { await scheduler.setFrontmost(id) }
@@ -141,6 +161,44 @@ public final class WorkspaceLibrary {
             return nil
         }
         return source.fileURL(forRelativePath: relativePath)
+    }
+
+    // MARK: - Search
+
+    public func indexStatus(for id: UUID) -> IndexStatus {
+        search.status(for: id)
+    }
+
+    /// Stops indexing a workspace. What was indexed stays, and `resumeIndexing` carries on.
+    public func cancelIndexing(id: UUID) {
+        search.cancelIndexing(id: id)
+    }
+
+    public func resumeIndexing(id: UUID) {
+        requestIndex(id)
+    }
+
+    /// Searches indexed workspaces without opening their files. See `WorkspaceSearch.search`.
+    public func search(
+        _ query: String,
+        scope: WorkspaceScope,
+        destination: ModelDestination? = nil,
+        origin: SearchOrigin? = nil,
+        limit: Int = 30
+    ) async -> [SearchResult] {
+        await search.search(
+            query,
+            in: registry.workspaces,
+            scope: scope,
+            destination: destination,
+            origin: origin,
+            limit: limit
+        )
+    }
+
+    private func requestIndex(_ id: UUID, recheck: Set<String> = []) {
+        guard indexing, let source = source(for: id), state(for: id).hasScanned else { return }
+        search.reindex(id: id, source: source, files: state(for: id).snapshot.documents, recheck: recheck)
     }
 
     /// Why a file isn't listed, or `nil` if it is.
@@ -197,6 +255,7 @@ public final class WorkspaceLibrary {
     private func scanSucceeded(_ id: UUID, _ mine: Int, _ snapshot: WorkspaceSnapshot) {
         guard mine == generation[id], states[id] != nil else { return }
         states[id] = WorkspaceState(snapshot: snapshot, phase: .idle, hasScanned: true)
+        requestIndex(id)
         // Changes that arrived during the scan may not be in it.
         if let paths = pendingChanges[id], !paths.isEmpty {
             applyChanges(id)
@@ -216,7 +275,8 @@ public final class WorkspaceLibrary {
 
     func changesArrived(_ id: UUID, paths: [String]) {
         guard states[id] != nil else { return }
-        if paths.contains("") {
+        // A new HEAD means a checkout or pull: many files may have changed at once.
+        if paths.contains("") || paths.contains(".git/HEAD") {
             scan(id)
             return
         }
@@ -243,15 +303,16 @@ public final class WorkspaceLibrary {
                 onFinish: { _ in Task { @MainActor in self.updateFinished(id) } },
                 work: { _ in
                     let updated = try await source.update(snapshot, changedPaths: Array(paths))
-                    await self.updateSucceeded(id, mine, updated)
+                    await self.updateSucceeded(id, mine, updated, changed: paths)
                 }
             )
         }
     }
 
-    private func updateSucceeded(_ id: UUID, _ mine: Int, _ snapshot: WorkspaceSnapshot) {
+    private func updateSucceeded(_ id: UUID, _ mine: Int, _ snapshot: WorkspaceSnapshot, changed: Set<String>) {
         guard mine == generation[id], states[id] != nil else { return }
         states[id]?.snapshot = snapshot
+        requestIndex(id, recheck: changed)
     }
 
     private func updateFinished(_ id: UUID) {

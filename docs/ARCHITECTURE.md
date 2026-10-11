@@ -252,7 +252,7 @@ Fen's own state lives in one folder, `~/.fen` (`FenHome`). In a sandboxed macOS 
   workspaces.json        granted folders and their settings
   ai-providers.json      AI providers (keys are in the Keychain)
   workspaces/<id>/
-    index/               search and embedding index. A cache, safe to delete.
+    index/               search.sqlite: words and vectors. A cache, safe to delete.
     history/             pre-images and activity.jsonl. Worth keeping.
   models/                downloaded model weights
   write-policy.json      the global "pause auto-approve" switch
@@ -335,6 +335,24 @@ AI features never write to a workspace themselves. They build a `ProposedChange`
 **Undo.** `WriteGate.undo` restores the saved bytes only if the file still hashes to what Fen wrote, so it never overwrites your later edit. `revertRun` undoes every change of one run, newest first, and lists the ones it left alone. The log and pre-images survive a restart. `Provenance.commitTrailer` gives the `AI-Assisted-By:` line for a commit you write. Fen adds no markers to files, and `FrontMatterEditor` changes one line and keeps every other byte.
 
 Tests: `WritePolicyTests` (matrix, precedence, parser, injection fixtures, front matter, diff) and `WriteGateTests` (CAS, scope, symlinks, caps, pause, restart, undo, and a real git repo and a plain folder end to end). The approval list and undo are in the Workspaces window, Activity.
+
+## Search: one index per workspace, words and meaning, nothing leaves the Mac
+
+`WorkspaceSearch` (`Shared/Search/`) builds and queries a search index for each workspace. You search without opening any file. The index is `~/.fen/workspaces/<id>/index/search.sqlite`. It is a cache: delete it and Fen builds it again. Nothing is created for a workspace until its first index run, and nothing is ever written inside your folder.
+
+**Indexing.** `WorkspaceLibrary` asks for a run after each scan and each file change. The run is a `.background` job in `WorkspaceJobScheduler`, so it shares the concurrency cap and waits in Low Power Mode and while background work is paused. `WorkspaceIndexer` removes vanished files, then reads only files whose size or time changed, or that a file event named. It hashes the content, and a file with the same hash is not parsed or embedded again. A new `.git/HEAD` triggers a rescan. Canceling keeps the progress, and Resume Indexing continues from it. Clear Caches closes the indexes, deletes them and starts the runs again.
+
+**Chunks.** `MarkdownChunker` splits a file at headings into pieces of up to 1,200 characters (and at most 2,000 per file). Each chunk keeps its heading trail and start line. Front matter is searchable by words but is not embedded. The chunker also extracts links, which feed a small ranking boost.
+
+**Storage.** SQLite through the system `SQLite3` module, in WAL mode. Tables: `docs`, `chunks`, `links`, and `chunks_fts`, an FTS5 table (`porter unicode61 remove_diacritics 2`) kept in step by triggers. A vector is stored as 4 bytes of scale plus one `Int8` per dimension, normalized before it is scaled. The index also stores a signature (schema version, embedder id, dimension). If it does not match, Fen drops the tables and rebuilds, so vectors from two models are never mixed. A damaged file is deleted and rebuilt.
+
+**Query.** Words: a strict AND of the query terms, then a loose OR if that finds nothing, ranked by BM25. Meaning: the query is embedded, and a brute-force cosine search runs over the vectors held in memory. `HybridRanker` fuses the two ranked lists across all queried workspaces with reciprocal rank fusion, so BM25 scores and cosines need no tuning against each other. Two boosts, for files that other files link to and for files near the one you are in, are capped so they only break ties. A file appears once, with its best chunk.
+
+**Who may be searched.** `WorkspaceAccessPolicy.eligible` filters the workspaces first. A scope never overrides a workspace's AI data access. Passing a model `destination` drops workspaces that don't allow it. A search for the Workspaces window passes none. Searches read the indexes only, never your files.
+
+**The embedder.** `AppleSentenceEmbeddingProvider` uses the sentence model that ships with the OS. It loads on first use, runs in-process, needs no download and sends nothing out. English only. Where it gives no vector, a file is still found by words. The choice, the measurements and what we did not measure are in [docs/spikes/embedding-model.md](spikes/embedding-model.md).
+
+Tests: `MarkdownChunkerTests`, `VectorStoreTests`, `SearchIndexTests`, `HybridRankerTests`, `WorkspaceIndexerTests`, `WorkspaceSearchTests` (library end to end, including a real git repo that stays clean), `SearchQualityTests` (real model, hybrid beats each half) and `SearchPerformanceTests`.
 
 ## Every third-party resource is vendored, not loaded from a CDN
 

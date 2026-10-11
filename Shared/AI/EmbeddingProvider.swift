@@ -7,7 +7,22 @@ public protocol EmbeddingProvider: Sendable {
     var dimension: Int { get }
     /// `true` when the model runs inside this device's process. Anything else is refused.
     var runsOnDevice: Bool { get }
+    /// `false` when the model can't load here, for example if its assets are missing. The index
+    /// then uses words only.
+    var isAvailable: Bool { get }
+    /// Matches with a cosine below this are noise for this model, so they are dropped.
+    var similarityFloor: Float { get }
     func embed(_ text: String) async throws -> [Float]
+}
+
+public extension EmbeddingProvider {
+    var isAvailable: Bool {
+        true
+    }
+
+    var similarityFloor: Float {
+        0
+    }
 }
 
 public struct EmbeddingProviderError: Error, LocalizedError, Equatable {

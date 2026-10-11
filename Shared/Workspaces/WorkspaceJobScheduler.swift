@@ -126,6 +126,16 @@ public actor WorkspaceJobScheduler {
         wakeWaiters()
     }
 
+    /// Cancels one job, pending or running.
+    public func cancel(jobID: UUID) {
+        if let dropped = pending.first(where: { $0.id == jobID }) {
+            pending.removeAll { $0.id == jobID }
+            dropped.onFinish(.canceled)
+        }
+        running[jobID]?.task.cancel()
+        wakeWaiters()
+    }
+
     public func cancelAll() {
         let dropped = pending
         pending.removeAll()

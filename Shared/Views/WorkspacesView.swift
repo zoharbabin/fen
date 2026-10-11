@@ -16,6 +16,8 @@ public struct WorkspacesView: View {
     @State private var message: String?
     @State private var workspaceToRemove: Workspace?
     @State private var workspaceToConfigure: Workspace?
+    @State private var query = ""
+    @State private var searchScope = WorkspaceSearchScope.all
     private let gate: WriteGate
 
     public init(library: WorkspaceLibrary = .shared, gate: WriteGate = .shared) {
@@ -27,7 +29,9 @@ public struct WorkspacesView: View {
         NavigationSplitView {
             sidebar
         } detail: {
-            if let workspace = selectedWorkspace {
+            if isSearching {
+                searchResults
+            } else if let workspace = selectedWorkspace {
                 WorkspaceDetailView(library: library, gate: gate, workspace: workspace, open: open)
             } else {
                 ContentUnavailableView {
@@ -44,6 +48,11 @@ public struct WorkspacesView: View {
             }
         }
         .navigationTitle("Workspaces")
+        .searchable(text: $query, prompt: "Search all files")
+        .searchScopes($searchScope) {
+            Text("This Workspace").tag(WorkspaceSearchScope.workspace)
+            Text("All Workspaces").tag(WorkspaceSearchScope.all)
+        }
         .task {
             library.start()
             selection = selection ?? library.currentWorkspaceID
@@ -94,6 +103,27 @@ public struct WorkspacesView: View {
         .frame(minWidth: 640, minHeight: 420)
     }
 
+    private var isSearching: Bool {
+        !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var searchResults: some View {
+        let scoped = searchScope == .workspace ? selection : nil
+        return WorkspaceSearchView(
+            library: library,
+            query: query,
+            scope: scoped.map { .workspace($0) } ?? .all,
+            origin: nil,
+            showsWorkspace: scoped == nil,
+            open: openResult
+        )
+    }
+
+    private func openResult(_ result: SearchResult) {
+        guard let workspace = library.registry.workspace(id: result.workspaceID) else { return }
+        open(workspace, WorkspaceFile(relativePath: result.relativePath, size: 0, modified: .distantPast))
+    }
+
     private var selectedWorkspace: Workspace? {
         selection.flatMap { library.registry.workspace(id: $0) }
     }
@@ -140,7 +170,7 @@ public struct WorkspacesView: View {
 
     private func clearCaches() {
         do {
-            let count = try library.registry.clearCaches()
+            let count = try library.clearCaches()
             message = count == 0 ? "There were no caches to clear." : "Caches cleared. Fen rebuilds them when needed."
         } catch {
             message = error.localizedDescription
@@ -264,6 +294,7 @@ private struct WorkspaceDetailView: View {
                 }
             }
             Spacer()
+            indexControls(library.indexStatus(for: workspace.id))
             Button("Activity", systemImage: "clock.arrow.circlepath") { showingActivity = true }
                 .labelStyle(.iconOnly)
                 .badge(gate.pending(for: workspace.id).count)
@@ -283,6 +314,33 @@ private struct WorkspaceDetailView: View {
         }
         .padding(.horizontal)
         .padding(.vertical, 8)
+    }
+
+    @ViewBuilder
+    private func indexControls(_ status: IndexStatus) -> some View {
+        switch status.phase {
+        case let .indexing(done, total):
+            ProgressView().controlSize(.small)
+            Text("Indexing \(done) of \(total)")
+                .font(.caption)
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
+            Button("Stop Indexing") { library.cancelIndexing(id: workspace.id) }
+        case .canceled:
+            Text("Indexing stopped").font(.caption).foregroundStyle(.secondary)
+            Button("Resume Indexing") { library.resumeIndexing(id: workspace.id) }
+        case let .failed(reason):
+            Text("Search index failed").font(.caption).foregroundStyle(.secondary).help(reason)
+            Button("Try Again") { library.resumeIndexing(id: workspace.id) }
+        case .idle:
+            if status.documents > 0 {
+                Text(status
+                    .isSemantic ? "\(status.documents) files searchable" :
+                    "\(status.documents) files searchable by words")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
     }
 
     @ViewBuilder

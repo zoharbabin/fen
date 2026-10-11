@@ -1,0 +1,91 @@
+@testable import FenCore
+import Foundation
+import Testing
+
+@Suite("MarkdownChunker")
+struct MarkdownChunkerTests {
+    @Test("headings make chunks with a heading trail and the right start line")
+    func headingTrail() {
+        let text = "# Guide\nIntro text.\n\n## Install\nRun the installer.\n\n### Mac\nUse the dmg.\n\n## Use\nOpen it.\n"
+        let doc = MarkdownChunker.parse(text, path: "guide.md")
+        #expect(doc.title == "Guide")
+        #expect(doc.chunks.map(\.heading) == ["Guide", "Guide > Install", "Guide > Install > Mac", "Guide > Use"])
+        #expect(doc.chunks.map(\.startLine) == [2, 5, 8, 11])
+        #expect(doc.chunks[2].text == "Use the dmg.")
+    }
+
+    @Test("front matter is one chunk that is not embedded, and gives the title")
+    func frontMatter() {
+        let text = "---\ntitle: \"My Note\"\ntags: [a, b]\n---\n# Heading\nBody\n"
+        let doc = MarkdownChunker.parse(text, path: "n.md")
+        #expect(doc.title == "My Note")
+        #expect(doc.chunks.first?.heading == "Front matter")
+        #expect(doc.chunks.first?.embeddable == false)
+        #expect(doc.chunks.dropFirst().filter { !$0.embeddable }.isEmpty)
+        #expect(doc.chunks.last?.startLine == 6)
+    }
+
+    @Test("a file with no heading falls back to its name, and CRLF is handled")
+    func noHeadingAndCRLF() {
+        let doc = MarkdownChunker.parse("Just words.\r\nMore words.\r\n", path: "folder/plain note.txt")
+        #expect(doc.title == "plain note")
+        #expect(doc.chunks.count == 1)
+        #expect(doc.chunks[0].text == "Just words.\nMore words.")
+        #expect(doc.chunks[0].heading.isEmpty)
+    }
+
+    @Test("a # inside a fenced code block is not a heading, and links inside it are ignored")
+    func fencesAreCode() {
+        let text = "# Real\n```sh\n# comment\n[x](other.md)\n```\nAfter [y](kept.md).\n"
+        let doc = MarkdownChunker.parse(text, path: "a.md")
+        #expect(doc.chunks.map(\.heading) == ["Real"])
+        #expect(doc.chunks[0].text.contains("# comment"))
+        #expect(doc.links == [DocumentLink(kind: .path, target: "kept.md")])
+    }
+
+    @Test("empty sections are skipped and empty text gives no chunks")
+    func empties() {
+        #expect(MarkdownChunker.parse("", path: "e.md").chunks.isEmpty)
+        #expect(MarkdownChunker.parse("# A\n## B\n", path: "e.md").chunks.isEmpty)
+    }
+
+    @Test("a long section is split below the limit, at paragraph then word boundaries")
+    func longSections() {
+        let paragraph = String(repeating: "word ", count: 100)
+        let text = "# Long\n" + (0 ..< 10).map { _ in paragraph }.joined(separator: "\n\n")
+        let doc = MarkdownChunker.parse(text, path: "l.md")
+        #expect(doc.chunks.count > 1)
+        #expect(doc.chunks.allSatisfy { $0.text.count <= MarkdownChunker.maxChunkCharacters })
+        let one = MarkdownChunker.parse("# L\n" + String(repeating: "x", count: 5000), path: "l.md")
+        #expect(one.chunks.allSatisfy { $0.text.count <= MarkdownChunker.maxChunkCharacters })
+        #expect(one.chunks.map(\.text.count).reduce(0, +) == 5000 || one.chunks.count >= 4)
+    }
+
+    @Test("the chunk count is capped for huge files")
+    func cap() {
+        let text = (0 ..< 3000).map { "## S\($0)\nbody \($0)\n" }.joined()
+        #expect(MarkdownChunker.parse(text, path: "big.md").chunks.count == MarkdownChunker.maxChunks)
+    }
+
+    @Test("links resolve relative to the document and never leave the workspace")
+    func linkResolution() {
+        #expect(MarkdownChunker.resolve("b.md", from: "docs/a.md") == "docs/b.md")
+        #expect(MarkdownChunker.resolve("../README.md#top", from: "docs/a.md") == "README.md")
+        #expect(MarkdownChunker.resolve("/docs/b.md", from: "x/a.md") == "docs/b.md")
+        #expect(MarkdownChunker.resolve("my%20note.md", from: "a.md") == "my note.md")
+        #expect(MarkdownChunker.resolve("../../outside.md", from: "docs/a.md") == nil)
+        #expect(MarkdownChunker.resolve("https://example.com/x.md", from: "a.md") == nil)
+        #expect(MarkdownChunker.resolve("mailto:a@b.c", from: "a.md") == nil)
+        #expect(MarkdownChunker.resolve("#section", from: "a.md") == nil)
+    }
+
+    @Test("wiki links are matched by lowercase name without extension")
+    func wikiLinks() {
+        let links = MarkdownChunker.extractLinks(
+            from: "See [[Project Plan]] and [[notes/Ideas.md|my ideas]] and [[Doc#Part]].",
+            documentPath: "a.md"
+        )
+        #expect(links.map(\.target) == ["project plan", "notes/ideas", "doc"])
+        #expect(links.allSatisfy { $0.kind == .wiki })
+    }
+}
