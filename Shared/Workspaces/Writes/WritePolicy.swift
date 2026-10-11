@@ -117,6 +117,27 @@ public struct WritePolicy: Codable, Sendable, Equatable {
         paths: [String],
         client: String?
     ) -> ApprovalMode {
+        let resolved = resolvedMode(
+            workspaceDefault: workspaceDefault,
+            operation: operation,
+            documentType: documentType,
+            paths: paths,
+            client: client
+        )
+        // A change from an MCP client asks, unless a rule names that client (issue #10). The
+        // workspace default and the other rules were written for Fen's own features.
+        guard let client, resolved == .autoApprove,
+              !overrides.contains(where: { $0.kind == .client && $0.match == client }) else { return resolved }
+        return .ask
+    }
+
+    private func resolvedMode(
+        workspaceDefault: ApprovalMode,
+        operation: String,
+        documentType: String?,
+        paths: [String],
+        client: String?
+    ) -> ApprovalMode {
         let globs = overrides.filter { $0.kind == .pathGlob }
         for kind in Self.precedence {
             let matching: [Override] = switch kind {

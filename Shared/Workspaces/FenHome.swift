@@ -25,6 +25,11 @@ public struct FenHome: Sendable, Equatable {
         root.appendingPathComponent("ai-providers.json")
     }
 
+    /// The MCP clients you allowed, with a hash of each token (issue #10). Never the token itself.
+    public var mcpClientsFile: URL {
+        root.appendingPathComponent("mcp-clients.json")
+    }
+
     /// The global switch that pauses every auto-approve (issue #140).
     public var writePolicyFile: URL {
         root.appendingPathComponent("write-policy.json")

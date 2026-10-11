@@ -443,6 +443,34 @@ Tests: `InlineAITests` (target, prompt, reply cleaning, bullets, fact checks, pl
 
 Tests: `TypeClassifierTests`, `LinkResolutionTests` (pure parts), `ClassificationRunTests` and `ClassificationLinkRunTests` (a real library, gate and loopback provider: queue, threshold, per-type and per-path rules, retyping, stubs, stats, no request without access), `TypeClassifierPrecisionTests` (real model, loose bounds).
 
+## MCP server: a loopback listener, off by default, reads through the index, writes through the gate
+
+Fen can serve your workspaces to a tool on the same Mac over [MCP](https://modelcontextprotocol.io) (issue #10). It is the one place Fen **listens** for network traffic. It makes no outbound request, and no tool takes a URL or a command, so a client can't use it to make Fen fetch anything. The `URLSession` grep in [CLAUDE.md](../CLAUDE.md#security--compliance) does not see a listener, so grep `NWListener` too: it may appear only in `Shared/MCP/MCPServer.swift`.
+
+| Part | Job |
+|---|---|
+| `MCPServer` | Carries bytes. `NWListener` bound to `127.0.0.1` with `requiredLocalEndpoint`, so no other address answers. One request per connection. Caps on open connections and on time to send a request |
+| `MCPHTTPParser` | Reads one request. Hard limits on header size, header count and body size. Refuses chunked bodies, repeated headers and bad lengths |
+| `MCPRequestGuard` | The checks every request passes, in order. Pure functions |
+| `MCPEndpoint` | Runs the guard, then the method. No socket, so tests call it directly |
+| `MCPTools` | The tools. The one place that decides which workspaces a client may reach (`accessible(to:)`) |
+| `MCPClientStore` | Clients and tokens in `~/.fen/mcp-clients.json` |
+| `MCPController` | Starts and stops the server. Mac only: iOS never starts one |
+
+**Guard order.** Host must be `127.0.0.1`, `localhost` or `[::1]` on the listener's port, or the answer is 403. A request with an `Origin` must come from that same address. This is what stops DNS rebinding: a web page that rebinds a name to `127.0.0.1` still sends the attacker's name as `Host`. Then the path (`/mcp`), the method (POST), the bearer token (401), the content type, and the JSON-RPC shape. The `Mcp-Method`, `Mcp-Name` and `_meta` version must agree with the body. The Host check runs before the token check, so a page learns nothing about tokens.
+
+**Protocol.** Fen speaks MCP revision 2026-07-28 and answers 2025-11-25 clients too. Both are stateless: no session id, no GET stream, no server push. `server/discover` and `tools/list` set `ttlMs` to 0 and `cacheScope` to `private`, because the list depends on the client. Revisions and field names come from the public MCP specification. Check them again before you change this code.
+
+**Who sees what.** A client reaches a workspace only when all three hold: the client lists it, the workspace's Agent access is On, and its AI data access is not None. Asking for a workspace the client can't reach gives the same error as asking for one that doesn't exist. The server is off until you turn it on in Settings, and a new client sees nothing until you pick workspaces for it. Clients have a level: Read only, or Read and propose changes. A read-only client does not see `propose_edit` and can't call it.
+
+**Reads.** `search` uses the shared index, so it finds files nobody has open. `get_document` and `get_links` read through the workspace's `LocalFolderSource`, which refuses hidden files, secret-looking files, files over the size limit and anything outside the granted root, symlinks included. Enabling the server widens nothing beyond that. Document text comes back as data, and the server's instructions tell the client not to follow instructions inside it.
+
+**Writes.** `propose_edit` builds a `ProposedChange` (operation `mcp.<op>`, `invokedByUser: false`, client name, provider `mcp`) and submits it to `WriteGate`, the same gate as every other AI write. `EditResultParser` checks the edit, and a path outside the edit's own scope is refused. `baseHash` (the `contentHash` from `get_document`) is required except for `createFile`, so a stale view can't overwrite newer text. `WritePolicy.mode` caps a client's change at Ask unless a rule of kind client names that client, so the workspace default and path or type rules can't auto-approve it. Activity shows the client's name on each change.
+
+**Tokens.** A token is `fen_` and 32 random bytes. Fen shows it once and stores only its SHA-256 hash, in a file only you can read. A new token replaces the old one at once. Removing a client ends its access on the next request. A damaged client file leaves no client able to connect.
+
+Tests: `MCPRequestGuardTests` and `MCPHTTPParserTests` (every rule, no socket), `MCPClientStoreTests`, `MCPEndpointTests` (a real library and gate: scoping, reads, Ask, rules, bad edits), `MCPWritePolicyTests`, and `MCPServerTests` (real sockets: bound to loopback, rebinding Host, size cap, slow client, connection cap).
+
 ## Every third-party resource is vendored, not loaded from a CDN
 
 Fen's trust model is local-first: it reads and writes only inside files and folders you have granted (documents you open and workspaces you add), and — with the two documented exceptions, the opt-in GeoJSON/TopoJSON map preference and [AI providers you add yourself](#ai-providers-one-gate-no-provider-reachable-around-it) — it makes no runtime network calls. `HTMLComposer` (`Shared/Rendering/HTMLComposer.swift`) composes the preview and export HTML entirely from files bundled inside `Fen.app` — highlight.js lives in `Shared/Resources/Highlight/`, while Mermaid, MathJax, DOMPurify, three.js (plus `STLLoader`/`OrbitControls`), Leaflet, topojson-client, and the task-list script live in `Shared/Resources/Extensions/` (or `Styles`/`Templates` alongside them); emoji shortcode data lives in `Shared/Resources/Emoji/`. All of them load through `loadResourceFile(name:ext:subdirectory:)`, never through a `<script src="https://...">` tag — Leaflet's own basemap *tile images*, not its script, are the one exception, and only when the user has explicitly opted in.

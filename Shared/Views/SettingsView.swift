@@ -21,6 +21,9 @@ public struct SettingsView: View {
                 Tab("AI", systemImage: "sparkles") {
                     AISettingsTab()
                 }
+                Tab("Agents", systemImage: "point.3.connected.trianglepath.dotted") {
+                    MCPSettingsTab()
+                }
             }
             .frame(width: 500)
         #else

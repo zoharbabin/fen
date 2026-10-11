@@ -5,6 +5,10 @@ import SwiftUI
 struct FenApp: App {
     @Environment(\.openWindow) private var openWindow
 
+    init() {
+        MCPController.shared.launch()
+    }
+
     var body: some Scene {
         DocumentGroup(newDocument: { MarkdownDocument.makeNew() }, editor: { file in
             SplitEditorView(document: file.document)
