@@ -81,10 +81,10 @@ struct LivePreviewBlockDetectionTests {
 }
 
 struct LivePreviewBlockRenderTests {
-    private static let background = NSColor.white
+    static let background = NSColor.white
 
     @MainActor
-    private func makeView(_ text: String, width: CGFloat = 400) -> (MarkdownNSTextView, MarkdownTextView.Coordinator) {
+    func makeView(_ text: String, width: CGFloat = 400) -> (MarkdownNSTextView, MarkdownTextView.Coordinator) {
         let font = NSFont.monospacedSystemFont(ofSize: 14, weight: .regular)
         let storage = CodeAttributedString()
         storage.language = "markdown"
@@ -131,7 +131,7 @@ struct LivePreviewBlockRenderTests {
 
     /// Puts the caret on the last line, so every other line is inactive and styled.
     @MainActor
-    private func style(_ textView: MarkdownNSTextView, _ coordinator: MarkdownTextView.Coordinator) {
+    func style(_ textView: MarkdownNSTextView, _ coordinator: MarkdownTextView.Coordinator) {
         textView.setSelectedRange(NSRange(location: (textView.string as NSString).length, length: 0))
         coordinator.applyLivePreviewStylingIfNeeded(in: textView, fullDocument: true)
     }
@@ -172,10 +172,10 @@ struct LivePreviewBlockRenderTests {
     @Test @MainActor
     func hangingIndentAndAccentMarkerOnAList() throws {
         let long = String(repeating: "word ", count: 30)
-        let (view, coordinator) = makeView("- \(long)\n\nTail")
+        let (view, coordinator) = makeView("1. \(long)\n\nTail")
         style(view, coordinator)
         let storage = try #require(view.textStorage)
-        let style = try #require(storage.attribute(.paragraphStyle, at: 4, effectiveRange: nil) as? NSParagraphStyle)
+        let style = try #require(storage.attribute(.paragraphStyle, at: 5, effectiveRange: nil) as? NSParagraphStyle)
         #expect(style.headIndent > 8)
         #expect(storage.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? NSColor == .controlAccentColor)
     }
@@ -248,7 +248,7 @@ struct LivePreviewBlockRenderTests {
     // MARK: - Code blocks and tables
 
     @MainActor
-    private func bitmap(of view: MarkdownNSTextView) throws -> NSBitmapImageRep {
+    func bitmap(of view: MarkdownNSTextView) throws -> NSBitmapImageRep {
         let rep = try #require(view.bitmapImageRepForCachingDisplay(in: view.bounds))
         view.cacheDisplay(in: view.bounds, to: rep)
         return rep
@@ -256,13 +256,13 @@ struct LivePreviewBlockRenderTests {
 
     /// 1 is the white editor background. Lower is darker. Coordinates are in points.
     @MainActor
-    private func brightness(_ rep: NSBitmapImageRep, _ view: NSView, x: CGFloat, y: CGFloat) -> CGFloat {
+    func brightness(_ rep: NSBitmapImageRep, _ view: NSView, x: CGFloat, y: CGFloat) -> CGFloat {
         let scale = CGFloat(rep.pixelsWide) / view.bounds.width
         return rep.colorAt(x: Int(x * scale), y: Int(y * scale))?.usingColorSpace(.sRGB)?.brightnessComponent ?? 1
     }
 
     @MainActor
-    private func fragment(_ view: MarkdownNSTextView, at character: Int) throws -> CGRect {
+    func fragment(_ view: MarkdownNSTextView, at character: Int) throws -> CGRect {
         let layoutManager = try #require(view.layoutManager)
         let rect = layoutManager.lineFragmentRect(
             forGlyphAt: layoutManager.glyphIndexForCharacter(at: character), effectiveRange: nil

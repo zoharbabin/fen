@@ -32,6 +32,8 @@ public enum BlockDecoration: String {
     case tableRow
     /// A rendered block (Mermaid, math or a map): the picture is drawn over the first line.
     case renderedImage
+    /// An unordered list marker (`-`, `*`, `+`): the character is hidden and a round bullet is drawn in its place.
+    case bullet
 }
 
 /// Draws the block decorations Live Preview sets as `fenBlockDecoration` attributes. The text view uses it
@@ -53,6 +55,8 @@ public final class DecorationLayoutManager: NSLayoutManager {
                 drawTableLines(decoration, over: range, origin: origin, in: storage)
             case .renderedImage:
                 drawPicture(over: range, origin: origin, in: storage)
+            case .bullet:
+                drawBullet(at: range.location, origin: origin, in: storage)
             }
         }
         storage.enumerateAttribute(.fenTablePipe, in: characters) { value, range, _ in
@@ -125,6 +129,27 @@ public final class DecorationLayoutManager: NSLayoutManager {
         #endif
     }
 
+    private func drawBullet(at character: Int, origin: CGPoint, in storage: NSTextStorage) {
+        let glyph = glyphIndexForCharacter(at: character)
+        guard let container = textContainer(forGlyphAt: glyph, effectiveRange: nil) else { return }
+        let fragment = lineFragmentRect(forGlyphAt: glyph, effectiveRange: nil)
+        let box = boundingRect(forGlyphRange: NSRange(location: glyph, length: 1), in: container)
+        let diameter = max((fragment.height * 0.3).rounded(), 4)
+        let disc = CGRect(
+            x: origin.x + box.midX - diameter / 2,
+            y: origin.y + fragment.midY - diameter / 2,
+            width: diameter,
+            height: diameter
+        )
+        let color = ink(at: character, in: storage, alpha: 1)
+        color.setFill()
+        #if canImport(AppKit)
+            NSBezierPath(ovalIn: disc).fill()
+        #else
+            UIBezierPath(ovalIn: disc).fill()
+        #endif
+    }
+
     private func drawTableLines(
         _ decoration: BlockDecoration, over characters: NSRange, origin: CGPoint, in storage: NSTextStorage
     ) {
@@ -148,7 +173,7 @@ public final class DecorationLayoutManager: NSLayoutManager {
                 if end >= text.length || text.character(at: end - 1) == 10 {
                     self.fill(CGRect(x: band.minX, y: band.maxY - 1, width: band.width, height: 1), line)
                 }
-            case .rule, .codeBlock, .renderedImage:
+            case .rule, .codeBlock, .renderedImage, .bullet:
                 break
             }
         }

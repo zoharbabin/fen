@@ -37,7 +37,7 @@ enum LivePreviewBlockStyle {
             return true
         }
         if let item = LivePreviewEditing.listItem(line: line, lineStart: lineStart) {
-            styleList(item, lineRange: lineRange, storage: storage)
+            styleList(item, lineRange: lineRange, storage: storage, background: background)
         }
         for footnote in LivePreviewEditing.footnoteSpans(in: line, lineStart: lineStart) {
             styleFootnote(footnote, storage: storage, background: background)
@@ -64,7 +64,9 @@ enum LivePreviewBlockStyle {
 
     // MARK: - Lists
 
-    private static func styleList(_ item: LivePreviewEditing.ListItem, lineRange: NSRange, storage: NSTextStorage) {
+    private static func styleList(
+        _ item: LivePreviewEditing.ListItem, lineRange: NSRange, storage: NSTextStorage, background: PlatformColor
+    ) {
         let font = font(at: item.marker.location, in: storage)
         let attributes: [NSAttributedString.Key: Any] = [.font: font]
         let text = storage.string as NSString
@@ -82,6 +84,18 @@ enum LivePreviewBlockStyle {
         }
         stashOriginal(item.marker, in: storage)
         storage.addAttribute(.foregroundColor, value: accentColor, range: item.marker)
+        guard !item.isOrdered, !isTask(item, in: text) else { return }
+        // The dash stays in the text and keeps its width. A round bullet is drawn over it.
+        storage.addAttribute(.foregroundColor, value: background, range: item.marker)
+        decorate(item.marker, as: .bullet, background: background, in: storage)
+        storage.addAttribute(.fenBlockInk, value: accentColor, range: item.marker)
+    }
+
+    /// `- [ ] ` and `- [x] ` items already get a checkbox, so they keep their marker.
+    private static func isTask(_ item: LivePreviewEditing.ListItem, in text: NSString) -> Bool {
+        let box = NSRange(location: NSMaxRange(item.prefix), length: 3)
+        guard NSMaxRange(box) <= text.length else { return false }
+        return ["[ ]", "[x]", "[X]"].contains(text.substring(with: box))
     }
 
     // MARK: - Footnotes
