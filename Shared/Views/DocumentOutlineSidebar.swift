@@ -6,6 +6,9 @@ import SwiftUI
 struct DocumentOutlineSidebar: View {
     let outline: DocumentOutline
     let onSelectHeading: (Heading) -> Void
+    /// Called when the pointer rests on a heading, to look up documents related to its section (issue #8).
+    var onRestOnHeading: ((Heading) -> Void)?
+    @State private var restTask: Task<Void, Never>?
 
     /// Rows visible in the outline list, each paired with whether it has a nested descendant --
     /// the sidebar shows a fold chevron only for those, per issue #12 rule 1.1's per-instance
@@ -42,6 +45,22 @@ struct DocumentOutlineSidebar: View {
                 .buttonStyle(.plain)
             }
             .padding(.leading, CGFloat(row.heading.level - 1) * 12)
+            .onHover { inside in
+                restTask?.cancel()
+                guard inside, let onRestOnHeading else { return }
+                restTask = Task {
+                    // A cancelable debounce: a quick pass over the list shouldn't trigger a lookup.
+                    try? await Task.sleep(for: .milliseconds(600))
+                    if !Task.isCancelled {
+                        onRestOnHeading(row.heading)
+                    }
+                }
+            }
+            .contextMenu {
+                if let onRestOnHeading {
+                    Button("Show Related Documents") { onRestOnHeading(row.heading) }
+                }
+            }
         }
         .listStyle(.sidebar)
         // `maxWidth` keeps the sidebar from expanding to fill available space (its default List

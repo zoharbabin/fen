@@ -61,6 +61,10 @@ func caretColor(for background: PlatformColor) -> PlatformColor {
         /// bounds whenever it changes, or `nil` when focus mode or its dimming preference is off
         /// (issue #127 rule 3.3) -- threads into `PreviewWebView.focusLineRange` via `SplitEditorView`.
         var onFocusRangeChange: ((FocusLineRange?) -> Void)?
+        /// The selection, or the paragraph you are typing in, for related documents (issue #8).
+        var onSelectionChange: ((EditorSelection?) -> Void)?
+        /// An edit to apply once, through the undo stack. See `MarkdownTextView+Related.swift`.
+        var insertion: EditorInsertion?
 
         func makeCoordinator() -> Coordinator {
             Coordinator(self)
@@ -137,6 +141,7 @@ func caretColor(for background: PlatformColor) -> PlatformColor {
             textView.imagePasteCoordinator = context.coordinator
             context.coordinator.textView = textView
             context.coordinator.documentURL = documentURL
+            context.coordinator.apply(insertion, to: textView)
 
             scrollView.documentView = textView
 
@@ -250,6 +255,7 @@ func caretColor(for background: PlatformColor) -> PlatformColor {
             weak var textView: MarkdownNSTextView?
             var themeName: String
             var documentURL: URL?
+            let related = RelatedEditorState()
             private var isApplyingExternalScroll = false
             private var lastAppliedScrollFraction: CGFloat?
             private var lastAppliedTotalHeight: CGFloat?
@@ -374,6 +380,8 @@ func caretColor(for background: PlatformColor) -> PlatformColor {
                 recomputeSlashMenu(in: textView)
                 refreshGutterLineStartOffsetsIfNeeded(text: textView.string)
                 applyLivePreviewStylingIfNeeded(in: textView, fullDocument: false)
+                noteEdit()
+                reportSelection(in: textView)
             }
 
             @MainActor func textViewDidChangeSelection(_ notification: Notification) {
@@ -383,6 +391,7 @@ func caretColor(for background: PlatformColor) -> PlatformColor {
                 recenterCaretOnActiveLine(in: textView)
                 recomputeSlashMenu(in: textView)
                 applyLivePreviewStylingIfNeeded(in: textView, fullDocument: false)
+                reportSelection(in: textView)
             }
 
             /// Writes `data` into the document's sidecar assets folder and inserts a Markdown

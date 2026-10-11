@@ -354,6 +354,18 @@ Tests: `WritePolicyTests` (matrix, precedence, parser, injection fixtures, front
 
 Tests: `MarkdownChunkerTests`, `VectorStoreTests`, `SearchIndexTests`, `HybridRankerTests`, `WorkspaceIndexerTests`, `WorkspaceSearchTests` (library end to end, including a real git repo that stays clean), `SearchQualityTests` (real model, hybrid beats each half) and `SearchPerformanceTests`.
 
+## Related documents: a card on request, never a panel
+
+`WorkspaceSearch.related` (`Shared/Search/RelatedDocuments.swift`) finds documents that touch the text you are working on. It uses only the search index above. It calls no model and no network, and it works for files you have not opened. It never leaves the workspace that holds your file, and it never returns that file.
+
+**Relatedness.** The few longest words of the text become an any-word query. The whole text (first 600 characters) is embedded for the meaning side. `HybridRanker` fuses both, as in search. A file that links to your file, or that your file links to, gets a small extra score, and each suggestion lists why it appeared: links here, linked from here, similar passage, shares words, same folder. Links come from `SearchIndex.linkedPaths`.
+
+**Triggers.** The editor reports what it sees through `onSelectionChange` (`MarkdownTextView` on both platforms): text you selected (at least 12 characters), the paragraph you are writing (only within 3 seconds of a keystroke, at least 40 characters), or a heading you rest the pointer on in the outline (or choose "Show Related Documents" in its menu). `EditorSelection` holds the pure rules. `RelatedController` (`SplitEditorView+Related.swift`) waits a short, cancelable moment, drops stale lookups, and shows one dismissible card. It hides when the selection clears or you keep typing, and a dismissed card stays away for the same text.
+
+**Nothing changes without a click.** "Open" opens the file. "Insert Link" hands the editor an `EditorInsertion`: the selection becomes `[your words](relative/path.md)`, or ` [Title](relative/path.md)` goes after your paragraph. The editor applies it through `insertText`, so Undo takes it back. It skips the edit if the text under it changed.
+
+Tests: `RelatedDocumentsTests`, `EditorSelectionTests`, `RelatedControllerTests`, `RelatedEditorE2ETests` (a real `NSTextView`, including Undo) and `RelatedPrecisionTests` (real model, hand-labeled; `FEN_SPIKE=1` prints the numbers).
+
 ## Every third-party resource is vendored, not loaded from a CDN
 
 Fen's trust model is local-first: it reads and writes only inside files and folders you have granted (documents you open and workspaces you add), and — with the two documented exceptions, the opt-in GeoJSON/TopoJSON map preference and [AI providers you add yourself](#ai-providers-one-gate-no-provider-reachable-around-it) — it makes no runtime network calls. `HTMLComposer` (`Shared/Rendering/HTMLComposer.swift`) composes the preview and export HTML entirely from files bundled inside `Fen.app` — highlight.js lives in `Shared/Resources/Highlight/`, while Mermaid, MathJax, DOMPurify, three.js (plus `STLLoader`/`OrbitControls`), Leaflet, topojson-client, and the task-list script live in `Shared/Resources/Extensions/` (or `Styles`/`Templates` alongside them); emoji shortcode data lives in `Shared/Resources/Emoji/`. All of them load through `loadResourceFile(name:ext:subdirectory:)`, never through a `<script src="https://...">` tag — Leaflet's own basemap *tile images*, not its script, are the one exception, and only when the user has explicitly opted in.

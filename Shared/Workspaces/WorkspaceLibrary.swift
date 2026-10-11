@@ -196,6 +196,28 @@ public final class WorkspaceLibrary {
         )
     }
 
+    /// The workspace that holds `url`, and the file's path below its root. `nil` for a file outside
+    /// every workspace.
+    public func locate(_ url: URL) -> (workspace: Workspace, relativePath: String)? {
+        guard let file = PathGate.canonicalURL(of: url) else { return nil }
+        for workspace in registry.workspaces {
+            guard let root = try? registry.rootURL(for: workspace.id),
+                  let canonicalRoot = PathGate.canonicalURL(of: root),
+                  PathGate.isContained(file, in: canonicalRoot) else { continue }
+            let prefix = canonicalRoot.path.hasSuffix("/") ? canonicalRoot.path : canonicalRoot.path + "/"
+            guard file.path.hasPrefix(prefix) else { continue }
+            return (workspace, String(file.path.dropFirst(prefix.count)))
+        }
+        return nil
+    }
+
+    /// Documents in the same workspace that relate to `text` from the file at `path`. See
+    /// `WorkspaceSearch.related`.
+    public func related(to text: String, from path: String, in workspace: Workspace, limit: Int = 5) async
+        -> [RelatedSuggestion] {
+        await search.related(to: text, from: path, in: workspace, limit: limit)
+    }
+
     private func requestIndex(_ id: UUID, recheck: Set<String> = []) {
         guard indexing, let source = source(for: id), state(for: id).hasScanned else { return }
         search.reindex(id: id, source: source, files: state(for: id).snapshot.documents, recheck: recheck)

@@ -40,6 +40,10 @@
         var onTextChange: (() -> Void)?
         /// Mirrors the macOS `MarkdownTextView.onFocusRangeChange` doc comment (issue #127 rule 3.3).
         var onFocusRangeChange: ((FocusLineRange?) -> Void)?
+        /// Mirrors the macOS `MarkdownTextView.onSelectionChange` doc comment (issue #8).
+        var onSelectionChange: ((EditorSelection?) -> Void)?
+        /// Mirrors the macOS `MarkdownTextView.insertion` doc comment (issue #8).
+        var insertion: EditorInsertion?
 
         func makeCoordinator() -> Coordinator {
             Coordinator(self)
@@ -174,6 +178,7 @@
             let livePreviewJustToggled = context.coordinator.parent.isLivePreviewEnabled != isLivePreviewEnabled
             context.coordinator.parent = self
             context.coordinator.documentURL = documentURL
+            context.coordinator.apply(insertion, to: textView)
             if isScrollSyncEnabled {
                 context.coordinator.applyScrollFraction(scrollFraction, to: textView)
             }
@@ -289,6 +294,7 @@
             /// `textPasteConfigurationSupporting(_:transform:)`'s completion can fire
             /// after `updateUIView` has already run again with a new `parent`.
             var documentURL: URL?
+            let related = RelatedEditorState()
             private var isApplyingExternalScroll = false
             private var lastAppliedScrollFraction: CGFloat?
             private var lastAppliedContentHeight: CGFloat?
@@ -353,6 +359,8 @@
                 recomputeSlashMenu(in: textView)
                 refreshGutterLineStartOffsetsIfNeeded(text: textView.text)
                 applyLivePreviewStylingIfNeeded(in: textView, fullDocument: false)
+                noteEdit()
+                reportSelection(in: textView)
             }
 
             /// Rebuilds `gutterLineStartOffsets` only when the text actually changed since the
@@ -372,6 +380,7 @@
                 recenterCaretOnActiveLine(in: textView)
                 recomputeSlashMenu(in: textView)
                 applyLivePreviewStylingIfNeeded(in: textView, fullDocument: false)
+                reportSelection(in: textView)
             }
 
             // MARK: - Pasted/dropped image (issue #18)

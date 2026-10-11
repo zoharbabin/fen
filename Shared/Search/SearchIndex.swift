@@ -187,6 +187,29 @@ actor SearchIndex {
 
     // MARK: - Reading
 
+    /// Files `path` links to, and files that link to it, as paths in this index.
+    func linkedPaths(of path: String) throws -> (outgoing: Set<String>, incoming: Set<String>) {
+        let database = try open()
+        let match = "(l.kind = 'path' AND l.target = d.path) OR (l.kind = 'wiki' AND (l.target = d.stem OR l.target = d.pathkey))"
+        let out = try database.prepare("""
+        SELECT DISTINCT d.path FROM links l JOIN docs d ON \(match) WHERE l.source = ?1 AND d.path != ?1
+        """)
+        out.bind(1, path)
+        var outgoing: Set<String> = []
+        while try out.step() {
+            outgoing.insert(out.string(0))
+        }
+        let into = try database.prepare("""
+        SELECT DISTINCT l.source FROM links l JOIN docs d ON d.path = ?1 WHERE l.source != ?1 AND (\(match))
+        """)
+        into.bind(1, path)
+        var incoming: Set<String> = []
+        while try into.step() {
+            incoming.insert(into.string(0))
+        }
+        return (outgoing, incoming)
+    }
+
     func summary() throws -> IndexSummary {
         let statement = try open().prepare(
             "SELECT (SELECT COUNT(*) FROM docs), COUNT(*), COUNT(vector) FROM chunks"
@@ -195,9 +218,9 @@ actor SearchIndex {
         return IndexSummary(documents: statement.int(0), chunks: statement.int(1), embeddedChunks: statement.int(2))
     }
 
-    func textCandidates(matching query: String, limit: Int) throws -> [TextCandidate] {
+    func textCandidates(matching query: String, anyWord: Bool = false, limit: Int) throws -> [TextCandidate] {
         let database = try open()
-        for expression in FTSQuery.expressions(for: query) {
+        for expression in FTSQuery.expressions(for: query, anyWord: anyWord) {
             let statement = try database.prepare("""
             SELECT c.id, c.path, d.title, c.heading, c.start_line, d.inbound,
                    snippet(chunks_fts, 0, '', '', '…', 20), bm25(chunks_fts, 1.0, 2.0, 3.0)
@@ -359,11 +382,15 @@ enum FTSQuery {
     ]
 
     /// Strict first (every word must match, the last one as a prefix), then loose (any word).
-    static func expressions(for raw: String) -> [String] {
+    /// With `anyWord` the words are a bag, not a phrase: one loose expression, no prefix.
+    static func expressions(for raw: String, anyWord: Bool = false) -> [String] {
         let all = raw.lowercased().split(whereSeparator: { !$0.isLetter && !$0.isNumber }).map(String.init)
         guard !all.isEmpty else { return [] }
         let meaningful = all.filter { !stopWords.contains($0) }
         let words = Array((meaningful.isEmpty ? all : meaningful).prefix(12))
+        if anyWord {
+            return [words.map { "\"\($0)\"" }.joined(separator: " OR ")]
+        }
         let quoted = words.enumerated().map { index, word in
             "\"\(word)\"" + (index == words.count - 1 ? "*" : "")
         }

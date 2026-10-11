@@ -36,7 +36,7 @@ public final class WorkspaceSearch {
     @ObservationIgnored private let scheduler: WorkspaceJobScheduler
     @ObservationIgnored private let embedder: (any EmbeddingProvider)?
     @ObservationIgnored private var identityTask: Task<EmbedderIdentity?, Never>?
-    @ObservationIgnored private var indexes: [UUID: SearchIndex] = [:]
+    @ObservationIgnored private(set) var indexes: [UUID: SearchIndex] = [:]
     @ObservationIgnored private var epoch: [UUID: Int] = [:]
     @ObservationIgnored private var running: Set<UUID> = []
     @ObservationIgnored private var jobs: [UUID: UUID] = [:]
@@ -188,8 +188,14 @@ public final class WorkspaceSearch {
     ///     destination when they feed a model, and workspaces whose AI data access does not allow
     ///     it are left out, even for `.all`.
     ///   - origin: the file you are in. Files near it rank a little higher.
+    ///   - meaning: the text to embed, when it should differ from the words to match. A long
+    ///     selection matches by a few key words and by its whole meaning.
+    ///   - anyWord: match a result that has any of the words, not all of them. For key words
+    ///     taken from a longer text.
     public func search(
         _ query: String,
+        meaning: String? = nil,
+        anyWord: Bool = false,
         in workspaces: [Workspace],
         scope: WorkspaceScope,
         destination: ModelDestination? = nil,
@@ -202,12 +208,16 @@ public final class WorkspaceSearch {
             .compactMap { workspace in indexes[workspace.id].map { (workspace, $0) } }
         guard !targets.isEmpty else { return [] }
 
-        let queryVector = await vector(forQuery: trimmed)
+        let queryVector = await vector(forQuery: meaning?.trimmingCharacters(in: .whitespacesAndNewlines) ?? trimmed)
         let perWorkspace = 50
         let candidates = await withTaskGroup(of: WorkspaceCandidates.self) { group in
             for (workspace, index) in targets {
                 group.addTask {
-                    let text = await (try? index.textCandidates(matching: trimmed, limit: perWorkspace)) ?? []
+                    let text = await (try? index.textCandidates(
+                        matching: trimmed,
+                        anyWord: anyWord,
+                        limit: perWorkspace
+                    )) ?? []
                     var meaning: [VectorCandidate] = []
                     if let queryVector {
                         meaning = await (try? index.vectorCandidates(for: queryVector, limit: perWorkspace)) ?? []

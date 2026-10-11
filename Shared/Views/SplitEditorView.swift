@@ -20,7 +20,7 @@ public struct SplitEditorView: View {
     @State private var composer = HTMLComposer()
     @State private var htmlSanitizer = HTMLSanitizer()
     @State private var scrollSync = ScrollSync()
-    @State private var outline = DocumentOutline()
+    @State var outline = DocumentOutline()
     @State private var externalChangeController = ExternalChangeController()
     @State private var autosaveController = AutosaveController()
     @State private var htmlExportController = HTMLExportController()
@@ -40,11 +40,10 @@ public struct SplitEditorView: View {
     /// The editor's active Focus Mode range, translated to raw source line bounds, threaded into
     /// `PreviewWebView.focusLineRange` for preview-pane dimming sync (issue #127 rule 3.4).
     @State private var focusLineRange: FocusLineRange?
-    /// Monotonic counter guarding `renderMarkdown()`'s async sanitize step (issue #118): a
-    /// render started by an earlier keystroke could otherwise finish sanitizing after a later
-    /// keystroke's render and overwrite `renderedHTML` with stale content. Each call captures
-    /// the generation it incremented to before awaiting, and only assigns `renderedHTML` if
-    /// that generation is still current when the await resolves.
+    @State var related = RelatedController()
+    /// Guards `renderMarkdown()`'s async sanitize step (issue #118): each call captures the
+    /// generation it incremented to, and assigns `renderedHTML` only if it is still current, so
+    /// a slow earlier render can't overwrite a later one.
     @State private var renderGeneration = 0
 
     let preferences = Preferences.shared
@@ -55,14 +54,12 @@ public struct SplitEditorView: View {
         case previewOnly = "Preview"
     }
 
-    /// Not `private` -- `SplitEditorView+LivePreviewMode.swift` reads/writes both to enforce the
-    /// Live-Preview/`.editorOnly` invariant, mirroring how the iOS export `@State` above drops
-    /// `private` for the same cross-file-extension reason.
+    /// Not `private`: `SplitEditorView+LivePreviewMode.swift` reads and writes both to enforce the
+    /// Live-Preview/`.editorOnly` invariant.
     @State var viewMode: ViewMode = .split
-    /// Rule 1.1 (issue #128): the `viewMode` Live Preview overrode to force `.editorOnly`, so
-    /// turning Live Preview back off restores it instead of leaving the user stuck on the single
-    /// editor pane. `nil` when Live Preview was turned on while already in `.editorOnly` (rule
-    /// 1.3, nothing to remember) or after a restore/manual-switch has consumed it.
+    /// Rule 1.1 (issue #128): the `viewMode` Live Preview overrode to force `.editorOnly`, restored
+    /// when Live Preview turns off. `nil` when it was already `.editorOnly` (rule 1.3) or a
+    /// restore/manual switch has consumed it.
     @State var stashedViewModeBeforeLivePreview: ViewMode?
     @State private var editorOnRight = false
     #if os(macOS)
@@ -242,15 +239,11 @@ public struct SplitEditorView: View {
 
     // MARK: - Outline
 
-    private var outlineSidebar: some View {
-        DocumentOutlineSidebar(outline: outline, onSelectHeading: jumpToHeading(_:))
-    }
-
     /// Scrolls both panes to a heading's source line, expressed as the same source-fraction
     /// `ScrollSync` already shares between the editor and preview -- reusing the identical
     /// `(startLine - 1 + lineOffset) / totalLines` formula `scroll-sync.js` uses for its own
     /// `data-sourcepos` anchors, so a jump lands exactly where scroll-sync would place that line.
-    private func jumpToHeading(_ heading: Heading) {
+    func jumpToHeading(_ heading: Heading) {
         guard let startLine = heading.startLine, sourceLineCount > 0 else { return }
         let fraction = CGFloat(startLine - 1 + sourceLineOffset) / CGFloat(sourceLineCount)
         scrollSync.jumpToSourceFraction(min(1, max(0, fraction)))
@@ -324,10 +317,13 @@ public struct SplitEditorView: View {
             },
             onFocusRangeChange: { range in
                 focusLineRange = range
-            }
+            },
+            onSelectionChange: { related.editorChanged($0, fileURL: document.fileURL) },
+            insertion: related.insertion
         )
         .accessibilityIdentifier("EditorTextView")
         .accessibilityValue(scrollFractionLabel(scrollSync.editorScrollFraction))
+        .relatedSuggestions(related)
         #if os(macOS)
             .frame(minWidth: 200)
         #endif
