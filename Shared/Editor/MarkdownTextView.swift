@@ -65,6 +65,8 @@ func caretColor(for background: PlatformColor) -> PlatformColor {
         var onSelectionChange: ((EditorSelection?) -> Void)?
         /// An edit to apply once, through the undo stack. See `MarkdownTextView+Related.swift`.
         var insertion: EditorInsertion?
+        /// Filled with the caret or selection, for "Ask AI" (issue #6).
+        var caret: EditorCaret?
 
         func makeCoordinator() -> Coordinator {
             Coordinator(self)

@@ -313,11 +313,11 @@ The provider list is `~/.fen/ai-providers.json`. Tests drive the real providers 
 
 AI features never write to a workspace themselves. They build a `ProposedChange` and give it to `WriteGate` (`Shared/Workspaces/Writes/`). Nothing in that folder touches the network, and a test greps for it.
 
-**What a change can be.** `EditOperation` is a fixed list: `createFile`, `append`, `setFrontMatter`, `replaceText`, `overwrite`, `delete`, `move`. `EditResultParser` turns a model's JSON into that list and rejects anything else: unknown operations, extra fields (a URL, a scope, a tool name), paths outside the run's scope, more than 100 edits. Document text is data. It can only end up as the text of an edit.
+**What a change can be.** `EditOperation` is a fixed list: `createFile`, `append`, `insertBelow`, `setFrontMatter`, `replaceText`, `overwrite`, `delete`, `move`. `EditResultParser` turns a model's JSON into that list and rejects anything else (it does not accept `insertBelow`. Only Fen's own code builds that one, see Ask AI and Enrich below): unknown operations, extra fields (a URL, a scope, a tool name), paths outside the run's scope, more than 100 edits. Document text is data. It can only end up as the text of an edit.
 
 | Tier | Operations | Rule |
 |---|---|---|
-| Additive | `createFile`, `append`, `setFrontMatter` for a new key | Auto-approve allowed once you opt in. |
+| Additive | `createFile`, `append`, `insertBelow`, `setFrontMatter` for a new key | Auto-approve allowed once you opt in. |
 | Replacing | `replaceText`, `setFrontMatter` for an existing key | Auto-approve needs a separate opt-in per operation name (`autoApproveReplacing`). Schema migrations pass `exemptFromReplacingOptIn`. |
 | Destructive | `overwrite`, `delete`, `move` | Always asks, in every mode, even for a change you started. |
 
@@ -405,6 +405,22 @@ Tests: `SchemaTests`, `SchemaDiffTests` (including random edits), `SchemaStoreTe
 **Line numbers.** A `Passage` carries the line where its text starts, from `MarkdownChunker`. The chunker points at the first line of text, not at the blank lines after a heading. A test reads the real file and checks that the cited lines hold the cited text.
 
 Tests: `AskAnswerTests`, `AskControllerTests` (loopback provider: citations, not found, no write to the folders, no text from a workspace set to None, a remote provider, cancel), `MarkdownChunkerTests` and `AskPrecisionTests` (real model, hand-labeled; `FEN_SPIKE=1` prints the numbers).
+
+## Ask AI and Enrich: you start it, one edit, one Undo
+
+`InlineAIController` (`Shared/InlineAI/`) rewrites the selection (or the paragraph at the caret) and enriches bullets. The toolbar's sparkles button opens the panel (`Shared/Views/InlineAIView.swift`). A slash-menu entry is not built yet.
+
+**One edit.** The answer streams into the panel (`streamed`). The document is not touched until the answer is complete. Then the controller builds one `EditorInsertion` and hands it to the editor (`SplitEditorView+InlineAI.swift`), which applies it through the text view's undo stack, so one Cmd+Z restores the original. If the text under the range changed while Fen worked, the edit is refused. "Preview before applying" (`Preferences.inlineAIPreviewFirst`, in the panel and in AI settings) holds the edit until you click Apply. It never changes the workspace approval mode.
+
+**Context.** The default scope sends only the selected text (`InlineRewrite.request`). "Whole document" sends the document for that call, up to 60,000 characters.
+
+**What may run.** `InlineAIAccess.reason` is the one check, for the editor and for files: a provider must be set up (#4), the workspace approval mode must not be Off, and the workspace AI data access must allow the provider's destination. A file in no workspace is shown to a local provider only. `AIGateway` checks again at send time.
+
+**Enrich.** `Enrichment.bullets` finds list items outside code fences. `EnrichmentPipeline` searches the workspace for passages per bullet (never the file itself, and never a file on disk, only the index) and stops with a reason when none support them. It sends the numbered passages and `Enrichment.facts` keeps a fact only if it cites an existing passage and shares a content word with it. `Enrichment.apply` puts each kept fact right under its bullet as `    - fact ([Heading](relative/file.md#slug))`. Original lines are never changed. Running it twice adds nothing. `HeadingAnchor.slug` is the same function the preview uses for heading ids, so the link lands on a real anchor.
+
+**Whole files and the write rules.** `FileEnricher` enriches the short bullets (up to 12 words) of one workspace file from the file list's context menu ("Enrich Bullets"). Nobody watches that run, so the change goes to `WriteGate` with `invokedByUser: false`, operation `enrich`, and `insertBelow` (additive). The workspace mode decides: Ask queues a diff and writes nothing, Auto-approve writes and logs it with undo, Off does nothing and sends nothing. The gate's hash check refuses the write if the file changed after Fen read it. There is no on-save or scheduled trigger yet.
+
+Tests: `InlineAITests` (target, prompt, reply cleaning, bullets, fact checks, placement, heading slug), `InlineAIControllerTests` (streaming never touches the document, Stop, preview, stale text, scopes, provider and workspace rules, citations that resolve to a real file and heading, no supporting note), `InlineAIEditorE2ETests` (a real text view: one Undo), `FileEnricherTests` (Ask queues, Auto-approve writes and undoes, Off does nothing, hash check, `insertBelow` rules).
 
 ## Every third-party resource is vendored, not loaded from a CDN
 

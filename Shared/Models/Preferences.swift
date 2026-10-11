@@ -238,6 +238,11 @@ public final class Preferences {
         didSet { defaults.set(editorOnRight, forKey: "editorOnRight") }
     }
 
+    /// "Ask AI" and "Enrich" show their result and wait for a click instead of applying it (issue #6).
+    var inlineAIPreviewFirst: Bool = false {
+        didSet { defaults.set(inlineAIPreviewFirst, forKey: "inlineAIPreviewFirst") }
+    }
+
     var editorShowWordCount: Bool = false {
         didSet { defaults.set(editorShowWordCount, forKey: "editorShowWordCount") }
     }
@@ -492,6 +497,7 @@ public final class Preferences {
         editorMaximumWidth = maxWidth > 0 ? maxWidth : 800
         editorOnRight = defaults.bool(forKey: "editorOnRight")
         editorShowWordCount = defaults.bool(forKey: "editorShowWordCount")
+        inlineAIPreviewFirst = defaults.bool(forKey: "inlineAIPreviewFirst")
         editorScrollsPastEnd = defaults.object(forKey: "editorScrollsPastEnd") != nil
             ? defaults.bool(forKey: "editorScrollsPastEnd") : true
         editorEnsuresNewlineAtEndOfFile = defaults.object(forKey: "editorEnsuresNewlineAtEndOfFile") != nil

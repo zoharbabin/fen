@@ -22,11 +22,27 @@ public enum EditTier: String, Codable, Sendable, Comparable {
     }
 }
 
+/// Lines to add right below one existing line.
+public struct LineInsertion: Sendable, Equatable {
+    /// The whole text of the line to add below. It must occur exactly once in the file.
+    public var anchor: String
+    /// The lines to add, joined with line breaks.
+    public var text: String
+
+    public init(anchor: String, text: String) {
+        self.anchor = anchor
+        self.text = text
+    }
+}
+
 /// The fixed set of things an AI result may ask Fen to do. Anything else is rejected before it
 /// reaches the gate. Paths are relative to the workspace root.
 public enum EditOperation: Sendable, Equatable {
     case createFile(path: String, content: String)
     case append(path: String, text: String)
+    /// Adds lines below existing lines. No existing line changes. Fen builds these itself, such as
+    /// Enrich (issue #6). A model's result can't ask for one.
+    case insertBelow(path: String, insertions: [LineInsertion])
     /// Sets one single-line front matter key. Every other byte of the file stays as it was.
     case setFrontMatter(path: String, key: String, value: String)
     /// Replaces text that occurs exactly once.
@@ -39,6 +55,7 @@ public enum EditOperation: Sendable, Equatable {
         switch self {
         case .createFile: "createFile"
         case .append: "append"
+        case .insertBelow: "insertBelow"
         case .setFrontMatter: "setFrontMatter"
         case .replaceText: "replaceText"
         case .overwrite: "overwrite"
@@ -50,7 +67,7 @@ public enum EditOperation: Sendable, Equatable {
     /// Every workspace path the edit touches.
     public var paths: [String] {
         switch self {
-        case let .createFile(path, _), let .append(path, _), let .setFrontMatter(path, _, _),
+        case let .createFile(path, _), let .append(path, _), let .insertBelow(path, _), let .setFrontMatter(path, _, _),
              let .replaceText(path, _, _), let .overwrite(path, _), let .delete(path):
             [path]
         case let .move(from, to):

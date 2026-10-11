@@ -9,6 +9,7 @@
         /// Tells the document view what you selected, or the paragraph you are writing, so it can
         /// look up related documents (issue #8).
         @MainActor func reportSelection(in textView: MarkdownNSTextView) {
+            parent.caret?.range = textView.selectedRange()
             guard let report = parent.onSelectionChange else { return }
             report(EditorSelection.make(
                 in: textView.string,

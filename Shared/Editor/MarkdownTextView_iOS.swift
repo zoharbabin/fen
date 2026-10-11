@@ -44,6 +44,8 @@
         var onSelectionChange: ((EditorSelection?) -> Void)?
         /// Mirrors the macOS `MarkdownTextView.insertion` doc comment (issue #8).
         var insertion: EditorInsertion?
+        /// Mirrors the macOS `MarkdownTextView.caret` doc comment (issue #6).
+        var caret: EditorCaret?
 
         func makeCoordinator() -> Coordinator {
             Coordinator(self)

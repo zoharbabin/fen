@@ -295,6 +295,8 @@ private struct WorkspaceDetailView: View {
     let workspace: Workspace
     let open: (Workspace, WorkspaceFile) -> Void
     @State private var showingActivity = false
+    @State private var enrichingPath: String?
+    @State private var enrichMessage: String?
 
     var body: some View {
         let state = library.state(for: workspace.id)
@@ -306,6 +308,34 @@ private struct WorkspaceDetailView: View {
         .navigationTitle(workspace.name)
         .sheet(isPresented: $showingActivity) {
             WorkspaceActivityView(gate: gate, workspace: workspace)
+        }
+        .alert("Enrich", isPresented: Binding(get: { enrichMessage != nil }, set: {
+            if !$0 {
+                enrichMessage = nil
+            }
+        })) {
+            Button("OK") { enrichMessage = nil }
+        } message: {
+            Text(enrichMessage ?? "")
+        }
+    }
+
+    /// Adds sourced facts under the short bullets of one file, under the workspace's approval mode.
+    private func enrich(_ file: WorkspaceFile) {
+        guard enrichingPath == nil else { return }
+        enrichingPath = file.relativePath
+        Task {
+            defer { enrichingPath = nil }
+            let runner = FileEnricher(library: library, service: .shared, gate: gate)
+            do {
+                switch try await runner.enrich(workspaceID: workspace.id, relativePath: file.relativePath) {
+                case .queued: enrichMessage = "Review the changes in Activity. Nothing was written yet."
+                case .applied: enrichMessage = "Facts were added under your bullets. You can undo this in Activity."
+                case let .nothing(why): enrichMessage = why
+                }
+            } catch {
+                enrichMessage = error.localizedDescription
+            }
         }
     }
 
@@ -411,6 +441,8 @@ private struct WorkspaceDetailView: View {
                         .contextMenu {
                             if let file = node.file {
                                 Button("Open") { open(workspace, file) }
+                                Button("Enrich Bullets") { enrich(file) }
+                                    .disabled(enrichingPath != nil)
                             }
                         }
                 }

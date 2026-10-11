@@ -7,6 +7,7 @@ struct AISettingsTab: View {
     @State private var editing: ProviderDraft?
     @State private var checks: [UUID: String] = [:]
     @State private var errorMessage: String?
+    @Bindable private var preferences = Preferences.shared
 
     init(service: AIService = .shared) {
         self.service = service
@@ -35,6 +36,13 @@ struct AISettingsTab: View {
                 Text("Providers")
             } footer: {
                 Text("Each workspace decides which providers may see its files. See the workspace's settings.")
+            }
+            Section {
+                Toggle("Preview before applying", isOn: $preferences.inlineAIPreviewFirst)
+            } header: {
+                Text("Ask AI and Enrich")
+            } footer: {
+                Text("Show the result and wait for your click before it changes the document. Undo works either way.")
             }
             if let errorMessage {
                 Section { Text(errorMessage).foregroundStyle(.red) }

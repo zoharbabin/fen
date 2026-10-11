@@ -41,6 +41,8 @@ public struct SplitEditorView: View {
     /// `PreviewWebView.focusLineRange` for preview-pane dimming sync (issue #127 rule 3.4).
     @State private var focusLineRange: FocusLineRange?
     @State var related = RelatedController()
+    @State var inlineAI = InlineAIController()
+    @State var editorCaret = EditorCaret()
     /// Guards `renderMarkdown()`'s async sanitize step (issue #118): each call captures the
     /// generation it incremented to, and assigns `renderedHTML` only if it is still current, so
     /// a slow earlier render can't overwrite a later one.
@@ -98,6 +100,7 @@ public struct SplitEditorView: View {
                 Task { await renderMarkdown() }
                 externalChangeController.start(for: document)
                 autosaveController.start(for: document)
+                bindInlineAI()
             }
             .onDisappear {
                 externalChangeController.stop()
@@ -308,7 +311,8 @@ public struct SplitEditorView: View {
                 focusLineRange = range
             },
             onSelectionChange: { related.editorChanged($0, fileURL: document.fileURL) },
-            insertion: related.insertion
+            insertion: related.insertion,
+            caret: editorCaret
         )
         .accessibilityIdentifier("EditorTextView")
         .accessibilityValue(scrollFractionLabel(scrollSync.editorScrollFraction))
@@ -456,6 +460,8 @@ public struct SplitEditorView: View {
             }
             .help("Formatting")
             .accessibilityIdentifier("FormattingMenuButton")
+
+            inlineAIButton
 
             Picker("View", selection: $viewMode) {
                 ForEach(ViewMode.allCases, id: \.self) { mode in
