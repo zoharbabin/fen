@@ -139,8 +139,9 @@ struct EditorSettingsTab: View {
                     Text(
                         "Renders bold/italic/strikethrough, inline code, headings, blockquotes, " +
                             "checkboxes, links, images, rules, lists, footnotes, tables, and code " +
-                            "block panels inline as you type. Math, Mermaid, and map blocks stay as " +
-                            "source for now — see issue #135."
+                            "block panels inline as you type. Mermaid, math, and map blocks show as " +
+                            "pictures until you put the caret in them. Inline math stays as source — " +
+                            "see issue #135."
                     )
                     .font(.caption)
                     .foregroundStyle(.secondary)

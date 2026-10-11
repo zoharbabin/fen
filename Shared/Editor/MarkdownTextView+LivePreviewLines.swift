@@ -62,6 +62,34 @@
             }
         }
 
+        /// Draws `block` as its rendered picture when one is ready, and returns `true`. Returns `false` when the
+        /// lines need ordinary styling: its source is being edited, or the picture is still rendering. A missing
+        /// picture is requested, and the document restyles when it arrives.
+        @MainActor func styleRenderedBlock(
+            _ block: RenderedBlock, activeRange: NSRange, in ns: NSString, textView: MarkdownNSTextView
+        ) -> Bool {
+            guard let storage = textView.textStorage, let container = textView.textContainer,
+                  !LivePreviewBlockStyle.isEditing(
+                      block, active: activeRange, selection: textView.selectedRange(), in: ns
+                  ) else { return false }
+            let background: PlatformColor = textView.backgroundColor
+            let column = container.size.width - 2 * container.lineFragmentPadding
+            guard let key = LivePreviewSnapshots.key(for: block, columnWidth: column, background: background)
+            else { return false }
+            let snapshots = LivePreviewSnapshots.shared
+            guard let image = snapshots.image(for: key) else {
+                snapshots.request(key, owner: self) { [weak self] in self?.livePreviewSnapshotReady() }
+                return false
+            }
+            LivePreviewBlockStyle.applyRendered(image, block: block.range, storage: storage, background: background)
+            return true
+        }
+
+        @MainActor private func livePreviewSnapshotReady() {
+            guard let textView else { return }
+            applyLivePreviewStylingIfNeeded(in: textView, fullDocument: true)
+        }
+
         func strippingTrailingNewline(_ lineRange: NSRange, in ns: NSString) -> NSRange {
             var contentRange = lineRange
             guard contentRange.length > 0 else { return contentRange }

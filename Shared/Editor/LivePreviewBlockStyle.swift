@@ -56,7 +56,7 @@ enum LivePreviewBlockStyle {
             }
             storage.removeAttribute(.livePreviewOriginalParagraphStyle, range: subrange)
         }
-        for key: NSAttributedString.Key in [.fenBlockDecoration, .fenBlockInk, .fenTablePipe] {
+        for key: NSAttributedString.Key in [.fenBlockDecoration, .fenBlockInk, .fenTablePipe, .fenBlockImage] {
             storage.removeAttribute(key, range: range)
         }
         storage.removeAttribute(.baselineOffset, range: range)

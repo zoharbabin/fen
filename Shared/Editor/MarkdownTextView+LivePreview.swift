@@ -94,13 +94,13 @@
         ) {
             let ns = text as NSString
             guard ns.length > 0 else { return }
-            let expandedRange = ns.lineRange(for: boundedRange(range, in: ns))
+            // Rule 2.1/2.2 (issue #128), tables, front matter and rendered blocks (issue #135): computed once per
+            // call, because a fence or a table spans lines and no single line can tell if it belongs to one.
+            let blocks = LivePreviewBlockContext(text: text, rendering: LivePreviewSnapshots.shared.kinds())
+            let expandedRange = ns.lineRange(for: blocks.widened(boundedRange(range, in: ns)))
             clearLivePreviewStyling(in: expandedRange, textStorage: textStorage)
             removeOverlays(overlapping: expandedRange, textView: textView)
             guard expandedRange.length > 0 else { return }
-            // Rule 2.1/2.2 (issue #128), tables and front matter (issue #135): computed once per call,
-            // because a fence or a table spans lines and no single line can tell if it belongs to one.
-            let blocks = LivePreviewBlockContext(text: text)
 
             // Collects checkbox/image spans that need an overlay positioned, so that work --
             // which calls `rect(forCharacterRange:)` and thus triggers glyph generation -- can
@@ -119,6 +119,11 @@
                 let isActive = NSIntersectionRange(contentLineRange, activeRange).length > 0
                     || (contentLineRange.length == 0 && activeRange.length == 0
                         && contentLineRange.location == activeRange.location)
+                if let block = blocks.renderedBlock(at: lineRange.location),
+                   styleRenderedBlock(block, activeRange: activeRange, in: ns, textView: textView) {
+                    location = NSMaxRange(block.range)
+                    continue
+                }
                 let kind = blocks.kind(ofLineAt: contentLineRange.location)
                 if kind == .code {
                     LivePreviewBlockStyle.applyCodeBlock(

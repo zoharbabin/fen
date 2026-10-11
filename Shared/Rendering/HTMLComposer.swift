@@ -382,6 +382,7 @@ public struct HTMLComposer: Sendable {
         preferences: Preferences,
         includeStyles: Bool,
         includeHighlighting: Bool,
+        appearanceOverride: PreviewAppearanceMode? = nil,
         documentOverrides: DocumentPreviewOverrides = .none
     ) -> String {
         let (styleTags, scriptTags) = exportStyleAndScriptTags(
@@ -389,6 +390,7 @@ public struct HTMLComposer: Sendable {
             body: body,
             includeStyles: includeStyles,
             includeHighlighting: includeHighlighting,
+            appearanceOverride: appearanceOverride,
             documentOverrides: documentOverrides
         )
         return htmlDocument(

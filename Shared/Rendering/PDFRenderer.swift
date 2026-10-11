@@ -257,7 +257,8 @@ public final class PDFRenderer {
     func loadOffscreenWebView(
         html: String,
         baseDirectory: URL?,
-        loadTimeout: Duration
+        loadTimeout: Duration,
+        size: CGSize? = nil
     ) async throws -> WKWebView {
         let schemeHandler = PreviewSchemeHandler()
         schemeHandler.html = html
@@ -267,7 +268,7 @@ public final class PDFRenderer {
         config.setURLSchemeHandler(schemeHandler, forURLScheme: PreviewSchemeHandler.scheme)
 
         let webView = WKWebView(
-            frame: CGRect(origin: .zero, size: Self.pageSize), configuration: config
+            frame: CGRect(origin: .zero, size: size ?? Self.pageSize), configuration: config
         )
         let delegate = PDFLoadDelegate()
         webView.navigationDelegate = delegate

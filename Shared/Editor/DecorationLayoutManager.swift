@@ -13,6 +13,8 @@ public extension NSAttributedString.Key {
     static let fenBlockInk = NSAttributedString.Key("FenBlockInk")
     /// Set on a table's separator `|`. The pipe is hidden and the layout manager draws a column line in its place.
     static let fenTablePipe = NSAttributedString.Key("FenTablePipe")
+    /// The picture `DecorationLayoutManager` draws on a rendered block's first line, a `PlatformImage`.
+    static let fenBlockImage = NSAttributedString.Key("FenBlockImage")
     /// A `ParagraphStash` holding the paragraph style a block styler replaced.
     static let livePreviewOriginalParagraphStyle = NSAttributedString.Key("FenLivePreviewOriginalParagraphStyle")
 }
@@ -28,6 +30,8 @@ public enum BlockDecoration: String {
     case tableDelimiter
     /// A table body line: a line under it.
     case tableRow
+    /// A rendered block (Mermaid, math or a map): the picture is drawn over the first line.
+    case renderedImage
 }
 
 /// Draws the block decorations Live Preview sets as `fenBlockDecoration` attributes. The text view uses it
@@ -47,6 +51,8 @@ public final class DecorationLayoutManager: NSLayoutManager {
                 drawCodePanel(containing: range, origin: origin, in: storage)
             case .tableHeader, .tableDelimiter, .tableRow:
                 drawTableLines(decoration, over: range, origin: origin, in: storage)
+            case .renderedImage:
+                drawPicture(over: range, origin: origin, in: storage)
             }
         }
         storage.enumerateAttribute(.fenTablePipe, in: characters) { value, range, _ in
@@ -98,6 +104,27 @@ public final class DecorationLayoutManager: NSLayoutManager {
         fillRounded(panel, radius: 6, ink(at: block.location, in: storage, alpha: 0.07))
     }
 
+    private func drawPicture(over characters: NSRange, origin: CGPoint, in storage: NSTextStorage) {
+        guard let image = storage.attribute(.fenBlockImage, at: characters.location, effectiveRange: nil)
+            as? PlatformImage else { return }
+        let glyphs = glyphRange(forCharacterRange: characters, actualCharacterRange: nil)
+        guard glyphs.length > 0,
+              let container = textContainer(forGlyphAt: glyphs.location, effectiveRange: nil) else { return }
+        let line = lineFragmentRect(forGlyphAt: glyphs.location, effectiveRange: nil)
+        let column = column(container, origin: origin)
+        let target = CGRect(
+            x: column.x,
+            y: origin.y + line.minY + LivePreviewBlockStyle.pictureMargin,
+            width: min(image.size.width, column.width),
+            height: image.size.height
+        )
+        #if canImport(AppKit)
+            image.draw(in: target, from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
+        #else
+            image.draw(in: target)
+        #endif
+    }
+
     private func drawTableLines(
         _ decoration: BlockDecoration, over characters: NSRange, origin: CGPoint, in storage: NSTextStorage
     ) {
@@ -121,7 +148,7 @@ public final class DecorationLayoutManager: NSLayoutManager {
                 if end >= text.length || text.character(at: end - 1) == 10 {
                     self.fill(CGRect(x: band.minX, y: band.maxY - 1, width: band.width, height: 1), line)
                 }
-            case .rule, .codeBlock:
+            case .rule, .codeBlock, .renderedImage:
                 break
             }
         }

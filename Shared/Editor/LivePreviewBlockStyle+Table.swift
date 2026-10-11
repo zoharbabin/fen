@@ -21,9 +21,12 @@ struct LivePreviewBlockContext {
     private let fenced: [NSRange]
     private let frontMatterEnd: Int
     private let tableRoles: [Int: LivePreviewBlockStyle.TableRole]
+    /// Blocks shown as a picture of their rendered result, for the kinds passed to `init`.
+    let rendered: [RenderedBlock]
 
-    init(text: String) {
+    init(text: String, rendering kinds: Set<RenderedBlock.Kind> = []) {
         fenced = LivePreviewEditing.fencedRanges(text: text)
+        rendered = LivePreviewEditing.renderedBlocks(in: text, fenced: fenced, kinds: kinds)
         frontMatterEnd = LivePreviewEditing.frontMatterRange(text: text).map { NSMaxRange($0) } ?? 0
         var roles: [Int: LivePreviewBlockStyle.TableRole] = [:]
         for table in LivePreviewEditing.tables(in: text, excluding: fenced) {
@@ -43,6 +46,20 @@ struct LivePreviewBlockContext {
             return .code
         }
         return tableRoles[start].map(Kind.table) ?? .text
+    }
+
+    /// `range` grown to cover every rendered block it touches, so a block is always restyled as a whole.
+    func widened(_ range: NSRange) -> NSRange {
+        var result = range
+        for block in rendered where NSIntersectionRange(block.range, range).length > 0
+            || NSLocationInRange(range.location, block.range) {
+            result = NSUnionRange(result, block.range)
+        }
+        return result
+    }
+
+    func renderedBlock(at start: Int) -> RenderedBlock? {
+        rendered.first { NSLocationInRange(start, $0.range) }
     }
 }
 
