@@ -2,10 +2,10 @@
 import Foundation
 import Testing
 
-// A hand-labeled spot-check of conflict detection (issue #94). Each pair is a passage that was just
-// edited and a passage elsewhere. `conflict` is the label a person would give. The first tier alone
-// decides here, with no model: a pair counts as flagged when it reaches the candidate list and shows
-// at least one mark of contradiction.
+/// A hand-labeled spot-check of conflict detection (issue #94). Each pair is a passage that was just
+/// edited and a passage elsewhere. `conflict` is the label a person would give. The first tier alone
+/// decides here, with no model: a pair counts as flagged when it reaches the candidate list and shows
+/// at least one mark of contradiction.
 enum ConflictLabeledPairs {
     struct Pair {
         let changed: String
@@ -118,7 +118,6 @@ enum ConflictLabeledPairs {
         ),
     ]
 }
-
 
 @Suite("Conflict detection precision and recall (issue #94)", .serialized)
 @MainActor
