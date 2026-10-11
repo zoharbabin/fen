@@ -20,7 +20,13 @@ struct GitHubCloner {
 
     /// Clones `repo` into `parent/<repo name>`. `token` is checked first and saved to the keychain only
     /// after the clone worked, so a wrong token isn't kept. `remote` replaces the GitHub address in tests.
-    func clone(_ repo: GitHubRepo, token: String?, into parent: URL, remote: URL? = nil) async throws -> Workspace {
+    func clone(
+        _ repo: GitHubRepo,
+        token: String?,
+        into parent: URL,
+        mode: SyncMode = .directCommit,
+        remote: URL? = nil
+    ) async throws -> Workspace {
         let token = try token
             .flatMap { $0.trimmingCharacters(in: .whitespaces).isEmpty ? nil : try GitHubToken.validate($0) }
         let target = parent.appendingPathComponent(repo.name, isDirectory: true)
@@ -38,7 +44,9 @@ struct GitHubCloner {
             if let token {
                 try sync.secrets.write(token, account: repo.tokenAccount)
             }
-            return try library.add(folder: target, name: repo.name)
+            let workspace = try library.add(folder: target, name: repo.name)
+            try library.updateSettings(id: workspace.id) { $0.syncMode = mode }
+            return library.registry.workspace(id: workspace.id) ?? workspace
         } catch {
             if !existed {
                 try? FileManager.default.removeItem(at: target)

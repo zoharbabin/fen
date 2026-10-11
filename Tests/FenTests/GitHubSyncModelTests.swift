@@ -65,6 +65,21 @@ struct GitHubClonerTests {
         #expect(fixture.secrets.allSecrets == ["github_pat_abc"])
     }
 
+    @Test func theCloneRemembersHowToSync() async throws {
+        let setup = try make()
+        let (fixture, home, library, cloner) = (setup.fixture, setup.home, setup.library, setup.cloner)
+        defer { fixture.cleanUp()
+            home.cleanUp()
+        }
+        let parent = try fixture.folder.folder("parent")
+        let workspace = try await cloner.clone(
+            SyncFixture.repo, token: nil, into: parent, mode: .pushAsPR, remote: fixture.remote
+        )
+        #expect(workspace.settings.syncMode == .pushAsPR)
+        #expect(library.registry.workspace(id: workspace.id)?.settings.syncMode == .pushAsPR)
+        #expect(library.registry.workspace(id: workspace.id)?.settings.pushesAIChanges == false)
+    }
+
     @Test func aBroadTokenIsRefusedBeforeAnythingIsCreated() async throws {
         let setup = try make()
         let (fixture, home, library, cloner) = (setup.fixture, setup.home, setup.library, setup.cloner)

@@ -60,6 +60,16 @@ struct WorkspaceRegistryTests {
         #expect(workspace.settings.approvalMode == .ask)
         #expect(workspace.settings.mcpAccess == .disabled)
         #expect(workspace.settings.syncMode == nil)
+        #expect(!workspace.settings.pushesAIChanges)
+    }
+
+    @Test func syncSettingsRoundTripAndOlderFilesStillLoad() throws {
+        var settings = WorkspaceSettings(syncMode: .pushAsPR, pushesAIChanges: true)
+        let data = try JSONEncoder().encode(settings)
+        #expect(try JSONDecoder().decode(WorkspaceSettings.self, from: data) == settings)
+        settings = try JSONDecoder().decode(WorkspaceSettings.self, from: Data("{}".utf8))
+        #expect(settings.syncMode == nil)
+        #expect(!settings.pushesAIChanges)
     }
 
     @Test func settingsPersistPerWorkspace() throws {

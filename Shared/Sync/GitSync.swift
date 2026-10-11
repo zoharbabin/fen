@@ -170,12 +170,12 @@ struct GitSync: Sendable {
 
     // MARK: - Commit and push
 
-    /// Commits the changed notes in one commit. Files that look like secrets are never added. Returns the
-    /// number of files committed, 0 when nothing changed.
+    /// Commits the changed notes in one commit. Files that look like secrets are never added, and neither
+    /// are the `held` paths. Returns the number of files committed, 0 when nothing changed.
     @discardableResult
-    func commitChanges(at root: URL, message: String? = nil) async throws -> Int {
+    func commitChanges(at root: URL, message: String? = nil, held: Set<String> = []) async throws -> Int {
         let paths = try await changedPaths(at: root)
-            .filter { !FileEligibility.looksSecret(fileName: ($0 as NSString).lastPathComponent) }
+            .filter { !held.contains($0) && !FileEligibility.looksSecret(fileName: ($0 as NSString).lastPathComponent) }
         guard !paths.isEmpty else { return 0 }
         let list = Data(paths.joined(separator: "\0").utf8) + Data([0])
         let add = try await git.run(
@@ -190,8 +190,12 @@ struct GitSync: Sendable {
         if try await run(["config", "user.email"], at: root, allowFailure: true).text.isEmpty {
             arguments += ["-c", "user.name=Fen", "-c", "user.email=fen@users.noreply.github.com"]
         }
-        arguments += ["commit", "--quiet", "-m", message ?? Self.message(for: paths)]
-        let commit = try await git.run(arguments, in: root)
+        // `--only` with the list keeps a path you staged yourself, or one held back, out of this commit.
+        arguments += [
+            "commit", "--quiet", "--only", "-m", message ?? Self.message(for: paths),
+            "--pathspec-from-file=-", "--pathspec-file-nul",
+        ]
+        let commit = try await git.run(arguments, in: root, input: list)
         guard commit.succeeded else { throw SyncError.failed(Self.firstLine(
             commit.stderr,
             fallback: "git commit failed."
@@ -233,13 +237,13 @@ struct GitSync: Sendable {
         guard out.succeeded else { throw await error(from: out, repo: repo(at: root), token: nil) }
     }
 
-    private func environment(at root: URL) async -> [String: String] {
+    func environment(at root: URL) async -> [String: String] {
         guard let repo = await repo(at: root) else { return Self.environment(for: nil, token: nil) }
         return Self.environment(for: repo.cloneURL, token: token(for: repo))
     }
 
     /// Paths with changes that aren't committed, including new files git doesn't ignore.
-    private func changedPaths(at root: URL) async throws -> [String] {
+    func changedPaths(at root: URL) async throws -> [String] {
         let out = try await run(["status", "--porcelain=v1", "-z", "--untracked-files=all", "--no-renames"], at: root)
         return out.stdout.split(separator: 0).compactMap { entry -> String? in
             let line = String(decoding: entry, as: UTF8.self)
@@ -248,7 +252,7 @@ struct GitSync: Sendable {
     }
 
     @discardableResult
-    private func run(_ arguments: [String], at root: URL, allowFailure: Bool = false) async throws -> GitTool.Output {
+    func run(_ arguments: [String], at root: URL, allowFailure: Bool = false) async throws -> GitTool.Output {
         let out = try await git.run(arguments, in: root)
         if !out.succeeded, !allowFailure {
             if out.stderr.contains("not a git repository") {

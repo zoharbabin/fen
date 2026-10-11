@@ -57,6 +57,14 @@ public enum MCPAccess: String, Codable, Sendable, CaseIterable {
 public enum SyncMode: String, Codable, Sendable, CaseIterable {
     case directCommit
     case pushAsPR
+
+    /// Plain words first. Git words in the second line of the menu.
+    public var title: String {
+        switch self {
+        case .directCommit: "Back up to GitHub"
+        case .pushAsPR: "Review with pull requests"
+        }
+    }
 }
 
 /// Per-workspace settings. Defaults are the safest useful values: Local providers only, Ask, and
@@ -75,6 +83,9 @@ public struct WorkspaceSettings: Codable, Sendable, Equatable {
     public var agentBranches: AgentBranchMode
     /// Set when you connect a remote (#61). `nil` until then.
     public var syncMode: SyncMode?
+    /// Direct-commit only: back up notes with AI changes along with the rest (#61). Off by default,
+    /// so an AI change never reaches GitHub before you have looked at it.
+    public var pushesAIChanges: Bool
     public var includeGlobs: [String]
     public var excludeGlobs: [String]
     public var maxFileBytes: Int
@@ -86,6 +97,7 @@ public struct WorkspaceSettings: Codable, Sendable, Equatable {
         writePolicy: WritePolicy = WritePolicy(),
         agentBranches: AgentBranchMode = .perAgent,
         syncMode: SyncMode? = nil,
+        pushesAIChanges: Bool = false,
         includeGlobs: [String] = WorkspaceSettings.defaultIncludeGlobs,
         excludeGlobs: [String] = [],
         maxFileBytes: Int = WorkspaceSettings.defaultMaxFileBytes
@@ -96,6 +108,7 @@ public struct WorkspaceSettings: Codable, Sendable, Equatable {
         self.writePolicy = writePolicy
         self.agentBranches = agentBranches
         self.syncMode = syncMode
+        self.pushesAIChanges = pushesAIChanges
         self.includeGlobs = includeGlobs
         self.excludeGlobs = excludeGlobs
         self.maxFileBytes = maxFileBytes
@@ -111,6 +124,7 @@ public struct WorkspaceSettings: Codable, Sendable, Equatable {
             writePolicy: container.decodeIfPresent(WritePolicy.self, forKey: .writePolicy) ?? WritePolicy(),
             agentBranches: container.decodeIfPresent(AgentBranchMode.self, forKey: .agentBranches) ?? .perAgent,
             syncMode: container.decodeIfPresent(SyncMode.self, forKey: .syncMode),
+            pushesAIChanges: container.decodeIfPresent(Bool.self, forKey: .pushesAIChanges) ?? false,
             includeGlobs: container.decodeIfPresent([String].self, forKey: .includeGlobs)
                 ?? WorkspaceSettings.defaultIncludeGlobs,
             excludeGlobs: container.decodeIfPresent([String].self, forKey: .excludeGlobs) ?? [],

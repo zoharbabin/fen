@@ -421,7 +421,7 @@ private struct WorkspaceDetailView: View {
                 }
             }
             Spacer()
-            GitHubSyncControls(library: library, workspaceID: workspace.id).id(workspace.id)
+            GitHubSyncControls(library: library, gate: gate, workspaceID: workspace.id).id(workspace.id)
             indexControls(library.indexStatus(for: workspace.id))
             classifyControls
             Button("Conflicts", systemImage: "exclamationmark.arrow.triangle.2.circlepath") { showingConflicts = true }

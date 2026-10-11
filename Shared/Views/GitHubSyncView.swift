@@ -4,15 +4,33 @@ import UniformTypeIdentifiers
 /// Sync status and buttons for a workspace whose `origin` is on GitHub (issue #60). It shows nothing for
 /// any other workspace.
 struct GitHubSyncControls: View {
+    let library: WorkspaceLibrary
+    let workspaceID: UUID
     @State private var model: GitHubSyncModel
     @State private var showingToken = false
     @State private var showingMessage = false
+    @Environment(\.openURL) private var openURL
 
-    init(library: WorkspaceLibrary, workspaceID: UUID) {
+    init(library: WorkspaceLibrary, gate: WriteGate, workspaceID: UUID) {
+        self.library = library
+        self.workspaceID = workspaceID
         _model = State(initialValue: GitHubSyncModel(
+            inputs: GitHubSyncModel.Inputs(
+                mode: { library.registry.workspace(id: workspaceID)?.settings.syncMode },
+                pushesAIChanges: { library.registry.workspace(id: workspaceID)?.settings.pushesAIChanges ?? false },
+                aiChanges: { AIChangedPaths.latest(in: gate.entries(for: workspaceID)) }
+            ),
             root: { try? library.registry.rootURL(for: workspaceID) },
             changed: { library.scan(workspaceID) }
         ))
+    }
+
+    private var settings: WorkspaceSettings? {
+        library.registry.workspace(id: workspaceID)?.settings
+    }
+
+    private var mode: SyncMode {
+        settings?.syncMode ?? .directCommit
     }
 
     var body: some View {
@@ -23,10 +41,16 @@ struct GitHubSyncControls: View {
                         ProgressView().controlSize(.small)
                         Text(working).font(.caption).foregroundStyle(.secondary)
                     } else {
-                        Text(model.status?.text ?? repo.title)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
+                        Text(SyncSummary.text(
+                            mode: mode,
+                            status: model.status,
+                            pullRequest: model.pullRequest,
+                            held: model.heldBack.count,
+                            repo: repo.title
+                        ))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
                     }
                     if model.message != nil {
                         Button("Problem", systemImage: "exclamationmark.triangle") { showingMessage = true }
@@ -34,23 +58,27 @@ struct GitHubSyncControls: View {
                             .foregroundStyle(.orange)
                             .help(model.message ?? "")
                     }
-                    Button("Sync", systemImage: "arrow.triangle.2.circlepath") { Task { await model.syncNow() } }
-                        .labelStyle(.iconOnly)
-                        .disabled(model.working != nil)
-                        .help("Pull from \(repo.title), commit your changes, and push")
-                    Menu("GitHub", systemImage: "ellipsis") {
-                        Button("Pull Only") { Task { await model.pull() } }
-                        Button("Check GitHub Now") { Task { await model.refresh(fetch: true) } }
-                        Divider()
-                        Button("Set Token…") { showingToken = true }
+                    if let pull = model.pullRequest {
+                        Button("Open Pull Request", systemImage: "arrow.up.right.square") { openURL(pull.url) }
+                            .labelStyle(.iconOnly)
+                            .help("Open pull request #\(pull.number) on GitHub")
                     }
-                    .menuIndicator(.hidden)
+                    Button(mode == .directCommit ? "Back Up" : "Sync", systemImage: "arrow.triangle.2.circlepath") {
+                        Task { await model.syncNow() }
+                    }
                     .labelStyle(.iconOnly)
-                    .fixedSize()
+                    .disabled(model.working != nil)
+                    .help(
+                        mode == .directCommit
+                            ? "Back up your notes to \(repo.title)"
+                            : "Send your changes to \(repo.title) as a pull request"
+                    )
+                    menu
                 }
             }
         }
         .task { await model.open() }
+        .onChange(of: library.listingRevision) { model.noteChanged() }
         .onChange(of: model.needsToken) { _, needs in showingToken = showingToken || needs }
         .sheet(isPresented: $showingToken) {
             GitHubTokenView(repo: model.repo) { model.saveToken($0) }
@@ -60,6 +88,35 @@ struct GitHubSyncControls: View {
         } message: {
             Text(model.message ?? "")
         }
+    }
+
+    private var menu: some View {
+        Menu("GitHub", systemImage: "ellipsis") {
+            Picker("How to sync", selection: Binding(get: { mode }, set: { setMode($0) })) {
+                ForEach(SyncMode.allCases, id: \.self) { Text($0.title).tag($0) }
+            }
+            if mode == .directCommit {
+                Toggle("Back up AI changes too", isOn: Binding(
+                    get: { settings?.pushesAIChanges ?? false },
+                    set: { value in try? library.updateSettings(id: workspaceID) { $0.pushesAIChanges = value } }
+                ))
+                if !model.heldBack.isEmpty {
+                    Button("Back Up AI Changes Now") { Task { await model.syncNow(includeAIChanges: true) } }
+                }
+            }
+            Divider()
+            Button("Pull Only") { Task { await model.pull() } }
+            Button("Check GitHub Now") { Task { await model.refresh(fetch: true) } }
+            Divider()
+            Button("Set Token…") { showingToken = true }
+        }
+        .menuIndicator(.hidden)
+        .labelStyle(.iconOnly)
+        .fixedSize()
+    }
+
+    private func setMode(_ new: SyncMode) {
+        try? library.updateSettings(id: workspaceID) { $0.syncMode = new }
     }
 }
 
@@ -114,6 +171,7 @@ struct GitHubCloneView: View {
     @State private var address = ""
     @State private var token = ""
     @State private var parent: URL?
+    @State private var mode = SyncMode.directCommit
     @State private var choosingFolder = false
     @State private var working = false
     @State private var problem: String?
@@ -127,6 +185,9 @@ struct GitHubCloneView: View {
             Section {
                 TextField("Repository", text: $address, prompt: Text("owner/name or a github.com address"))
                 SecureField("Token", text: $token, prompt: Text("Needed for a private repository"))
+                Picker("How to sync", selection: $mode) {
+                    ForEach(SyncMode.allCases, id: \.self) { Text($0.title).tag($0) }
+                }
                 LabeledContent("Save in") {
                     Button(parent?.path ?? "Choose Folder…") { choosingFolder = true }
                         .lineLimit(1)
@@ -135,7 +196,8 @@ struct GitHubCloneView: View {
             } footer: {
                 Text(
                     "Fen clones into a new folder named after the repository and adds it as a workspace. "
-                        + "A fine-grained token for just this repository is best. Broad tokens are refused."
+                        + "Back up saves your notes to GitHub as you work. Pull requests send them to a branch for review. "
+                        + "You can change this later. A fine-grained token for just this repository is best. Broad tokens are refused."
                 )
             }
             if let problem {
@@ -182,7 +244,8 @@ struct GitHubCloneView: View {
                 let workspace = try await GitHubCloner(library: library, sync: sync).clone(
                     repo,
                     token: token,
-                    into: parent
+                    into: parent,
+                    mode: mode
                 )
                 cloned(workspace)
                 dismiss()
