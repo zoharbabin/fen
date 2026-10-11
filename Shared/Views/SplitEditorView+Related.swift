@@ -68,6 +68,12 @@ final class RelatedController {
         clear()
     }
 
+    /// Hands the editor an edit made elsewhere, such as the Properties panel. It lands in the undo
+    /// stack like typing.
+    func apply(_ edit: EditorInsertion) {
+        insertion = edit
+    }
+
     /// Whether "Insert Link" can work for the current suggestions.
     var canInsert: Bool {
         context != nil
@@ -220,9 +226,22 @@ extension SplitEditorView {
                 onSelectHeading: jumpToHeading(_:),
                 onRestOnHeading: relatedToHeading(_:)
             )
+            PropertiesSection(
+                text: document.text,
+                fileURL: document.fileURL,
+                library: .shared,
+                change: applyPropertyEdit(_:)
+            )
             BacklinksSection(fileURL: document.fileURL, library: .shared, open: openInternalLink(_:))
         }
         .frame(minWidth: 140, idealWidth: 200, maxWidth: 320)
+    }
+
+    /// Turns the Properties panel's new text into one small editor edit.
+    func applyPropertyEdit(_ newText: String) {
+        if let edit = EditorInsertion.minimalEdit(from: document.text, to: newText) {
+            related.apply(edit)
+        }
     }
 
     /// Resolves `[[names]]` in the open document, or `nil` when there are none to resolve or the

@@ -268,7 +268,7 @@ Every feature that touches a workspace follows these rules.
 
 1. **Zero footprint until you opt in.** Adding a folder writes nothing into it. No `.fen/` folder, no `.gitignore` edit.
 2. **Derived state goes in `~/.fen`, never in the folder.**
-3. **In-folder files exist only because you made them.** `.fen/schema.yaml` appears when you create a schema, so a team can share it through the repo. Nothing else Fen-owned goes in your folder.
+3. **In-folder files exist only because you made them.** `.fen/schema.yaml` appears when you create a schema, so a team can share it through the repo. Nothing else Fen-owned goes in your folder. See [Document types](#document-types-a-plain-schema-file-typed-properties-nothing-forced).
 4. **No committed index or manifest.** Graphs and indexes are computed at runtime.
 5. **`git log` is the changelog.** Fen keeps no parallel change log in the repo.
 6. **Small, deliberate diffs.** No auto-touched `modified:` dates or other noise. Every write is something you'd want to see in `git diff`.
@@ -375,6 +375,24 @@ Tests: `RelatedDocumentsTests`, `EditorSelectionTests`, `RelatedControllerTests`
 **Backlinks.** `WorkspaceSearch.backlinks` (`Shared/Search/Backlinks.swift`) reads the `links` table of the index, so it lists files that are not open. A `[[name]]` counts only when the resolver sends it to this file, so a same-named file in another folder does not claim the link. `BacklinksSection` shows the list under the outline, only when it has rows. Nothing is written to the folder: the index stays in `~/.fen`.
 
 Tests: `WikiLinkTests` (including a real `WKWebView`) and `BacklinksTests`.
+
+## Document types: a plain schema file, typed properties, nothing forced
+
+A workspace can define document types in `.fen/schema.yaml`. A document picks one with `type: Name` in its front matter. Until you create the file, the workspace uses the built-in types (`SchemaStarters.defaultSchema`: Person, Project, Meeting, Task, Journal, Reference). Starter packs for Sales, Engineering, Writer and Student are in `SchemaStarters.packs`.
+
+**The file.** `DocumentSchema(yaml:)` and `.yaml` (`Shared/Schema/DocumentSchema+YAML.swift`) read and write it. Fields use JSON Schema words: `type: string | number | boolean | array`, `format: date`, `enum: [...]`, `required: true`. The writer is hand-built so the layout is stable and diffs stay small. Unknown keys are ignored, so a newer minor version still loads. `schema_version` is the version of your own types, not of the file format.
+
+**Versions.** `SchemaDiff` sorts every change into additive or breaking. A new type, a new optional field, an added choice value, a relaxed `required` and description or visibility edits are additive and bump the minor version. A removed type or field, a changed kind, a removed choice value and a new required field are breaking. `SchemaStore.save` refuses a breaking change unless the major version went up, and refuses any change that does not raise the version.
+
+**The folder.** `SchemaStore` reaches the file only through `PathGate`, so a `.fen` symlink that leaves the workspace is refused. Loading never writes. `create` runs only after the confirmation in `SchemaSettingsView` and never overwrites an existing file. This is the only file Fen adds to a workspace (see [Storage and git rules](#storage-and-git-rules-zero-footprint-in-folders-state-in-fen)).
+
+**Migration.** A breaking change opens `SchemaReviewView`. `SchemaMigration.suggestedRenames` proposes renames, `preview` lists the documents each one would touch without writing, and Save stays disabled until you have seen that list. `apply` sends one `.replaceText` per document through `WriteGate` as a user-invoked `schema-migration` run, so each change is in Activity and "revert this run" undoes the lot. A file that changed since the preview is not overwritten.
+
+**Properties.** `PropertiesSnapshot` computes the rows and the text each edit produces. `FrontMatterEditor.setRaw`, `renameKey` and `removeKey` change one line and keep every other byte. `PropertiesSection` hands the new text to `EditorInsertion.minimalEdit`, which cuts the shared start and end, and the editor applies the result like typing, so undo works. A list stored as a block is shown and not edited.
+
+**Hints.** `SchemaHints` warns about a near-miss `type:` value, a near-miss field name, and a misspelt `type` key (edit distance with swaps). It advises only. It never blocks a save, rejects a value or edits the file. "Fix" is an undoable editor edit you click. A document with an unknown type, or none, gets no panel and opens like any other file.
+
+Tests: `SchemaTests`, `SchemaDiffTests` (including random edits), `SchemaStoreTests`, `SchemaHintsTests`, `PropertiesSnapshotTests`, `SchemaMigrationTests`, `SchemaDraftTests`. The SwiftUI views (`PropertiesSection`, `SchemaSettingsView`, `SchemaReviewView`) are compiled on macOS and iOS but not driven by a UI test.
 
 ## Every third-party resource is vendored, not loaded from a CDN
 

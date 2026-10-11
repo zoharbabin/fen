@@ -274,7 +274,7 @@ public struct MarkdownRenderer: Sendable {
         guard lines.count > 2 else { return FrontMatterResult(stripped: text, yaml: nil, lineCount: 0) }
 
         var endIndex: Int?
-        for i in 1 ..< lines.count where lines[i].trimmingCharacters(in: .whitespaces) == "---" {
+        for i in 1 ..< lines.count where lines[i].trimmingCharacters(in: .whitespacesAndNewlines) == "---" {
             endIndex = i
             break
         }

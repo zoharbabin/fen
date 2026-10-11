@@ -35,6 +35,8 @@ public final class WorkspaceLibrary {
     public private(set) var currentWorkspaceID: UUID?
     /// Bumps when a workspace's file list changes, so a rendered `[[name]]` can be checked again.
     public private(set) var listingRevision = 0
+    /// Bumps when a workspace's schema file is created or saved here, so open documents reload it.
+    public private(set) var schemaRevision = 0
 
     let scheduler: WorkspaceJobScheduler
     @ObservationIgnored private let watching: Bool
@@ -163,6 +165,11 @@ public final class WorkspaceLibrary {
             return nil
         }
         return source.fileURL(forRelativePath: relativePath)
+    }
+
+    /// Tells open documents that a schema file changed.
+    func schemaDidChange() {
+        schemaRevision += 1
     }
 
     // MARK: - Search

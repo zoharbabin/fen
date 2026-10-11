@@ -11,6 +11,7 @@ struct WorkspaceSettingsView: View {
     @State private var errorMessage: String?
     @State private var confirming: AutoApproveTarget?
     @State private var replacingText: String
+    @State private var showingSchema = false
 
     private enum AutoApproveTarget: Identifiable {
         case workspace
@@ -67,6 +68,14 @@ struct WorkspaceSettingsView: View {
                 writeRulesSection
 
                 Section {
+                    Button("Edit Document Types…") { showingSchema = true }
+                } header: {
+                    Text("Document types")
+                } footer: {
+                    Text("Types and fields for the front matter of your documents. Stored in .fen/schema.yaml.")
+                }
+
+                Section {
                     TextEditor(text: $includeText)
                         .font(.body.monospaced())
                         .frame(minHeight: 70)
@@ -112,6 +121,9 @@ struct WorkspaceSettingsView: View {
             }
         }
         .frame(minWidth: 460, minHeight: 520)
+        .sheet(isPresented: $showingSchema) {
+            SchemaSettingsView(library: library, workspace: workspace)
+        }
         .confirmationDialog(
             "Turn on auto-approve?",
             isPresented: Binding(get: { confirming != nil }, set: {
