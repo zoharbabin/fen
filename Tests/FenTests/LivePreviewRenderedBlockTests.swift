@@ -336,6 +336,20 @@ struct LivePreviewWebSnapshotTests {
     }
 
     @Test
+    func aMermaidPictureHasNoCardAroundIt() async throws {
+        let image = try #require(try await render(.mermaid, "```mermaid\ngraph TD; A-->B; B-->C;\n```"))
+        let cgImage = try #require(image.cgImage(forProposedRect: nil, context: nil, hints: nil))
+        let bitmap = NSBitmapImageRep(cgImage: cgImage)
+        // The theme's card is a gray border and fill. Its left edge and top-left corner would be inked.
+        for y in 0 ..< bitmap.pixelsHigh {
+            #expect((bitmap.colorAt(x: 0, y: y)?.alphaComponent ?? 0) < 0.05)
+        }
+        for x in 0 ..< bitmap.pixelsWide {
+            #expect((bitmap.colorAt(x: x, y: 0)?.alphaComponent ?? 0) < 0.05)
+        }
+    }
+
+    @Test
     func aMermaidDiagramBecomesAnImageOfTheRequestedWidth() async throws {
         let image = try #require(try await render(.mermaid, "```mermaid\ngraph TD; A-->B; B-->C;\n```"))
         #expect(image.size.width == 400)

@@ -165,6 +165,14 @@ enum LivePreviewWebSnapshot {
             s.setProperty('padding', '0', 'important');
             s.setProperty('max-width', 'none', 'important');
             s.setProperty('display', 'flow-root', 'important');
+            // The theme draws a card around a diagram. The editor draws the picture on its own background.
+            document.querySelectorAll('pre, .fen-mermaid-container').forEach(function (box) {
+                box.style.setProperty('background', 'transparent', 'important');
+                box.style.setProperty('border', 'none', 'important');
+                box.style.setProperty('box-shadow', 'none', 'important');
+                box.style.setProperty('padding', '0', 'important');
+                box.style.setProperty('margin', '0', 'important');
+            });
             if (!(\(check))) { return -1; }
             return Math.ceil(document.body.getBoundingClientRect().height);
         })()
