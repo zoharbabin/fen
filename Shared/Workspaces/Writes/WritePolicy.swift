@@ -12,6 +12,7 @@ public enum WriteDecision: Sendable, Equatable {
         case replacingNotOptedIn
         case paused
         case overCap
+        case lowConfidence
     }
 }
 
@@ -60,6 +61,7 @@ public struct WritePolicy: Codable, Sendable, Equatable {
 
     public static let defaultMaxFilesPerRun = 20
     public static let defaultMaxChangedFraction = 0.5
+    public static let defaultMinConfidence = 0.8
     /// Most specific first.
     static let precedence: [WriteRuleKind] = [.client, .pathGlob, .documentType, .operation]
 
@@ -71,19 +73,24 @@ public struct WritePolicy: Codable, Sendable, Equatable {
     public var maxFilesPerRun: Int
     /// Most of a document one replacing edit may change before it asks. 0.5 is half.
     public var maxChangedFraction: Double
+    /// Proposals that carry a confidence (classification, link resolution) are auto-approved only at or
+    /// above this. 0 to 1.
+    public var autoApproveMinConfidence: Double
 
     public init(
         overrides: [Override] = [],
         autoApproveConfirmed: Bool = false,
         autoApproveReplacing: Set<String> = [],
         maxFilesPerRun: Int = WritePolicy.defaultMaxFilesPerRun,
-        maxChangedFraction: Double = WritePolicy.defaultMaxChangedFraction
+        maxChangedFraction: Double = WritePolicy.defaultMaxChangedFraction,
+        autoApproveMinConfidence: Double = WritePolicy.defaultMinConfidence
     ) {
         self.overrides = overrides
         self.autoApproveConfirmed = autoApproveConfirmed
         self.autoApproveReplacing = autoApproveReplacing
         self.maxFilesPerRun = maxFilesPerRun
         self.maxChangedFraction = maxChangedFraction
+        self.autoApproveMinConfidence = autoApproveMinConfidence
     }
 
     public init(from decoder: Decoder) throws {
@@ -95,7 +102,9 @@ public struct WritePolicy: Codable, Sendable, Equatable {
             maxFilesPerRun: container.decodeIfPresent(Int.self, forKey: .maxFilesPerRun)
                 ?? WritePolicy.defaultMaxFilesPerRun,
             maxChangedFraction: container.decodeIfPresent(Double.self, forKey: .maxChangedFraction)
-                ?? WritePolicy.defaultMaxChangedFraction
+                ?? WritePolicy.defaultMaxChangedFraction,
+            autoApproveMinConfidence: container.decodeIfPresent(Double.self, forKey: .autoApproveMinConfidence)
+                ?? WritePolicy.defaultMinConfidence
         )
     }
 
@@ -157,6 +166,9 @@ public struct WritePolicy: Codable, Sendable, Equatable {
         if facts.paused {
             return .ask(.paused)
         }
+        if let confidence = facts.confidence, confidence < autoApproveMinConfidence {
+            return .ask(.lowConfidence)
+        }
         if facts.tier == .replacing, !facts.exemptFromReplacingOptIn,
            !autoApproveReplacing.contains(facts.operation) {
             return .ask(.replacingNotOptedIn)
@@ -173,6 +185,8 @@ public struct WriteFacts: Sendable, Equatable {
     public var invokedByUser: Bool
     public var paused = false
     public var overCap = false
+    /// How sure the feature is of this proposal, if it scores them.
+    public var confidence: Double?
     /// For schema migrations (#7), which replace text by design.
     public var exemptFromReplacingOptIn = false
 }

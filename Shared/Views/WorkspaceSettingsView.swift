@@ -147,6 +147,13 @@ struct WorkspaceSettingsView: View {
             TextField("Auto-approve replacing text for", text: $replacingText, prompt: Text("enrich, tidy"))
                 .help("Operation names, separated by commas. Replacing text needs this opt-in on top of auto-approve.")
             Stepper(
+                "Ask when Fen is under \(Int((draft.writePolicy.autoApproveMinConfidence * 100).rounded()))% sure",
+                value: $draft.writePolicy.autoApproveMinConfidence,
+                in: 0.3 ... 1,
+                step: 0.05
+            )
+            .help("Applies to types, links and stubs Fen works out itself. Below this, the change waits for you.")
+            Stepper(
                 "At most \(draft.writePolicy.maxFilesPerRun) files per run",
                 value: $draft.writePolicy.maxFilesPerRun,
                 in: 1 ... 200

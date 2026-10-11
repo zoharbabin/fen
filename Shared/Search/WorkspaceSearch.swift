@@ -244,6 +244,17 @@ public final class WorkspaceSearch {
         )
     }
 
+    /// The cosine below which a match is noise for the on-device model. 0 when there is none.
+    public var similarityFloor: Float {
+        embedder?.similarityFloor ?? 0
+    }
+
+    /// The unit-length vector of `text` from the on-device model, or `nil` when there is none (no
+    /// model, a language it doesn't cover). Nothing leaves the device.
+    public func embedding(of text: String) async -> [Float]? {
+        await vector(forQuery: text)
+    }
+
     private func vector(forQuery query: String) async -> [Float]? {
         guard let embedder, await resolveIdentity() != nil,
               let raw = try? await embedder.embed(query) else { return nil }

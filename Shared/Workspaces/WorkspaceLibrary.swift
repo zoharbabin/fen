@@ -368,7 +368,7 @@ public final class WorkspaceLibrary {
         watchers[id] = watcher
     }
 
-    private func source(for id: UUID) -> LocalFolderSource? {
+    func source(for id: UUID) -> LocalFolderSource? {
         if let cached = sources[id] {
             return cached
         }

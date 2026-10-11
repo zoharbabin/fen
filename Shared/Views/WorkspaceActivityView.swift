@@ -7,6 +7,7 @@ struct WorkspaceActivityView: View {
     let workspace: Workspace
     @Environment(\.dismiss) private var dismiss
     @State private var message: String?
+    @State private var confirmingApproveAll = false
 
     var body: some View {
         NavigationStack {
@@ -18,10 +19,23 @@ struct WorkspaceActivityView: View {
                         .foregroundStyle(.orange)
                 }
                 if !waiting.isEmpty {
-                    Section("Waiting for you") {
+                    Section {
                         ForEach(waiting) { item in
                             PendingRow(item: item, approve: { approve(item) }, reject: { gate.reject(item.id) })
                         }
+                    } header: {
+                        HStack {
+                            Text("Waiting for you")
+                            Spacer()
+                            if waiting.count > 1 {
+                                Button("Approve All (\(waiting.count))") { confirmingApproveAll = true }
+                            }
+                        }
+                    }
+                }
+                if let line = statsLine {
+                    Section("How often you keep what Fen proposes") {
+                        Text(line).font(.callout).foregroundStyle(.secondary)
                     }
                 }
                 Section("Applied") {
@@ -36,6 +50,15 @@ struct WorkspaceActivityView: View {
             .navigationTitle("\(workspace.name) Activity")
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
+            }
+            .confirmationDialog(
+                "Approve all \(waiting.count) changes?",
+                isPresented: $confirmingApproveAll,
+                titleVisibility: .visible
+            ) {
+                Button("Approve All") { approveAll(waiting) }
+            } message: {
+                Text("Each change is applied as shown. You can undo any of them afterwards.")
             }
             .alert("Activity", isPresented: Binding(get: { message != nil }, set: {
                 if !$0 {
@@ -56,6 +79,31 @@ struct WorkspaceActivityView: View {
         } catch {
             message = error.localizedDescription
         }
+    }
+
+    private func approveAll(_ items: [WriteGate.Pending]) {
+        var failures: [String] = []
+        for item in items {
+            do {
+                try gate.approve(item.id)
+            } catch {
+                failures.append("\(item.change.edit.primaryPath): \(error.localizedDescription)")
+            }
+        }
+        if !failures.isEmpty {
+            message = "Left alone:\n" + failures.joined(separator: "\n")
+        }
+    }
+
+    /// One line per operation, once there are enough answers to say something.
+    private var statsLine: String? {
+        let rows = gate.stats(for: workspace.id).operations
+            .filter { $0.value.total >= 3 }
+            .sorted { $0.key < $1.key }
+            .map { name, counts in
+                "\(name): kept \(Int(((counts.keptRate ?? 0) * 100).rounded()))% of \(counts.total)"
+            }
+        return rows.isEmpty ? nil : rows.joined(separator: "\n")
     }
 
     private func undo(_ entry: ActivityEntry) {
@@ -87,6 +135,9 @@ private struct PendingRow: View {
                 Text(item.change.edit.name).font(.caption).foregroundStyle(.secondary)
             }
             Text(reasonText).font(.caption).foregroundStyle(.secondary)
+            if let basis = item.change.basis {
+                BasisView(basis: basis)
+            }
             DiffText(diff: item.diff)
             HStack {
                 Button("Approve", action: approve).buttonStyle(.borderedProminent)
@@ -103,7 +154,27 @@ private struct PendingRow: View {
         case .replacingNotOptedIn: "Auto-approve isn't on for replacing text in this operation."
         case .paused: "Auto-approve is paused."
         case .overCap: "This run changed more than the limits in the workspace settings."
+        case .lowConfidence: "Fen isn't sure enough to apply this on its own. Check it first."
         }
+    }
+}
+
+/// Why Fen proposed a change: the method, how sure it is, and the text it went on.
+private struct BasisView: View {
+    let basis: ProposalBasis
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text("\(basis.detail) · \(Int((basis.confidence * 100).rounded()))% sure (\(basis.method))")
+                .font(.caption)
+            if !basis.evidence.isEmpty {
+                Text(basis.evidence)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(3)
+            }
+        }
+        .accessibilityElement(children: .combine)
     }
 }
 

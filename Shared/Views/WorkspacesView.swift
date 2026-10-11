@@ -297,6 +297,10 @@ private struct WorkspaceDetailView: View {
     @State private var showingActivity = false
     @State private var enrichingPath: String?
     @State private var enrichMessage: String?
+    @State private var classifyTask: Task<Void, Never>?
+    @State private var classifyProgress: String?
+    @State private var classifyMessage: String?
+    @State private var includeTyped = false
 
     var body: some View {
         let state = library.state(for: workspace.id)
@@ -308,6 +312,16 @@ private struct WorkspaceDetailView: View {
         .navigationTitle(workspace.name)
         .sheet(isPresented: $showingActivity) {
             WorkspaceActivityView(gate: gate, workspace: workspace)
+        }
+        .onDisappear { classifyTask?.cancel() }
+        .alert("Types and Links", isPresented: Binding(get: { classifyMessage != nil }, set: {
+            if !$0 {
+                classifyMessage = nil
+            }
+        })) {
+            Button("OK") { classifyMessage = nil }
+        } message: {
+            Text(classifyMessage ?? "")
         }
         .alert("Enrich", isPresented: Binding(get: { enrichMessage != nil }, set: {
             if !$0 {
@@ -339,6 +353,33 @@ private struct WorkspaceDetailView: View {
         }
     }
 
+    /// Finds a type for each untyped note, links names in typed fields, and offers stubs for names
+    /// with no note. Every result goes through the write gate.
+    private func classify() {
+        guard classifyTask == nil else { return }
+        classifyProgress = "Reading notes…"
+        classifyTask = Task {
+            defer {
+                classifyTask = nil
+                classifyProgress = nil
+            }
+            var options = ClassificationRun.Options()
+            options.includeTyped = includeTyped
+            let runner = ClassificationRun(library: library, service: .shared, gate: gate)
+            do {
+                let summary = try await runner
+                    .run(workspaceID: workspace.id, options: options) { done, total in
+                        classifyProgress = "Reading \(done) of \(total)"
+                    }
+                classifyMessage = summary.text
+            } catch is CancellationError {
+                classifyMessage = "Stopped. Changes made before that are in Activity."
+            } catch {
+                classifyMessage = error.localizedDescription
+            }
+        }
+    }
+
     private func header(_ state: WorkspaceState) -> some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
@@ -355,6 +396,7 @@ private struct WorkspaceDetailView: View {
             }
             Spacer()
             indexControls(library.indexStatus(for: workspace.id))
+            classifyControls
             Button("Activity", systemImage: "clock.arrow.circlepath") { showingActivity = true }
                 .labelStyle(.iconOnly)
                 .badge(gate.pending(for: workspace.id).count)
@@ -374,6 +416,21 @@ private struct WorkspaceDetailView: View {
         }
         .padding(.horizontal)
         .padding(.vertical, 8)
+    }
+
+    @ViewBuilder
+    private var classifyControls: some View {
+        if let progress = classifyProgress {
+            ProgressView().controlSize(.small)
+            Text(progress).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+            Button("Stop") { classifyTask?.cancel() }
+        } else {
+            Menu("Types and Links", systemImage: "tag") {
+                Button("Find Types and Links") { classify() }
+                Toggle("Also re-check notes that have a type", isOn: $includeTyped)
+            }
+            .help("Give untyped notes a type, link names in typed fields, and offer notes for missing names")
+        }
     }
 
     @ViewBuilder

@@ -83,6 +83,19 @@ enum FrontMatterEditor {
         block(in: text).map { String(text.dropLast($0.closingAndRest.count)) }
     }
 
+    /// The front matter lines without line endings or fences, or `nil` when there is no front matter.
+    static func lines(of text: String) -> [String]? {
+        block(in: text)?.lines
+    }
+
+    /// `text` with its front matter lines replaced and every byte after the front matter kept.
+    static func replacingLines(in text: String, with lines: [String]) -> String? {
+        guard let block = block(in: text) else { return nil }
+        let newline = text.contains("\r\n") ? "\r\n" : "\n"
+        let body = lines.isEmpty ? "" : lines.joined(separator: newline) + newline
+        return block.opening + body + block.closingAndRest
+    }
+
     // MARK: - Parsing
 
     private struct Block {

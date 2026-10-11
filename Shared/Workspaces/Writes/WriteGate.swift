@@ -114,6 +114,7 @@ public final class WriteGate {
             invokedByUser: change.invokedByUser,
             paused: isPaused,
             overCap: isOverCap(plan, change, settings.writePolicy),
+            confidence: change.basis?.confidence,
             exemptFromReplacingOptIn: exemptFromReplacingOptIn
         ))
         switch decision {
@@ -126,6 +127,9 @@ public final class WriteGate {
             return .pending(item)
         case .apply:
             let entry = try perform(plan, change, context, approvedBy: change.invokedByUser ? .invoked : .auto)
+            if !change.invokedByUser {
+                record(.auto, change)
+            }
             return .applied(entry)
         }
     }
@@ -137,11 +141,27 @@ public final class WriteGate {
         let context = try context(for: item.change.workspaceID)
         defer { pending.removeAll { $0.id == id } }
         let plan = try makePlan(for: item.change, context)
-        return try perform(plan, item.change, context, approvedBy: .user)
+        let entry = try perform(plan, item.change, context, approvedBy: .user)
+        record(.accepted, item.change)
+        return entry
     }
 
     public func reject(_ id: UUID) {
+        if let item = pending.first(where: { $0.id == id }) {
+            record(.dismissed, item.change)
+        }
         pending.removeAll { $0.id == id }
+    }
+
+    /// What you accepted and dismissed in a workspace, per operation.
+    public func stats(for workspaceID: UUID) -> ProposalStats {
+        ProposalStatsStore(file: home.proposalStatsFile(id: workspaceID)).load()
+    }
+
+    /// Counting never blocks a write, so a failure to save a count is dropped.
+    private func record(_ outcome: ProposalStats.Outcome, _ change: ProposedChange) {
+        try? ProposalStatsStore(file: home.proposalStatsFile(id: change.workspaceID))
+            .record(outcome, operation: change.operation)
     }
 
     public func pending(for workspaceID: UUID) -> [Pending] {

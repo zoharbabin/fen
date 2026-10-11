@@ -254,6 +254,7 @@ Fen's own state lives in one folder, `~/.fen` (`FenHome`). In a sandboxed macOS 
   workspaces/<id>/
     index/               search.sqlite: words and vectors. A cache, safe to delete.
     history/             pre-images and activity.jsonl. Worth keeping.
+    proposal-stats.json  how often you keep each kind of proposal. Counts only.
   models/                downloaded model weights
   write-policy.json      the global "pause auto-approve" switch
 ```
@@ -330,7 +331,7 @@ AI features never write to a workspace themselves. They build a `ProposedChange`
 
 **Modes and overrides.** The workspace default is `WorkspaceSettings.approvalMode`. Rules in `WritePolicy.overrides` match an MCP client, a path pattern, a document type or an operation. The most specific kind that matches wins (client, path, type, operation). Two matches of one kind resolve to the stricter. Off blocks. A change you start yourself counts as approved, except a destructive one.
 
-**What forces Ask.** Auto-approve is Ask until you confirm it once, for the workspace and for each rule. The global pause (`WriteGate.setPaused`, `~/.fen/write-policy.json`) turns every auto-approve into Ask. A run over `maxFilesPerRun`, or a replacing edit that changes more than `maxChangedFraction` of a document, drops to Ask.
+**What forces Ask.** Auto-approve is Ask until you confirm it once, for the workspace and for each rule. The global pause (`WriteGate.setPaused`, `~/.fen/write-policy.json`) turns every auto-approve into Ask. A run over `maxFilesPerRun`, or a replacing edit that changes more than `maxChangedFraction` of a document, drops to Ask. A change that carries a `ProposalBasis` with a confidence below `WritePolicy.autoApproveMinConfidence` (default 0.8) also drops to Ask (`AskReason.lowConfidence`). A change you start yourself skips this check. Changes without a basis, like Enrich, are not affected.
 
 **Undo.** `WriteGate.undo` restores the saved bytes only if the file still hashes to what Fen wrote, so it never overwrites your later edit. `revertRun` undoes every change of one run, newest first, and lists the ones it left alone. The log and pre-images survive a restart. `Provenance.commitTrailer` gives the `AI-Assisted-By:` line for a commit you write. Fen adds no markers to files, and `FrontMatterEditor` changes one line and keeps every other byte.
 
@@ -421,6 +422,26 @@ Tests: `AskAnswerTests`, `AskControllerTests` (loopback provider: citations, not
 **Whole files and the write rules.** `FileEnricher` enriches the short bullets (up to 12 words) of one workspace file from the file list's context menu ("Enrich Bullets"). Nobody watches that run, so the change goes to `WriteGate` with `invokedByUser: false`, operation `enrich`, and `insertBelow` (additive). The workspace mode decides: Ask queues a diff and writes nothing, Auto-approve writes and logs it with undo, Off does nothing and sends nothing. The gate's hash check refuses the write if the file changed after Fen read it. There is no on-save or scheduled trigger yet.
 
 Tests: `InlineAITests` (target, prompt, reply cleaning, bullets, fact checks, placement, heading slug), `InlineAIControllerTests` (streaming never touches the document, Stop, preview, stale text, scopes, provider and workspace rules, citations that resolve to a real file and heading, no supporting note), `InlineAIEditorE2ETests` (a real text view: one Undo), `FileEnricherTests` (Ask queues, Auto-approve writes and undoes, Off does nothing, hash check, `insertBelow` rules).
+
+## Types and links: a local guess first, the model only for close calls
+
+`ClassificationRun` (`Shared/Classify/`) reads a workspace's notes through the same `WorkspaceSource` as the index and proposes three kinds of change. Every one is a `ProposedChange` with `invokedByUser: false` and a `ProposalBasis` (method, confidence, detail, evidence). The gate decides. "Types and Links" in the workspace header starts a run. The run is a cancelable task, and Stop keeps what was already submitted.
+
+| Operation | Edit | Tier | Basis |
+|---|---|---|---|
+| `classify` | `setFrontMatter(type)` | Additive for an untyped note. Replacing for a typed one (only with "Also re-check notes that have a type") | The type's name and description, or the model's answer, with the start of the note as evidence |
+| `resolve-links` | `replaceText` of the front matter head | Replacing | The field, the mention, the note it matched and how (title, file name, part of a name) |
+| `create-stub` | `createFile` | Additive | The field with the most resolved names. The stub copies the type and folder of its siblings |
+
+**Types.** `TypeClassifier` compares the note's embedding (`WorkspaceSearch.embedding(of:)`, on this device, no network) with each type's name and description. Notes already typed in the workspace count too: up to ten per type are blended in (`TypeClassifier.blend`), so a type is matched by what its notes look like. A clear winner is a proposal. A close call between types goes to the provider, but only if `InlineAIAccess.reason` allows it, with the close types as the only choices (`ModelClassification` rejects any other answer). Without a provider, or without access, the top type is proposed at 0.5 and waits. A re-check ignores the examples, so a note's current type cannot vote for itself. The model call cap per run is `Options.maxModelCalls`.
+
+**Confidence.** An on-device match claims at most `ClassificationRun.embeddingCeiling` (0.75), below the default threshold. The spot check with the real model (`TypeClassifierPrecisionTests`, `FEN_SPIKE=1` prints it) showed that description matches alone are often wrong, so by default they wait for you. A provider's "high" is 0.9. Lower the threshold in the workspace settings once the Activity view shows you keep most of what Fen proposes.
+
+**Links.** `LinkPlanner` reads the text and list fields of typed notes, never the body. A name resolves to a note by exact title (0.95), file name (0.9) or part of a name (0.7), through `LinkResolver`. A name that matches several notes is left alone and reported. A rewritten value is the quoted wiki link `"[[Jane Doe]]"`. Changing a field is Replacing, so it needs `autoApproveReplacing` to include `resolve-links`. A stub is offered only for a field where at least two names resolved, so a free-text field does not fill the folder with notes. It is never applied on its own (0.6), and `createFile` on an existing path fails, so an existing note is never overwritten. An `overwrite` is Destructive and always asks.
+
+**Duplicates and stats.** A second run does not queue a change that already waits for the same operation and path. `WriteGate` counts what happens to each operation (`auto`, `accepted`, `dismissed`) in `~/.fen/workspaces/<id>/proposal-stats.json` (`ProposalStatsStore`). Counts stay on this device. The Activity view shows the kept share per operation.
+
+Tests: `TypeClassifierTests`, `LinkResolutionTests` (pure parts), `ClassificationRunTests` and `ClassificationLinkRunTests` (a real library, gate and loopback provider: queue, threshold, per-type and per-path rules, retyping, stubs, stats, no request without access), `TypeClassifierPrecisionTests` (real model, loose bounds).
 
 ## Every third-party resource is vendored, not loaded from a CDN
 

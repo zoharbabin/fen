@@ -39,6 +39,11 @@ public struct FenHome: Sendable, Equatable {
             .appendingPathComponent(id.uuidString.lowercased(), isDirectory: true)
     }
 
+    /// Counts of proposals accepted and dismissed, per operation (issue #11).
+    public func proposalStatsFile(id: UUID) -> URL {
+        workspaceDirectory(id: id).appendingPathComponent("proposal-stats.json")
+    }
+
     public func indexDirectory(id: UUID) -> URL {
         workspaceDirectory(id: id).appendingPathComponent("index", isDirectory: true)
     }

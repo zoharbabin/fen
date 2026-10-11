@@ -101,6 +101,25 @@ public struct Provenance: Codable, Sendable, Equatable {
     }
 }
 
+/// Why a proposal was made, so you can judge it in the approval list (issue #11).
+public struct ProposalBasis: Codable, Sendable, Equatable {
+    /// What produced it, such as `embedding`, `model`, `title`, or `filename`.
+    public var method: String
+    /// 0 to 1. Below the workspace's threshold, auto-approve asks instead.
+    public var confidence: Double
+    /// The matched field or type, in a few words.
+    public var detail: String
+    /// The text the proposal rests on, a short span from the document.
+    public var evidence: String
+
+    public init(method: String, confidence: Double, detail: String, evidence: String = "") {
+        self.method = method
+        self.confidence = confidence
+        self.detail = detail
+        self.evidence = evidence
+    }
+}
+
 /// One change an AI feature wants to make.
 public struct ProposedChange: Identifiable, Sendable, Equatable {
     public let id: UUID
@@ -122,6 +141,8 @@ public struct ProposedChange: Identifiable, Sendable, Equatable {
     /// destructive one).
     public var invokedByUser: Bool
     public var provenance: Provenance
+    /// Why it was proposed and how sure Fen is. Features that score their proposals set it.
+    public var basis: ProposalBasis?
 
     public init(
         id: UUID = UUID(),
@@ -134,7 +155,8 @@ public struct ProposedChange: Identifiable, Sendable, Equatable {
         scope: Set<String>,
         baseHash: String?,
         invokedByUser: Bool = false,
-        provenance: Provenance
+        provenance: Provenance,
+        basis: ProposalBasis? = nil
     ) {
         self.id = id
         self.workspaceID = workspaceID
@@ -147,5 +169,6 @@ public struct ProposedChange: Identifiable, Sendable, Equatable {
         self.baseHash = baseHash
         self.invokedByUser = invokedByUser
         self.provenance = provenance
+        self.basis = basis
     }
 }
