@@ -30,8 +30,17 @@ public final class ExternalFileChangeMonitor: NSObject, NSFilePresenter, @unchec
         // against this same presenter forces a round-trip through the coordination server,
         // which only completes once the presenter is actually registered.
         let coordinator = NSFileCoordinator(filePresenter: self)
-        var error: NSError?
-        coordinator.coordinate(readingItemAt: fileURL, options: [], error: &error) { _ in }
+        let roundTrip = {
+            var error: NSError?
+            coordinator.coordinate(readingItemAt: fileURL, options: [], error: &error) { _ in }
+        }
+        #if os(iOS)
+            // UIDocument is a presenter on the main queue. A coordinated read from the main thread
+            // waits for it to answer there, so the app hangs. Do the round trip off the main thread.
+            DispatchQueue.global(qos: .userInitiated).async(execute: roundTrip)
+        #else
+            roundTrip()
+        #endif
     }
 
     public func stop() {
