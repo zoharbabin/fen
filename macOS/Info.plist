@@ -46,6 +46,16 @@
 	<true/>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+	<key>SUAllowsAutomaticUpdates</key>
+	<false/>
+	<key>SUEnableAutomaticChecks</key>
+	<false/>
+	<key>SUFeedURL</key>
+	<string>https://github.com/zoharbabin/fen/releases/latest/download/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>dnfYTokhFxkg/8Q6DE21ms4Kv3Irazz/WNVOrXTw/FY=</string>
+	<key>SUVerifyUpdateBeforeExtraction</key>
+	<true/>
 	<key>UTImportedTypeDeclarations</key>
 	<array>
 		<dict>

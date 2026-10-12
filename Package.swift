@@ -30,6 +30,7 @@ let package = Package(
         .package(url: "https://github.com/jpsim/Yams.git", from: "5.0.0"),
         .package(url: "https://github.com/apple/swift-collections.git", from: "1.1.0"),
         .package(path: "Dependency/Highlightr"),
+        .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.10.0"),
     ],
     targets: [
         .target(
@@ -54,7 +55,10 @@ let package = Package(
         ),
         .executableTarget(
             name: "FenMacOS",
-            dependencies: ["FenCore"],
+            dependencies: [
+                "FenCore",
+                .product(name: "Sparkle", package: "Sparkle", condition: .when(platforms: [.macOS])),
+            ],
             path: "macOS"
         ),
         .executableTarget(

@@ -12,6 +12,8 @@ name: Release
 #   APPLE_ID                your Apple ID email
 #   APPLE_APP_PASSWORD      an app-specific password (appleid.apple.com)
 #   APPLE_TEAM_ID           your 10-character Team ID
+#   SPARKLE_PRIVATE_KEY     EdDSA private key for in-app updates (generate_keys -x). Without it the
+#                           release ships with no appcast, and Check for Updates can't find the build.
 # (See docs/RELEASING.md for step-by-step instructions.)
 
 on:
@@ -33,6 +35,7 @@ jobs:
       APPLE_ID: ${{ secrets.APPLE_ID }}
       APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
       APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
 
     steps:
       - uses: actions/checkout@v4
@@ -130,6 +133,20 @@ jobs:
           codesign --verify --strict "$APPEX" \
             || fail "FenQuickLook.appex failed codesign verification"
 
+          # Issue #39: Sparkle must be embedded, reachable from the executable, and signed with the app's
+          # identity. The XPC services are for sandboxed apps and are removed on purpose.
+          SPARKLE="$APP/Contents/Frameworks/Sparkle.framework"
+          [ -d "$SPARKLE/Versions/B" ] \
+            || fail "Sparkle.framework missing from Contents/Frameworks/"
+          otool -l "$APP/Contents/MacOS/Fen" | grep -q "@executable_path/../Frameworks" \
+            || fail "Fen has no rpath to Contents/Frameworks"
+          [ ! -e "$SPARKLE/Versions/B/XPCServices" ] \
+            || fail "Sparkle XPCServices should be removed (Fen is not sandboxed)"
+          codesign --verify --strict --deep "$SPARKLE" \
+            || fail "Sparkle.framework failed codesign verification"
+          /usr/libexec/PlistBuddy -c "Print :SUPublicEDKey" "$APP/Contents/Info.plist" >/dev/null \
+            || fail "SUPublicEDKey missing from Info.plist"
+
           echo "Bundle structure OK"
 
       - name: Verify Quick Look extension renders
@@ -152,6 +169,17 @@ jobs:
           cd dist
           ditto -c -k --keepParent "Fen.app" "Fen.app.zip"
 
+      - name: Build appcast
+        # Sparkle reads this file to find the new build. It is signed with the private key, so a
+        # changed zip or a changed appcast fails the check inside every installed Fen.
+        if: ${{ startsWith(github.ref, 'refs/tags/') && env.MACOS_SIGN_IDENTITY != '' }}
+        run: |
+          set -euo pipefail
+          [ -n "$SPARKLE_PRIVATE_KEY" ] || { echo "SPARKLE_PRIVATE_KEY secret is not set" >&2; exit 1; }
+          VERSION="${GITHUB_REF_NAME#v}"
+          BUILD="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' dist/Fen.app/Contents/Info.plist)"
+          ./scripts/make-appcast.sh dist/Fen.app.zip "$VERSION" "$BUILD" dist/appcast.xml
+
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
@@ -165,7 +193,9 @@ jobs:
         if: ${{ startsWith(github.ref, 'refs/tags/') && env.MACOS_SIGN_IDENTITY != '' }}
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/Fen.app.zip
+          files: |
+            dist/Fen.app.zip
+            dist/appcast.xml
           generate_release_notes: true
 
       # A release published by the GITHUB_TOKEN doesn't fire other workflows' `release`

@@ -49,6 +49,17 @@ mkdir -p "$CONTENTS/MacOS" "$CONTENTS/Resources"
 cp "$BIN_PATH/$PRODUCT" "$CONTENTS/MacOS/$APP_NAME"
 chmod +x "$CONTENTS/MacOS/$APP_NAME"
 
+# Sparkle.framework (issue #39). SwiftPM leaves the binary framework next to the executable. Copy it with ditto
+# to keep its symlinks, and point the executable at Contents/Frameworks. Fen isn't sandboxed, so the XPC
+# services Sparkle ships for sandboxed apps are dead weight: drop them.
+SPARKLE="$BIN_PATH/Sparkle.framework"
+[ -d "$SPARKLE" ] || { echo "!! Sparkle.framework not found in $BIN_PATH" >&2; exit 1; }
+mkdir -p "$CONTENTS/Frameworks"
+ditto "$SPARKLE" "$CONTENTS/Frameworks/Sparkle.framework"
+rm -rf "$CONTENTS/Frameworks/Sparkle.framework/Versions/B/XPCServices"
+rm -f "$CONTENTS/Frameworks/Sparkle.framework/XPCServices"
+install_name_tool -add_rpath "@executable_path/../Frameworks" "$CONTENTS/MacOS/$APP_NAME"
+
 # SwiftPM resource bundles (themes, styles, templates, extensions).
 # Bundles live in Contents/Resources/ (Bundle.main.resourceURL), where codesign
 # expects nested bundles. Our vendored Highlightr resolves against resourceURL.
@@ -158,13 +169,17 @@ set_key NSHumanReadableCopyright "Fen — based on MacDown © 2014 Tzu-ping Chun
 # PkgInfo
 printf 'APPL????' > "$CONTENTS/PkgInfo"
 
-# Code signing. FenQuickLook.appex (if present) is signed first, with its own
-# entitlements — Apple requires nested code signed before the bundle that embeds it.
+# Code signing. Nested code is signed first, inside-out: Sparkle's helpers, Sparkle.framework, then
+# FenQuickLook.appex with its own entitlements. Apple requires nested code signed before the bundle that embeds it.
 # The outer app is then signed WITHOUT --deep: --deep would re-sign the extension using
 # the main app's entitlements instead of its own, breaking its sandboxed identity. The
 # ad-hoc branch below still uses --deep since there's only one (shared) identity there.
 if [ -n "${SIGN_IDENTITY:-}" ]; then
     echo "==> Signing with: $SIGN_IDENTITY"
+    SPARKLE_B="$CONTENTS/Frameworks/Sparkle.framework/Versions/B"
+    for nested in "$SPARKLE_B/Autoupdate" "$SPARKLE_B/Updater.app" "$CONTENTS/Frameworks/Sparkle.framework"; do
+        codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" "$nested"
+    done
     if [ -d "$CONTENTS/PlugIns/FenQuickLook.appex" ]; then
         codesign --force --options runtime --timestamp \
             --entitlements "$ROOT/FenQuickLook/FenQuickLook.entitlements" \

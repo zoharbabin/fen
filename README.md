@@ -78,7 +78,7 @@ brew tap zoharbabin/fen https://github.com/zoharbabin/fen
 brew install --cask fen
 ```
 
-To see if a newer version exists, choose **Fen > Check for Updates…**. Fen checks only when you ask, and sends you to the Releases page to download it.
+To update, choose **Fen > Check for Updates…**. Fen checks only when you ask. If a newer version exists, it downloads, verifies and installs it, then relaunches. If you installed with Homebrew, `brew upgrade --cask fen` works too. A build from source only opens the Releases page.
 
 ## Build from source
 

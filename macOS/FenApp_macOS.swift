@@ -45,7 +45,7 @@ struct FenApp: App {
                 openWindow(id: "about")
             }
             Button("Check for Updates…") {
-                Task { await UpdateChecker.checkAndShow() }
+                Task { await AppUpdater.checkForUpdates() }
             }
         }
 

@@ -13,7 +13,7 @@ Scoping for [#40](https://github.com/zoharbabin/fen/issues/40). This page says w
 | Network | `URLSession` only in `Shared/AI/`, GeoJSON maps, `GitHubAPI`, and the update check. |
 | Git | `GitTool` starts the `git` program with `Process()`. It returns `nil` on iOS. |
 | MCP | `MCPServer` listens on `127.0.0.1` with `NWListener`. |
-| Updates | The **Check for Updates…** command ([#39](https://github.com/zoharbabin/fen/issues/39)). |
+| Updates | The **Check for Updates…** command ([#39](https://github.com/zoharbabin/fen/issues/39)) runs Sparkle, which is embedded in `Contents/Frameworks`. |
 
 ## What a sandboxed build changes
 
@@ -26,13 +26,13 @@ Scoping for [#40](https://github.com/zoharbabin/fen/issues/40). This page says w
 | Network client | Needed for AI providers, model download and maps. | Add `com.apple.security.network.client`. |
 | Local models | A model download is large and starts only when you ask. Models live in `~/.fen/models`, inside the container. | Check App Review rules on downloaded executable content. Weights are data, not code, but confirm before submission. Keep the download user-started and show its size. |
 | JIT | `allow-jit` is in the current build. | Find out why it is there. Build the store flavor without it and test the preview, Mermaid and MathJax. Drop it if nothing breaks. |
-| Update check | The store updates the app. | Compile **Check for Updates…** out of the store flavor. |
+| Update check | The store updates the app, and it rejects an app that replaces itself. | Compile **Check for Updates…** and Sparkle out of the store flavor. |
 | Keychain | Provider keys use the Keychain. | Works in a sandbox. Check the access group. |
 
 ## Build flow
 
 1. Add a second app target (or build setting) with its own entitlements file, bundle identifier and a compile flag, for example `APPSTORE`.
-2. Under that flag: no `GitTool`, no update command, no sync UI.
+2. Under that flag: no `GitTool`, no update command, no Sparkle, no sync UI.
 3. Sign with an App Store distribution certificate and a provisioning profile. Upload with `xcrun altool` or Transporter from a separate workflow. Never reuse the notarization secrets.
 4. Keep the direct-download build as it is. `release.yml` doesn't change.
 

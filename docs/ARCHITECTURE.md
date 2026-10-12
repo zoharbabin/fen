@@ -624,24 +624,35 @@ The key map and the caret math are plain functions in `Shared/Editor/VimMotion.s
 
 Left out on purpose, as in [#102](https://github.com/zoharbabin/fen/issues/102): Visual mode, counts, operators, text objects, registers, `:` commands, `.` repeat and Vim-style undo. Undo is the normal Cmd-Z. Full Vim is a different-sized project, tracked in [#23](https://github.com/zoharbabin/fen/issues/23).
 
-## Check for updates: a menu command that reads the newest release and installs nothing
+## Check for updates: Sparkle installs a build you asked for
 
-**Fen > Check for Updates…** (issue #39, macOS only) asks `api.github.com/repos/zoharbabin/fen/releases/latest` for the newest release and compares its tag with the running app's `CFBundleShortVersionString` (`Shared/Updates/UpdateChecker.swift`). If a newer one exists, an alert offers to open its release page. You download the signed, notarized `Fen.app.zip` from there.
+**Fen > Check for Updates…** (issue #39, macOS only) goes through `AppUpdater` (`macOS/AppUpdater.swift`). `UpdateChannel.resolve(info:)` (`Shared/Updates/UpdateChannel.swift`) picks the channel from `Info.plist`.
+
+| Channel | When | What happens |
+|---|---|---|
+| `sparkle` | `SUPublicEDKey` is 32 bytes of base64 and `SUFeedURL` is an https `github.com/zoharbabin/fen/releases/` URL. | [Sparkle](https://sparkle-project.org) reads the appcast, shows its update window, downloads the zip, checks the EdDSA signature, replaces the app and relaunches. |
+| `releasePage` | Anything else: a build from source, or a plist without the keys. | `UpdateChecker` asks `api.github.com/repos/zoharbabin/fen/releases/latest`, compares tags and offers to open the release page. Nothing is installed. |
 
 | Rule | Why |
 |---|---|
-| It runs only when you choose the menu item. There is no background or launch-time check. | Fen stays offline unless you ask. |
-| It sends no token, no document and no identifier, and follows no redirect. | The request can't carry anything to another host. |
-| It offers only an https `github.com/zoharbabin/fen/releases/` page. | A bad answer can't send you somewhere else. |
+| It runs only when you choose the menu item. `SUEnableAutomaticChecks` and `SUAllowsAutomaticUpdates` are `false`, and the updater is created on the first click. | Fen stays offline unless you ask. |
+| Sparkle needs a valid key and a feed on this project's releases, or Fen doesn't start it. | An updater that can't verify its download must not run. |
+| The `releasePage` channel sends no token, no document and no identifier, follows no redirect, and offers only an https `github.com/zoharbabin/fen/releases/` page. | A bad answer can't send you somewhere else. |
 | A build from source (`0.0.0-dev`) says so and compares nothing. | There is no release to compare with. |
 
-We didn't add Sparkle. It would install updates in place, but it brings a third-party framework into the app, and it needs an EdDSA signing key that only the project owner can create and keep as a CI secret. Add it as a follow-up if you want silent updates. The Mac App Store build gets its updates from the store, so it leaves this command out (see [Mac App Store: scope and plan](APP-STORE.md)).
+**Release side.** `release.yml` signs `Fen.app.zip` with `scripts/make-appcast.sh` and the `SPARKLE_PRIVATE_KEY` secret, and uploads `appcast.xml` next to the zip. The feed is `https://github.com/zoharbabin/fen/releases/latest/download/appcast.xml`, so it always points at the newest release, and the appcast holds one item. Its `sparkle:version` is `CFBundleVersion` (the commit count), which is what Sparkle compares. The public key is in `macOS/Info.plist`. The private key stays in the secret and in the owner's Keychain.
 
-Tests: `UpdateCheckerTests` (version order, the request, pages outside the releases path, garbage and errors, a refused redirect) with a `URLProtocol` stub. The alert and the menu item are not covered by a test.
+**Bundle.** `scripts/build-app.sh` copies `Sparkle.framework` into `Contents/Frameworks`, adds `@executable_path/../Frameworks` to the executable's rpath and removes Sparkle's `XPCServices` (they are for sandboxed apps, and Fen isn't one). It signs inside-out, without `--deep`: `Autoupdate`, `Updater.app`, the framework, `FenQuickLook.appex`, then the app. `release.yml`'s "Verify bundle structure" step checks the framework, the rpath, the removed services and the key.
+
+**Network.** Sparkle's own requests come from inside the framework, not from our `URLSession` calls, so the `grep` rule in `CLAUDE.md` still holds. They go to the feed URL and the zip URL on `github.com`, and only after you choose the menu item.
+
+The Mac App Store build gets its updates from the store, so it leaves this command and the framework out (see [Mac App Store: scope and plan](APP-STORE.md)).
+
+Tests: `UpdateChannelTests` (key and feed rules, and the shipped `macOS/Info.plist`) and `UpdateCheckerTests` (the fallback: version order, the request, pages outside the releases path, garbage and errors, a refused redirect) with a `URLProtocol` stub. The Sparkle window, the in-place install and the menu item are not covered by a test. Installing an update needs two signed releases, so you can only check it by hand.
 
 ## Every third-party resource is vendored, not loaded from a CDN
 
-Fen's trust model is local-first: it reads and writes only inside files and folders you have granted (documents you open and workspaces you add), and — with the documented exceptions, the opt-in GeoJSON/TopoJSON map preference, [GitHub sync](#github-sync-clone-pull-and-push-with-the-git-you-have-a-scoped-token-in-the-keychain) (git, and the GitHub API for pull requests) for a workspace you cloned, the [update check](#check-for-updates-a-menu-command-that-reads-the-newest-release-and-installs-nothing) you start from the menu, and [AI providers you add yourself](#ai-providers-one-gate-no-provider-reachable-around-it) — it makes no runtime network calls. `HTMLComposer` (`Shared/Rendering/HTMLComposer.swift`) composes the preview and export HTML entirely from files bundled inside `Fen.app` — highlight.js lives in `Shared/Resources/Highlight/`, while Mermaid, MathJax, DOMPurify, three.js (plus `STLLoader`/`OrbitControls`), Leaflet, topojson-client, and the task-list script live in `Shared/Resources/Extensions/` (or `Styles`/`Templates` alongside them); emoji shortcode data lives in `Shared/Resources/Emoji/`. All of them load through `loadResourceFile(name:ext:subdirectory:)`, never through a `<script src="https://...">` tag — Leaflet's own basemap *tile images*, not its script, are the one exception, and only when the user has explicitly opted in.
+Fen's trust model is local-first: it reads and writes only inside files and folders you have granted (documents you open and workspaces you add), and — with the documented exceptions, the opt-in GeoJSON/TopoJSON map preference, [GitHub sync](#github-sync-clone-pull-and-push-with-the-git-you-have-a-scoped-token-in-the-keychain) (git, and the GitHub API for pull requests) for a workspace you cloned, the [update check](#check-for-updates-sparkle-installs-a-build-you-asked-for) you start from the menu (Sparkle, and a release-page fallback), and [AI providers you add yourself](#ai-providers-one-gate-no-provider-reachable-around-it) — it makes no runtime network calls. `HTMLComposer` (`Shared/Rendering/HTMLComposer.swift`) composes the preview and export HTML entirely from files bundled inside `Fen.app` — highlight.js lives in `Shared/Resources/Highlight/`, while Mermaid, MathJax, DOMPurify, three.js (plus `STLLoader`/`OrbitControls`), Leaflet, topojson-client, and the task-list script live in `Shared/Resources/Extensions/` (or `Styles`/`Templates` alongside them); emoji shortcode data lives in `Shared/Resources/Emoji/`. All of them load through `loadResourceFile(name:ext:subdirectory:)`, never through a `<script src="https://...">` tag — Leaflet's own basemap *tile images*, not its script, are the one exception, and only when the user has explicitly opted in.
 
 MathJax used to be the exception: earlier builds pulled `MathJax.js` from `cdnjs.cloudflare.com` at render time. That meant a delay on first render, a broken feature offline, and an unnecessary network call from a documented local-first app. It's now vendored the same way as Mermaid — `Shared/Resources/Extensions/mathjax-tex-svg.js` bundles MathJax v3's `tex-svg` output (SVG glyphs, no separate web-font files, so it stays a single self-contained file), with attribution in `LICENSE/mathjax.txt` (Apache License 2.0, compatible with bundling into an MIT-licensed app).
 
