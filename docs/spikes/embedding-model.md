@@ -39,6 +39,36 @@ Words alone score 0.56. Hybrid ranking beats both halves at every floor up to 0.
 
 The floor does not reject nonsense. A query of unrelated words still keeps 5 of the 12 chunks above 0.15. Meaning search always finds the nearest notes. Results that match only by meaning are labeled "Similar meaning" in the list.
 
+## Memory
+
+Measured with `scripts/measure-embedding-memory.swift`. It runs one model per fresh process, embeds 3,000 chunks of 60 words each, and reads `phys_footprint` (the number Activity Monitor shows as "Memory") and `resident_size` from `task_info`. Build and run it:
+
+```sh
+swiftc -O scripts/measure-embedding-memory.swift -o /tmp/measure-embedding-memory
+/tmp/measure-embedding-memory sentence 3000
+/tmp/measure-embedding-memory contextual 3000
+```
+
+Machine: MacBook Pro, Apple M3 Pro, 36 GB, macOS 26.6.2 (25G83). Date: 2026-10-12. Three runs per model, release build. The process itself starts at 3.6 MB footprint and 9.4 MB resident. The table shows the growth over that start, as a range across the runs.
+
+| Step | Sentence model (Fen uses this) | Contextual model |
+|---|---|---|
+| Footprint after load | +0.7 MB | +14.6 to +15.5 MB |
+| Footprint after the first vector | +7.5 to +7.6 MB | +15.6 to +16.5 MB |
+| Footprint after 3,000 chunks | +6.0 to +11.1 MB | +13.0 to +14.8 MB |
+| Peak footprint while embedding | +11.3 to +11.6 MB | +16.5 to +17.5 MB |
+| Resident size after 3,000 chunks | +39 to +40 MB | +73 to +74 MB |
+| Time per 60-word chunk | 16.5 to 19.1 ms | 8.8 to 9.4 ms |
+
+What this means:
+
+- The sentence model adds about 12 MB of footprint at its peak, and about 40 MB of resident pages. It loads lazily, on the first vector.
+- Footprint is not flat while embedding, and it fell again by the end in some runs. Treat the range, not one number, as the result.
+- Without an `autoreleasepool` around each call, the same loop grew to 16 to 25 MB (sentence) and 182 MB (contextual) over 3,000 chunks. The growth came from the loop, not the model. We did not measure the footprint of a real indexing run in Fen.
+- The 60-word chunks are slower than the short queries in the first table (about 9 ms for the sentence model). The 16.5 to 19.1 ms figure is close to the "about 21 ms per chunk" end-to-end number in Limits.
+- The numbers cover this process only. Work the OS does for the model in other processes is not in them.
+- We measured one machine and one OS build. We did not measure an iPhone or iPad, or a Mac with less memory.
+
 ## Limits
 
 - English only. Text in another language gets no vector and is found by words.
@@ -47,4 +77,4 @@ The floor does not reject nonsense. A query of unrelated words still keeps 5 of 
 
 ## Not measured: EmbeddingGemma
 
-The roadmap named EmbeddingGemma as a candidate. We did not run it. Fen has no Swift runtime for it (no LiteRT or Core ML conversion in the dependencies), and we keep dependencies minimal. The `EmbeddingProvider` protocol and the index signature are ready for it: a provider with a new `id` rebuilds the index. Measuring it needs a runtime decision first, and that belongs in its own issue.
+The roadmap named EmbeddingGemma as a candidate. We did not run it. Fen has no Swift runtime for it (no LiteRT or Core ML conversion in the dependencies), and we keep dependencies minimal. Its memory was not measured either. The `EmbeddingProvider` protocol and the index signature are ready for it: a provider with a new `id` rebuilds the index. Measuring it needs a runtime decision first, and that belongs in its own issue.

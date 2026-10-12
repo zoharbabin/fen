@@ -20,7 +20,8 @@ public struct WorkspacesView: View {
     @State private var showingClone = false
     private let panelRequest = AskPanelRequest.shared
     @State private var query = ""
-    @State private var searchScope = WorkspaceSearchScope.all
+    @State private var scopeSelection = SearchScopeSelection()
+    @State private var showingScopeChooser = false
     private let gate: WriteGate
 
     public init(library: WorkspaceLibrary = .shared, gate: WriteGate = .shared) {
@@ -54,9 +55,23 @@ public struct WorkspacesView: View {
         }
         .navigationTitle("Workspaces")
         .searchable(text: $query, prompt: "Search all files")
-        .searchScopes($searchScope) {
+        .searchScopes($scopeSelection.mode) {
             Text("This Workspace").tag(WorkspaceSearchScope.workspace)
+            Text("Chosen Workspaces").tag(WorkspaceSearchScope.chosen)
             Text("All Workspaces").tag(WorkspaceSearchScope.all)
+        }
+        .toolbar {
+            if isSearching, scopeSelection.mode == .chosen {
+                ToolbarItem {
+                    Button(scopeSelection.summary(available: library.workspaces), systemImage: "checklist") {
+                        showingScopeChooser = true
+                    }
+                    .popover(isPresented: $showingScopeChooser) {
+                        WorkspaceChooser(workspaces: library.workspaces, selection: $scopeSelection)
+                    }
+                    .help("Choose which workspaces to search")
+                }
+            }
         }
         .task {
             library.start()
@@ -118,13 +133,14 @@ public struct WorkspacesView: View {
     }
 
     private var searchResults: some View {
-        let scoped = searchScope == .workspace ? selection : nil
+        let available = library.workspaces
         return WorkspaceSearchView(
             library: library,
             query: query,
-            scope: scoped.map { .workspace($0) } ?? .all,
+            scope: scopeSelection.scope(current: selection, available: available),
             origin: nil,
-            showsWorkspace: scoped == nil,
+            showsWorkspace: scopeSelection.showsWorkspaceName(current: selection, available: available),
+            needsChoice: scopeSelection.needsChoice(available: available),
             open: openResult
         )
     }

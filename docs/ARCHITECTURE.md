@@ -352,9 +352,11 @@ Tests: `WritePolicyTests` (matrix, precedence, parser, injection fixtures, front
 
 **Who may be searched.** `WorkspaceAccessPolicy.eligible` filters the workspaces first. A scope never overrides a workspace's AI data access. Every search must pass a `SearchDestination`. `.model(_)` drops workspaces that don't allow that destination. The Workspaces window and related documents pass `.shownToUser`, and the MCP `search` tool passes `.mcpClient`. Searches read the indexes only, never your files.
 
+**Scope in the search box.** The Workspaces window offers This Workspace, Chosen Workspaces (a checklist of your workspaces) and All Workspaces. `SearchScopeSelection` (`Shared/Search/SearchScopeSelection.swift`) turns that choice into a `WorkspaceScope`: ids of removed workspaces drop out, and "This Workspace" falls back to all when none is selected. Every result row names its workspace, except in This Workspace.
+
 **The embedder.** `AppleSentenceEmbeddingProvider` uses the sentence model that ships with the OS. It loads on first use, runs in-process, needs no download and sends nothing out. English only. Where it gives no vector, a file is still found by words. The choice, the measurements and what we did not measure are in [docs/spikes/embedding-model.md](spikes/embedding-model.md).
 
-Tests: `MarkdownChunkerTests`, `VectorStoreTests`, `SearchIndexTests`, `HybridRankerTests`, `WorkspaceIndexerTests`, `WorkspaceSearchTests` (library end to end, including a real git repo that stays clean), `SearchQualityTests` (real model, hybrid beats each half) and `SearchPerformanceTests`.
+Tests: `MarkdownChunkerTests`, `VectorStoreTests`, `SearchIndexTests`, `HybridRankerTests`, `WorkspaceIndexerTests`, `WorkspaceSearchTests` (library end to end, including a real git repo that stays clean), `SearchQualityTests` (real model, hybrid beats each half), `SearchPerformanceTests`, `SearchScopeSelectionTests` and `IndexingNoNetworkTests`. The last one indexes a folder with the real model while a `URLProtocol` spy and a `URLSession` creation counter watch the process. Both must stay at zero. It cannot see traffic from outside the process, such as a system service, so the source scan in `WorkspaceSearchTests.noNetwork` stays as well.
 
 ## Related documents: a card on request, never a panel
 
