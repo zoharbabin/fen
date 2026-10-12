@@ -25,6 +25,27 @@ struct ZoomOutScrollPositionVerifyTest {
     // negative, the actual CI failure mode.
     private static let markdown = (1 ... 25).map { "Line \($0) of body text." }.joined(separator: "\n\n")
 
+    /// Forwards `didFinish` to the real `Coordinator`, then counts it. The coordinator's `didFinish`
+    /// kicks off an async scroll-restore (`savedScrollFraction`, 0 on the first load) that
+    /// overwrites `scrollTop`. WebKit can deliver that callback after `document.readyState`
+    /// already reads `complete`, so on a loaded runner it used to land *after* the test scrolled
+    /// the page and reset it to the top. Waiting on this counter, not on `readyState`, means the
+    /// restore has been issued first, and later `evaluateJavaScript` calls queue behind it.
+    @MainActor
+    private final class FinishRelay: NSObject, WKNavigationDelegate {
+        let coordinator: PreviewWebView.Coordinator
+        private(set) var finishCount = 0
+
+        init(_ coordinator: PreviewWebView.Coordinator) {
+            self.coordinator = coordinator
+        }
+
+        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            coordinator.webView(webView, didFinish: navigation)
+            finishCount += 1
+        }
+    }
+
     private static func html(fontSize: CGFloat) -> String {
         let prefs = Preferences()
         prefs.fontSize = fontSize
@@ -43,7 +64,8 @@ struct ZoomOutScrollPositionVerifyTest {
         let config = WKWebViewConfiguration()
         config.setURLSchemeHandler(coordinator.schemeHandler, forURLScheme: PreviewSchemeHandler.scheme)
         let webView = WKWebView(frame: NSRect(x: 0, y: 0, width: 800, height: 600), configuration: config)
-        webView.navigationDelegate = coordinator
+        let relay = FinishRelay(coordinator)
+        webView.navigationDelegate = relay
         coordinator.webView = webView
 
         // Programmatic scrollTop assignments are silently dropped unless the WKWebView is
@@ -54,7 +76,10 @@ struct ZoomOutScrollPositionVerifyTest {
 
         coordinator.load(html: normalHTML, baseURL: nil, into: webView)
         coordinator.lastHTML = normalHTML
-        _ = try await pollUntilTrue(webView, js: "document.readyState === 'complete'")
+        #expect(
+            try await pollUntilTrue(timeout: .seconds(30)) { relay.finishCount == 1 },
+            "Expected the first load to finish"
+        )
 
         // Wait for layout to actually make the page overflow before scrolling it -- on a
         // slower CI runner, readyState can flip to 'complete' before scrollHeight reflects
@@ -73,19 +98,20 @@ struct ZoomOutScrollPositionVerifyTest {
         let midScrollTop = try await webView.evaluateJavaScript("document.documentElement.scrollTop") as? Double ?? 0
         #expect(midScrollTop > 0, "Expected the page to be scrollable and scrolled down before zooming out")
 
-        /// Mirrors updateNSView's save-scroll/reload/restore round trip for a zoom-out step
-        /// whose new fontSize shrinks the page below the viewport height. The caller polls
-        /// for the specific post-reload condition it cares about (collapsed height, restored
-        /// scrollTop) rather than sleeping a fixed duration that isn't reliably long enough
-        /// once `didFinish`'s async scroll-restore JS call is still in flight on a loaded CI
-        /// runner.
+        // Mirrors updateNSView's save-scroll/reload/restore round trip for a zoom-out step
+        // whose new fontSize shrinks the page below the viewport height. It returns once the
+        // new page's `didFinish` has run, so its scroll-restore JS is already queued. The caller
+        // then polls for the specific post-reload condition it cares about (collapsed height,
+        // restored scrollTop).
         func reloadTo(_ newHTML: String) async {
+            let finishesBefore = relay.finishCount
             let generation = coordinator.beginReload()
             let result = try? await webView.evaluateJavaScript(currentSourceFractionJS)
             guard coordinator.isCurrentReload(generation) else { return }
             coordinator.savedScrollFraction = (result as? CGFloat) ?? coordinator.savedScrollFraction
             coordinator.load(html: newHTML, baseURL: nil, into: webView)
-            _ = try? await pollUntilTrue(webView, js: "document.readyState === 'complete'")
+            // `readyState` would already read `complete` on the old page here.
+            _ = try? await pollUntilTrue(timeout: .seconds(30)) { relay.finishCount > finishesBefore }
         }
 
         // Zoom out enough that the page stops overflowing its viewport.
