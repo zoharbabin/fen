@@ -52,6 +52,8 @@ struct WorkspaceSettingsView: View {
                             confirming = .workspace
                         }
                     }
+                    Toggle("Enrich on save", isOn: $draft.enrichOnSave)
+                        .disabled(draft.aiDataAccess == .none || draft.approvalMode == .off)
                     Picker("Agent access (MCP)", selection: $draft.mcpAccess) {
                         ForEach(MCPAccess.allCases, id: \.self) { Text($0.title).tag($0) }
                     }
@@ -65,6 +67,8 @@ struct WorkspaceSettingsView: View {
                     Text(
                         "None keeps this workspace's content away from every model. "
                             + "Agent access is off while AI data access is None. "
+                            + "Enrich on save adds cited facts under your short bullets after you save a note. "
+                            + "The approval mode decides if it asks first. "
                             + "In a git repository, each agent commits to its own fen/ branch. "
                             + "Your files stay as they are. "
                             + "A folder without git always asks first."
