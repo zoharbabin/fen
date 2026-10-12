@@ -61,16 +61,15 @@ struct PropertiesSection: View {
     }
 
     private func hintRow(_ hint: SchemaHint, _ snapshot: PropertiesSnapshot) -> some View {
-        HStack(alignment: .firstTextBaseline) {
+        VStack(alignment: .leading, spacing: 4) {
             Label(hint.message, systemImage: "lightbulb")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            Spacer(minLength: 4)
             Button("Fix") { apply(hint.fix, snapshot) }
                 .font(.caption)
                 .help("Changes only this word. Undo takes it back.")
+                .accessibilityHint(hint.message)
         }
-        .accessibilityElement(children: .combine)
     }
 
     private func commit(_ snapshot: PropertiesSnapshot, _ field: SchemaField, _ input: String) {

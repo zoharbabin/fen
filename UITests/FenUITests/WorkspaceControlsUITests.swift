@@ -21,6 +21,10 @@ final class WorkspaceControlsUITests: XCTestCase {
         )
         try "# Plan\n\n- pricing is twelve dollars\n- ship in Q4\n"
             .write(to: notes.appendingPathComponent("plan.md"), atomically: true, encoding: .utf8)
+        try "---\ntype: Task\nstatsu: done\n---\n\n# Ship it\n"
+            .write(to: notes.appendingPathComponent("task.md"), atomically: true, encoding: .utf8)
+        try "# Roadmap\n\nSee [[plan]] for the numbers.\n"
+            .write(to: notes.appendingPathComponent("roadmap.md"), atomically: true, encoding: .utf8)
     }
 
     override func tearDownWithError() throws {
@@ -28,7 +32,7 @@ final class WorkspaceControlsUITests: XCTestCase {
         try? FileManager.default.removeItem(at: root)
     }
 
-    private func launch() {
+    private func launch(opening name: String = "plan.md") {
         var productsDirectory = Bundle(for: Self.self).bundleURL
         for _ in 0 ..< 4 {
             productsDirectory.deleteLastPathComponent()
@@ -41,7 +45,7 @@ final class WorkspaceControlsUITests: XCTestCase {
         configuration.environment = ["CFFIXED_USER_HOME": root.appendingPathComponent("home").path]
         let opened = expectation(description: "open")
         NSWorkspace.shared.open(
-            [root.appendingPathComponent("ws/notes/plan.md")],
+            [root.appendingPathComponent("ws/notes/\(name)")],
             withApplicationAt: productsDirectory.appendingPathComponent("Fen.app"),
             configuration: configuration
         ) { _, error in
@@ -117,5 +121,73 @@ final class WorkspaceControlsUITests: XCTestCase {
         popover.checkBoxes["ws"].click()
         app.typeKey(.escape, modifierFlags: [])
         XCTAssertTrue(result.waitForExistence(timeout: 20), "chosen workspace did not bring the result back")
+    }
+
+    /// A file that is not open and links here with `[[plan]]` shows up under "Linked from" (issue #36).
+    func testBacklinksPanelListsALinkingFileThatIsNotOpen() {
+        launch()
+        let workspaces = addWorkspace()
+        workspaces.typeKey("w", modifierFlags: .command)
+        let document = app.windows["plan.md"]
+        XCTAssertTrue(document.waitForExistence(timeout: 5))
+        document.buttons["OutlineToggleButton"].click()
+        let heading = document.staticTexts["Linked from"]
+        XCTAssertTrue(heading.waitForExistence(timeout: 20), "no Linked from heading:\n\(document.debugDescription)")
+        XCTAssertTrue(document.buttons["Roadmap"].exists, "roadmap.md is not listed:\n\(document.debugDescription)")
+    }
+
+    /// File > Browse Version History… is enabled for a saved document and opens the system browser (issue #59).
+    func testBrowseVersionHistoryOpens() {
+        launch()
+        let document = app.windows["plan.md"]
+        XCTAssertTrue(document.waitForExistence(timeout: 5))
+        app.menuBars.menuBarItems["File"].click()
+        let item = app.menuBars.menuItems["Browse Version History…"]
+        XCTAssertTrue(item.waitForExistence(timeout: 5))
+        XCTAssertTrue(item.isEnabled)
+        item.click()
+        let restore = app.buttons["Restore"]
+        XCTAssertTrue(
+            restore.waitForExistence(timeout: 15) || app.buttons["Done"].exists,
+            "no version browser:\n\(app.debugDescription)"
+        )
+        app.typeKey(.escape, modifierFlags: [])
+    }
+
+    /// A near-miss field name gets a hint, and Fix renames it in the editor (issue #7).
+    func testPropertiesPanelHintFixesATypo() {
+        launch(opening: "task.md")
+        let workspaces = addWorkspace()
+        workspaces.typeKey("w", modifierFlags: .command)
+        let document = app.windows["task.md"]
+        XCTAssertTrue(document.waitForExistence(timeout: 5))
+        document.buttons["OutlineToggleButton"].click()
+        let title = document.staticTexts["Properties · Task"]
+        XCTAssertTrue(title.waitForExistence(timeout: 20), "no Properties panel:\n\(document.debugDescription)")
+        let fix = document.buttons["Fix"]
+        XCTAssertTrue(fix.waitForExistence(timeout: 5), "no hint:\n\(document.debugDescription)")
+        // Closing the Workspaces window leaves this one without focus. A click in the editor gives it back.
+        let editor = document.textViews.firstMatch
+        editor.click()
+        fix.click()
+        let fixed = NSPredicate(format: "value CONTAINS 'status: done' AND NOT (value CONTAINS 'statsu')")
+        expectation(for: fixed, evaluatedWith: editor)
+        waitForExpectations(timeout: 10)
+        XCTAssertFalse(fix.waitForExistence(timeout: 2), "the hint stays after the fix")
+    }
+
+    /// The Activity sheet opens from the workspace header and closes with Done (issue #140).
+    func testActivitySheetOpensAndCloses() {
+        launch()
+        let window = addWorkspace()
+        window.outlineRows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).click()
+        let activity = window.buttons["Activity"].firstMatch
+        XCTAssertTrue(activity.waitForExistence(timeout: 10), "no Activity button:\n\(window.debugDescription)")
+        activity.click()
+        let sheet = app.sheets.firstMatch
+        XCTAssertTrue(sheet.waitForExistence(timeout: 5))
+        XCTAssertTrue(sheet.staticTexts["No AI changes yet."].exists, sheet.debugDescription)
+        sheet.buttons["Done"].firstMatch.click()
+        XCTAssertTrue(sheet.waitForNonExistence(timeout: 5))
     }
 }

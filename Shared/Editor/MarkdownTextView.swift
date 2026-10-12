@@ -208,7 +208,7 @@ func caretColor(for background: PlatformColor) -> PlatformColor {
                 textView.string = text
                 textView.selectedRanges = selectedRanges
             }
-
+            context.coordinator.apply(insertion, to: textView) // an edit from outside, like a Properties fix
             textView.baseHorizontalInset = horizontalInset
             textView.isWidthLimited = isWidthLimited
             textView.maximumWidth = maximumWidth
