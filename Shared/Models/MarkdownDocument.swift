@@ -61,16 +61,22 @@ public final class MarkdownDocument: ReferenceFileDocument, @unchecked Sendable 
     }
 
     /// Title derived from the document text (first heading or front matter title).
+    /// Reads one line at a time and stops at the first line that isn't blank, so a large note
+    /// without a heading doesn't pay for splitting the whole text on every call.
     var title: String? {
-        let lines = text.components(separatedBy: .newlines)
-        for line in lines {
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
+        var lineStart = text.startIndex
+        while lineStart < text.endIndex {
+            let newline = text.rangeOfCharacter(from: .newlines, range: lineStart ..< text.endIndex)
+            let trimmed = text[lineStart ..< (newline?.lowerBound ?? text.endIndex)]
+                .trimmingCharacters(in: .whitespaces)
             if trimmed.hasPrefix("# ") {
                 return String(trimmed.dropFirst(2))
             }
             if !trimmed.isEmpty, !trimmed.hasPrefix("---") {
                 break
             }
+            guard let newline else { break }
+            lineStart = newline.upperBound
         }
         return nil
     }

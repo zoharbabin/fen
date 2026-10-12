@@ -23,6 +23,9 @@ public extension LivePreviewEditing {
     private static let rulePattern = #"^ {0,3}([-*_])(?:[ \t]*\1){2,}[ \t]*$"#
     private static let listPattern = #"^([ \t]*)([-*+]|\d{1,9}[.)])([ \t]+)\S"#
     private static let footnotePattern = #"\[\^[^\]\s]+\]"#
+    /// Compiled once. `listItem` and `footnoteSpans` run for every line on every restyle.
+    private static let listRegex = try? NSRegularExpression(pattern: listPattern)
+    private static let footnoteRegex = try? NSRegularExpression(pattern: footnotePattern)
 
     /// Whether `line` is a thematic break (`---`, `***`, `___`, with optional spaces between).
     /// A run of dashes right under a line of text is a setext heading underline, not a rule.
@@ -36,7 +39,7 @@ public extension LivePreviewEditing {
     /// The list parts of `line`, or `nil` when it isn't a list item. A task item (`- [ ] `) is a list
     /// item too. Ranges are offset by `lineStart`.
     static func listItem(line: String, lineStart: Int) -> ListItem? {
-        guard let regex = try? NSRegularExpression(pattern: listPattern) else { return nil }
+        guard let regex = listRegex else { return nil }
         let ns = line as NSString
         guard let match = regex.firstMatch(in: line, range: NSRange(location: 0, length: ns.length)) else {
             return nil
@@ -55,7 +58,7 @@ public extension LivePreviewEditing {
 
     /// Every `[^id]` in `line`. One at the very start of a line followed by `:` is a definition label.
     static func footnoteSpans(in line: String, lineStart: Int) -> [FootnoteSpan] {
-        guard let regex = try? NSRegularExpression(pattern: footnotePattern) else { return [] }
+        guard let regex = footnoteRegex else { return [] }
         let ns = line as NSString
         return regex.matches(in: line, range: NSRange(location: 0, length: ns.length)).map { match in
             let end = match.range.location + match.range.length

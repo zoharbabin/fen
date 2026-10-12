@@ -138,6 +138,8 @@ brew style Casks/fen.rb
 
 CI checks the cask's style and that its sha256 matches the published zip. `master` is protected, so the workflow can't push the change for you. Until the PR merges, `brew upgrade` still installs the previous release.
 
+The cask sets `auto_updates true` because Fen updates itself through Sparkle. A plain `brew upgrade` skips Fen. `brew upgrade --cask fen` and `brew upgrade --greedy` still upgrade it.
+
 We don't submit to the official `homebrew-cask` repo. Users tap this repo (see [README](../README.md#install)).
 
 ---

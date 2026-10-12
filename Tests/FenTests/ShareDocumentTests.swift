@@ -49,6 +49,33 @@ struct ShareDocumentTests {
         #expect(String(bytes: data, encoding: .utf8) == "# Hi")
     }
 
+    @Test
+    func oldShareFoldersAreRemovedAndOtherFilesStay() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("share-cleanup-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let now = Date()
+
+        func makeFolder(_ name: String, age: TimeInterval) throws -> URL {
+            let url = root.appendingPathComponent(name, isDirectory: true)
+            try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+            try FileManager.default.setAttributes(
+                [.modificationDate: now.addingTimeInterval(-age)],
+                ofItemAtPath: url.path
+            )
+            return url
+        }
+        let old = try makeFolder("fen-share-OLD", age: 7200)
+        let fresh = try makeFolder("fen-share-FRESH", age: 60)
+        let other = try makeFolder("something-else", age: 7200)
+
+        ShareTemporaryFiles.removeStale(in: root, olderThan: 3600, now: now)
+
+        #expect(!FileManager.default.fileExists(atPath: old.path))
+        #expect(FileManager.default.fileExists(atPath: fresh.path))
+        #expect(FileManager.default.fileExists(atPath: other.path))
+    }
+
     // MARK: - Opening a file shared from another app
 
     private func iOSInfo() throws -> [String: Any] {

@@ -455,13 +455,15 @@
                     .present(alert, animated: true)
             }
 
-            /// Every open editor hears this notification. An editor in a background scene ignores it,
-            /// so a shortcut doesn't edit a second Fen window that isn't in use.
+            /// Every open editor hears this notification. Only the editor in use applies it, so a
+            /// shortcut doesn't edit a second Fen window. In Split View both scenes are
+            /// foreground-active, so `CommandTarget` also asks for the key window and first responder.
             @objc func applyFormattingNotification(_ notification: Notification) {
                 guard let identifier = notification.object as? String,
                       let action = FormattingAction(identifier: identifier),
                       let textView,
-                      textView.window?.windowScene?.activationState == .foregroundActive else { return }
+                      CommandTarget.accepts(window: textView.window, isFirstResponder: textView.isFirstResponder)
+                else { return }
                 let selection = textView.selectedRange
                 let result = MarkdownFormatting.apply(action, to: textView.text, selection: selection)
                 textView.text = result.text

@@ -29,6 +29,20 @@
             return keys[characters] ?? .ignore
         }
 
+        /// The ASCII character a physical key makes on a US keyboard, for keys the Vim subset uses. On a
+        /// non-Latin layout (Hebrew, Cyrillic) `NSEvent.characters` is never ASCII, so the key code
+        /// stands in for it. Any other key gives an empty string, which is swallowed as `.ignore`.
+        static func asciiCharacters(forKeyCode keyCode: UInt16, shift: Bool) -> String {
+            let plain: [UInt16: String] = [
+                4: "h", 37: "l", 38: "j", 40: "k", 13: "w", 11: "b", 5: "g", 34: "i", 0: "a", 29: "0",
+            ]
+            if keyCode == 21 {
+                return shift ? "$" : "4"
+            }
+            guard let key = plain[keyCode] else { return "" }
+            return shift ? key.uppercased() : key
+        }
+
         private static let keys: [String: VimCommand] = [
             "h": .left, "\u{7F}": .left, "l": .right,
             "j": .down, "\r": .down, "\n": .down, "k": .up,

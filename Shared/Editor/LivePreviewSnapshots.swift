@@ -125,6 +125,17 @@ final class LivePreviewSnapshots {
 @MainActor
 enum LivePreviewWebSnapshot {
     private static let timeout = Duration.seconds(20)
+    /// The tallest picture, in points. A taller block is scaled down to this height, not cut off.
+    static let maxPictureHeight: CGFloat = 1600
+    /// The tallest block we lay out and snapshot. WebKit can't draw much more than this in one piece.
+    private static let maxMeasuredHeight: CGFloat = 16000
+
+    /// The width of the picture for a block `width` wide and `height` tall: `width`, or less when the block is
+    /// taller than `maxPictureHeight`, which keeps its proportions.
+    static func pictureWidth(blockWidth width: CGFloat, blockHeight height: CGFloat) -> CGFloat {
+        guard height > maxPictureHeight else { return width }
+        return max((width * maxPictureHeight / height).rounded(.down), 1)
+    }
 
     static func render(_ key: LivePreviewSnapshots.Key, preferences: Preferences) async -> PlatformImage? {
         let rendered = MarkdownRenderer().render(key.source, options: .from(preferences: preferences))
@@ -145,7 +156,9 @@ enum LivePreviewWebSnapshot {
         webView.frame.size.height = height
         let configuration = WKSnapshotConfiguration()
         configuration.rect = CGRect(x: 0, y: 0, width: key.width, height: Int(height))
-        configuration.snapshotWidth = NSNumber(value: key.width)
+        configuration.snapshotWidth = NSNumber(
+            value: pictureWidth(blockWidth: CGFloat(key.width), blockHeight: height)
+        )
         return try? await webView.takeSnapshot(configuration: configuration)
     }
 
@@ -178,7 +191,7 @@ enum LivePreviewWebSnapshot {
         })()
         """
         guard let height = try? await webView.evaluateJavaScript(script) as? Double, height > 0 else { return nil }
-        return CGFloat(min(height, 1600))
+        return CGFloat(min(height, maxMeasuredHeight))
     }
 
     private static func makeTransparent(_ webView: WKWebView) {

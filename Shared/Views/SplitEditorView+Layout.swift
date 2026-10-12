@@ -68,7 +68,10 @@ extension SplitEditorView {
     }
 }
 
-/// Runs the View menu commands (`ViewCommands`) against one `SplitEditorView`.
+/// Runs the View menu commands (`ViewCommands`) against one `SplitEditorView`. Focus Mode and Live Preview
+/// flip a preference every window shares, so only the window in use runs them (`HostWindowProbe`). Two
+/// windows would flip it twice. Outline, Preview and Editor change this window's own state, so every window
+/// runs them.
 struct ViewCommandReceivers: ViewModifier {
     let outline: () -> Void
     let focusMode: () -> Void
@@ -81,13 +84,8 @@ struct ViewCommandReceivers: ViewModifier {
             .onReceive(NotificationCenter.default.publisher(for: DocumentOutline.toggleOutlineNotification)) { _ in
                 outline()
             }
-            .onReceive(NotificationCenter.default.publisher(for: FocusModeEditing.toggleFocusModeNotification)) { _ in
-                focusMode()
-            }
-            .onReceive(NotificationCenter.default
-                .publisher(for: LivePreviewEditing.toggleLivePreviewNotification)) { _ in
-                    livePreview()
-            }
+            .onWindowCommand(FocusModeEditing.toggleFocusModeNotification, perform: focusMode)
+            .onWindowCommand(LivePreviewEditing.toggleLivePreviewNotification, perform: livePreview)
             .onReceive(NotificationCenter.default.publisher(for: .togglePreview)) { _ in preview() }
             .onReceive(NotificationCenter.default.publisher(for: .toggleEditor)) { _ in editor() }
     }

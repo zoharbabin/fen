@@ -92,7 +92,11 @@ struct VimKeyTests {
         return view
     }
 
-    private func key(_ characters: String, _ modifiers: NSEvent.ModifierFlags = []) throws -> NSEvent {
+    private func key(
+        _ characters: String,
+        _ modifiers: NSEvent.ModifierFlags = [],
+        keyCode: UInt16 = 0
+    ) throws -> NSEvent {
         try #require(NSEvent.keyEvent(
             with: .keyDown,
             location: .zero,
@@ -103,7 +107,7 @@ struct VimKeyTests {
             characters: characters,
             charactersIgnoringModifiers: characters.lowercased(),
             isARepeat: false,
-            keyCode: 0
+            keyCode: keyCode
         ))
     }
 
@@ -173,6 +177,37 @@ struct VimKeyTests {
         #expect(try !view.handleVimKey(key("c", .command)))
         #expect(try !view.handleVimKey(key("\u{F702}")))
         #expect(try view.handleVimKey(key("å", .option)))
+        #expect(view.string == "abc")
+    }
+
+    @Test @MainActor
+    func aNonLatinLayoutUsesThePhysicalKey() throws {
+        let view = editor("ab\ncd\nef")
+        // Hebrew layout: physical j, k and Shift+G type no ASCII.
+        #expect(try view.handleVimKey(key("\u{05D7}", keyCode: 38)))
+        #expect(view.selectedRange().location == 3)
+        #expect(try view.handleVimKey(key("\u{05DC}", keyCode: 40)))
+        #expect(view.selectedRange().location == 0)
+        #expect(try view.handleVimKey(key("\u{05E2}", .shift, keyCode: 5)))
+        #expect(view.selectedRange().location == 6)
+        #expect(view.string == "ab\ncd\nef")
+    }
+
+    @Test
+    func physicalKeysMatchTheUSLayout() {
+        #expect(VimCommand.asciiCharacters(forKeyCode: 4, shift: false) == "h")
+        #expect(VimCommand.asciiCharacters(forKeyCode: 5, shift: true) == "G")
+        #expect(VimCommand.asciiCharacters(forKeyCode: 21, shift: true) == "$")
+        #expect(VimCommand.asciiCharacters(forKeyCode: 6, shift: false) == "")
+    }
+
+    @Test @MainActor
+    func controlKeysAndForwardDeleteDoNotEditInNormalMode() throws {
+        let view = editor("abc")
+        // Ctrl-K and Ctrl-D are Emacs bindings in AppKit that would delete text. Forward Delete too.
+        #expect(try view.handleVimKey(key("\u{0B}", .control)))
+        #expect(try view.handleVimKey(key("\u{04}", .control)))
+        #expect(try view.handleVimKey(key("\u{F728}")))
         #expect(view.string == "abc")
     }
 

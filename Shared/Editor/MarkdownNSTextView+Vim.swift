@@ -12,12 +12,22 @@
                 vimIsWaitingForSecondG = false
                 return false
             }
-            guard vimMode == .normal, !hasMarkedText(),
-                  event.modifierFlags.isDisjoint(with: [.command, .control]) else { return false }
-            let characters = event.characters ?? ""
-            // Arrows, Home and the function keys come as private-use characters. They only move the caret.
+            guard vimMode == .normal, !hasMarkedText(), !event.modifierFlags.contains(.command) else { return false }
+            var characters = event.characters ?? ""
+            // Arrows, Home and the function keys come as private-use characters. They only move the caret,
+            // except Forward Delete, which edits text. Normal mode doesn't type or delete.
             if characters.unicodeScalars.contains(where: { (0xF700 ... 0xF8FF).contains($0.value) }) {
-                return false
+                return characters.unicodeScalars.contains(where: { $0.value == 0xF728 })
+            }
+            // Ctrl keys would reach AppKit's Emacs bindings (Ctrl-K, Ctrl-D, Ctrl-H ...), which edit text.
+            if event.modifierFlags.contains(.control) {
+                return true
+            }
+            // A non-Latin layout types no ASCII, so use the physical key.
+            if !characters.allSatisfy(\.isASCII) {
+                characters = VimCommand.asciiCharacters(
+                    forKeyCode: event.keyCode, shift: event.modifierFlags.contains(.shift)
+                )
             }
             // Option types special characters, so it never counts as a command.
             let command = VimCommand.command(

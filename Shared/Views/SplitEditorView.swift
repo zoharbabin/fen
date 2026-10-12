@@ -145,23 +145,23 @@ public struct SplitEditorView: View {
 
         #if os(macOS)
             let withReceivers = withToggles
-                .onReceive(NotificationCenter.default.publisher(for: .exportToHTML)) { _ in
+                .onWindowCommand(.exportToHTML) {
                     htmlExportController.presentSavePanel(document: document, preferences: preferences)
                 }
-                .onReceive(NotificationCenter.default.publisher(for: .exportToPDF)) { _ in
+                .onWindowCommand(.exportToPDF) {
                     pdfExportController.presentSavePanel(document: document, preferences: preferences)
                 }
-                .onReceive(NotificationCenter.default.publisher(for: .printDocument)) { _ in
+                .onWindowCommand(.printDocument) {
                     printController.printDocument(document: document, preferences: preferences)
                 }
-                .onReceive(NotificationCenter.default.publisher(for: .copyAsRawHTML)) { _ in
+                .onWindowCommand(.copyAsRawHTML) {
                     Task {
                         await ClipboardExporter().copyAsRawHTML(
                             markdown: document.text, documentURL: document.fileURL, preferences: preferences
                         )
                     }
                 }
-                .onReceive(NotificationCenter.default.publisher(for: .copyAsRichTextFormatted)) { _ in
+                .onWindowCommand(.copyAsRichTextFormatted) {
                     Task {
                         await ClipboardExporter().copyAsRichTextFormatted(
                             markdown: document.text, documentURL: document.fileURL, preferences: preferences
@@ -170,7 +170,7 @@ public struct SplitEditorView: View {
                 }
         #else
             let withReceivers = withToggles
-                .onReceive(NotificationCenter.default.publisher(for: .printDocument)) { _ in
+                .onWindowCommand(.printDocument) {
                     presentPrint()
                 }
         #endif

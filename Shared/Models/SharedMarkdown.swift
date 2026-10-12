@@ -2,6 +2,31 @@ import CoreTransferable
 import Foundation
 import UniformTypeIdentifiers
 
+/// Cleans up the `fen-share-*` folders that hold the share sheet's `.md` copies. The system takes the
+/// file when sharing starts and nothing tells us when it is done, so old folders are removed later.
+public enum ShareTemporaryFiles {
+    static let folderPrefix = "fen-share-"
+
+    /// Removes `fen-share-*` folders in `directory` that were last changed more than `age` ago.
+    public static func removeStale(
+        in directory: URL = FileManager.default.temporaryDirectory,
+        olderThan age: TimeInterval = 3600,
+        now: Date = Date()
+    ) {
+        let fileManager = FileManager.default
+        let entries = (try? fileManager.contentsOfDirectory(
+            at: directory, includingPropertiesForKeys: [.contentModificationDateKey]
+        )) ?? []
+        for entry in entries where entry.lastPathComponent.hasPrefix(folderPrefix) {
+            let changed = (try? entry.resourceValues(forKeys: [.contentModificationDateKey]))?
+                .contentModificationDate
+            if let changed, now.timeIntervalSince(changed) > age {
+                try? fileManager.removeItem(at: entry)
+            }
+        }
+    }
+}
+
 /// What the iOS share sheet sends for the open document (issue #43). Apps that take files get a real
 /// `.md` file. Apps that only take text, such as Messages, get the Markdown as text.
 struct SharedMarkdown: Transferable {
@@ -28,8 +53,9 @@ struct SharedMarkdown: Transferable {
 
     static var transferRepresentation: some TransferRepresentation {
         FileRepresentation(exportedContentType: .markdown) { item in
+            ShareTemporaryFiles.removeStale()
             let folder = FileManager.default.temporaryDirectory
-                .appendingPathComponent("fen-share-\(UUID().uuidString)", isDirectory: true)
+                .appendingPathComponent("\(ShareTemporaryFiles.folderPrefix)\(UUID().uuidString)", isDirectory: true)
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
             let url = folder.appendingPathComponent(item.fileName)
             try Data(item.text.utf8).write(to: url, options: .atomic)

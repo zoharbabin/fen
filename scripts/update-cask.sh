@@ -5,6 +5,7 @@
 set -euo pipefail
 
 tag="${1:?usage: scripts/update-cask.sh vX.Y.Z}"
+[[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "error: '$tag' is not a release tag like v0.5.2." >&2; exit 1; }
 root="$(cd "$(dirname "$0")/.." && pwd)"
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT

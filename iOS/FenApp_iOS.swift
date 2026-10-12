@@ -3,6 +3,10 @@ import SwiftUI
 
 @main
 struct FenApp: App {
+    init() {
+        ShareTemporaryFiles.removeStale()
+    }
+
     var body: some Scene {
         DocumentGroup(newDocument: { MarkdownDocument.makeNew() }, editor: { file in
             SplitEditorView(document: file.document)

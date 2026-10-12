@@ -358,6 +358,30 @@ struct LivePreviewWebSnapshotTests {
     }
 
     @Test
+    func aTallBlockIsScaledDownNotCutOff() async throws {
+        let nodes = (0 ..< 40).map { "N\($0)[Step \($0)]" }.joined(separator: " --> ")
+        let image = try #require(try await render(.mermaid, "```mermaid\ngraph TD; \(nodes);\n```"))
+        #expect(image.size.height <= LivePreviewWebSnapshot.maxPictureHeight + 1, "Within a point of the limit")
+        #expect(image.size.width < 400, "The picture shrank to fit instead of keeping the width and cropping")
+        // The last step sits at the bottom of the diagram. A cropped picture would end in the middle of it.
+        let cgImage = try #require(image.cgImage(forProposedRect: nil, context: nil, hints: nil))
+        let bitmap = NSBitmapImageRep(cgImage: cgImage)
+        var inkInLastRows = 0
+        for y in (bitmap.pixelsHigh - bitmap.pixelsHigh / 20) ..< bitmap.pixelsHigh {
+            for x in 0 ..< bitmap.pixelsWide where (bitmap.colorAt(x: x, y: y)?.alphaComponent ?? 0) > 0.1 {
+                inkInLastRows += 1
+            }
+        }
+        #expect(inkInLastRows > 0, "The last step is in the picture")
+    }
+
+    @Test
+    func aBlockUnderTheLimitKeepsItsWidth() {
+        #expect(LivePreviewWebSnapshot.pictureWidth(blockWidth: 400, blockHeight: 1600) == 400)
+        #expect(LivePreviewWebSnapshot.pictureWidth(blockWidth: 400, blockHeight: 3200) == 200)
+    }
+
+    @Test
     func aBrokenDiagramGivesNoImageSoTheSourceStaysVisible() async throws {
         let image = try await render(.mermaid, "```mermaid\nthis is not a diagram ->>> [\n```")
         #expect(image == nil)
