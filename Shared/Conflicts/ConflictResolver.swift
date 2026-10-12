@@ -83,18 +83,28 @@ struct ConflictResolver {
                 return .nothing(reason)
             }
         }
+        // The fix is drafted from, and hashed against, the version it lands on: the `fen/conflicts`
+        // branch when the note is on it, or else the file on disk. The hash comes first, so if that
+        // version changes after this, the gate refuses the write.
+        let baseHash: String?
+        let targetText: String?
+        if let onBranch = try await gate.agentRead(workspaceID: workspaceID, path: target.path, client: Self.agent) {
+            baseHash = ContentHash.of(onBranch.data)
+            targetText = String(data: onBranch.data, encoding: .utf8)
+        } else {
+            baseHash = try gate.contentHash(workspaceID: workspaceID, relativePath: target.path)
+            targetText = library.fileURL(workspaceID: workspaceID, relativePath: target.path)
+                .flatMap { try? String(contentsOf: $0, encoding: .utf8) }
+        }
         guard let keptURL = library.fileURL(workspaceID: workspaceID, relativePath: kept.path),
-              let targetURL = library.fileURL(workspaceID: workspaceID, relativePath: target.path),
               let keptText = try? String(contentsOf: keptURL, encoding: .utf8),
-              let targetText = try? String(contentsOf: targetURL, encoding: .utf8) else {
+              let targetText else {
             return .nothing("Fen can't read one of the notes.")
         }
         guard let keptPassage = ConflictPassage.find(hash: kept.hash, in: keptText),
               let targetPassage = ConflictPassage.find(hash: target.hash, in: targetText) else {
             return .nothing("One of the passages changed since Fen flagged it. Run the check again.")
         }
-        // The hash comes first. If the file changes after this, the gate refuses the write.
-        let baseHash = try gate.contentHash(workspaceID: workspaceID, relativePath: target.path)
         let original = scope == .passage ? targetPassage.text : Self.body(of: targetText)
         guard !original.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return .nothing("That note has no text to rewrite.")

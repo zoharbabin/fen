@@ -47,6 +47,8 @@ final class SyncKnobs {
     var mode: SyncMode? = .directCommit
     var pushesAIChanges = false
     var aiChanges: [String: Date] = [:]
+    /// The fixture points `origin` at a local folder with `url.*.insteadOf`, which only a Fen clone may have.
+    var clonedByFen = true
 }
 
 @MainActor
@@ -75,6 +77,7 @@ struct SyncModeSetup {
                 mode: { knobs.mode },
                 pushesAIChanges: { knobs.pushesAIChanges },
                 aiChanges: { knobs.aiChanges },
+                clonedByFen: { knobs.clonedByFen },
                 saveDelay: saveDelay
             ),
             root: { root },

@@ -90,7 +90,9 @@ extension GitHubSyncModel {
         }
         // Once merged, the default branch holds everything on this one, so your edits can move along.
         let merged = pull?.state == .merged
-        guard status.ahead == 0, status.changedFiles == 0 || merged else {
+        // A branch that tracks nothing reports 0 ahead, so count the commits GitHub doesn't have.
+        let unpushed = status.upstream == nil && !merged ? try await sync.unpushedCommits(at: root) : status.ahead
+        guard unpushed == 0, status.changedFiles == 0 || merged else {
             message = "This folder is on the review branch \(branch), and it has edits. "
                 + "Switch the workspace back to pull requests to send them."
             return false

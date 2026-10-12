@@ -45,7 +45,10 @@ struct GitHubCloner {
                 try sync.secrets.write(token, account: repo.tokenAccount)
             }
             let workspace = try library.add(folder: target, name: repo.name)
-            try library.updateSettings(id: workspace.id) { $0.syncMode = mode }
+            try library.updateSettings(id: workspace.id) {
+                $0.syncMode = mode
+                $0.clonedByFen = true
+            }
             return library.registry.workspace(id: workspace.id) ?? workspace
         } catch {
             if !existed {

@@ -2,7 +2,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 /// Sync status and buttons for a workspace whose `origin` is on GitHub (issue #60). It shows nothing for
-/// any other workspace.
+/// any other workspace, and only a warning with the reason for one Fen won't sync.
 struct GitHubSyncControls: View {
     let library: WorkspaceLibrary
     let workspaceID: UUID
@@ -18,7 +18,8 @@ struct GitHubSyncControls: View {
             inputs: GitHubSyncModel.Inputs(
                 mode: { library.registry.workspace(id: workspaceID)?.settings.syncMode },
                 pushesAIChanges: { library.registry.workspace(id: workspaceID)?.settings.pushesAIChanges ?? false },
-                aiChanges: { AIChangedPaths.latest(in: gate.entries(for: workspaceID)) }
+                aiChanges: { AIChangedPaths.latest(in: gate.entries(for: workspaceID)) },
+                clonedByFen: { library.registry.workspace(id: workspaceID)?.settings.clonedByFen ?? false }
             ),
             root: { try? library.registry.rootURL(for: workspaceID) },
             changed: { library.scan(workspaceID) }
@@ -81,6 +82,11 @@ struct GitHubSyncControls: View {
                     )
                     menu
                 }
+            } else if let refusal = model.refusal {
+                Button("GitHub sync is off", systemImage: "exclamationmark.triangle") { showingMessage = true }
+                    .labelStyle(.iconOnly)
+                    .foregroundStyle(.orange)
+                    .help(refusal)
             }
         }
         .task { await model.open() }

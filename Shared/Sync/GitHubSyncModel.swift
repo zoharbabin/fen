@@ -22,8 +22,10 @@ final class GitHubSyncModel {
     var heldBack: [String] = []
     /// Notes that hold conflict markers from a merge, until you edit them.
     var conflicts: [String] = []
+    /// Why Fen won't sync a folder whose `origin` is on GitHub (`GitSync.refusal(at:)`). `repo` stays `nil`.
+    private(set) var refusal: String?
 
-    let sync: GitSync?
+    private(set) var sync: GitSync?
     let api: any GitHubAPI
     let root: () -> URL?
     let changed: () -> Void
@@ -38,6 +40,8 @@ final class GitHubSyncModel {
         var pushesAIChanges: () -> Bool = { false }
         /// Notes with an AI change applied in place, and when the latest one was applied.
         var aiChanges: () -> [String: Date] = { [:] }
+        /// `WorkspaceSettings.clonedByFen`.
+        var clonedByFen: () -> Bool = { false }
         /// How long a direct-commit workspace waits after the last file change before it backs up.
         var saveDelay: Duration = .seconds(20)
     }
@@ -69,9 +73,7 @@ final class GitHubSyncModel {
 
     /// Finds the repository, then brings the folder up to date with GitHub when that is safe.
     func open() async {
-        guard let sync, let root = root() else { return }
-        repo = await sync.repo(at: root)
-        guard repo != nil else { return }
+        guard let (sync, root) = await trusted() else { return }
         await refresh(fetch: false)
         await run("Pulling…") { _ = try await self.pullStep(sync, root) }
         await refreshPullRequest()
@@ -90,7 +92,7 @@ final class GitHubSyncModel {
     }
 
     func pull() async {
-        guard let sync, let root = root() else { return }
+        guard let (sync, root) = await trusted() else { return }
         await run("Pulling…") { _ = try await self.pullStep(sync, root) }
     }
 
@@ -98,7 +100,7 @@ final class GitHubSyncModel {
     /// branch and opens a pull request. It stops at the first thing it can't do safely.
     /// - Parameter includeAIChanges: Include notes with AI changes this once, in direct-commit mode.
     func syncNow(includeAIChanges: Bool = false) async {
-        guard let sync, let root = root() else { return }
+        guard let (sync, root) = await trusted() else { return }
         switch mode {
         case .directCommit:
             await run("Backing up…") { try await self.backUp(sync, root, includeAIChanges: includeAIChanges) }
@@ -121,6 +123,27 @@ final class GitHubSyncModel {
     }
 
     // MARK: - Steps
+
+    /// Finds the repository and checks the folder with `GitSync.refusal(at:)`, each time, so a setting
+    /// added after `open()` still stops the next pull or sync. `nil` when Fen won't sync this folder.
+    private func trusted() async -> (GitSync, URL)? {
+        guard var sync, let root = root() else { return nil }
+        sync.clonedByFen = inputs.clonedByFen()
+        self.sync = sync
+        guard let found = await sync.repo(at: root) else {
+            repo = nil
+            refusal = nil
+            return nil
+        }
+        refusal = await sync.refusal(at: root)
+        if let refusal {
+            repo = nil
+            message = refusal
+            return nil
+        }
+        repo = found
+        return (sync, root)
+    }
 
     /// `true` when the folder can go on to commit and push.
     func pullStep(_ sync: GitSync, _ root: URL) async throws -> Bool {

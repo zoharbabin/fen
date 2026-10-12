@@ -73,6 +73,38 @@ struct DirectConflictTests {
         #expect(theirs == "# A\nfrom the phone and the laptop\n")
     }
 
+    @Test func aNoteWithOnlyOneMarkerDeletedIsStillAConflict() async throws {
+        let setup = try await SyncModeSetup()
+        defer { setup.cleanUp() }
+        _ = try await conflicting(setup)
+        let before = try setup.remoteGit("rev-parse", "main")
+        let model = setup.model()
+        await model.syncNow()
+        let text = try String(contentsOf: setup.mine.appendingPathComponent("a.md"), encoding: .utf8)
+        let half = text.split(separator: "\n", omittingEmptySubsequences: false)
+            .filter { !$0.hasPrefix("<<<<<<< ") }.joined(separator: "\n")
+        try setup.edit("a.md", half)
+        await model.syncNow()
+        #expect(model.conflicts == ["a.md"])
+        #expect(try setup.remoteGit("rev-parse", "main") == before)
+    }
+
+    @Test func aHeadingUnderlineInAConflictedNoteDoesNotHoldTheMerge() async throws {
+        let fixture = try SyncFixture(files: ["a.md": "Title\n=======\n\nText\n"])
+        let setup = try await SyncModeSetup(fixture: fixture)
+        defer { setup.cleanUp() }
+        let other = try await fixture.clone("other")
+        try fixture.publish("a.md", "Title\n=======\n\nfrom the phone\n", from: other)
+        try setup.edit("a.md", "Title\n=======\n\nfrom the laptop\n")
+        let model = setup.model()
+        await model.syncNow()
+        #expect(model.conflicts == ["a.md"])
+        try setup.edit("a.md", "Title\n=======\n\nfrom both\n")
+        await model.syncNow()
+        #expect(model.conflicts.isEmpty)
+        #expect(try setup.remoteGit("show", "main:a.md") == "Title\n=======\n\nfrom both")
+    }
+
     @Test func notesTheOtherDeviceDidNotTouchMergeWithoutAsking() async throws {
         let setup = try await SyncModeSetup()
         defer { setup.cleanUp() }
@@ -185,11 +217,26 @@ struct MarkerTests {
         defer { folder.cleanUp() }
         try folder.write("heading.md", "Title\n=======\n\nText\n")
         try folder.write("real.md", "<<<<<<< HEAD\nmine\n=======\ntheirs\n>>>>>>> origin/main\n")
-        try folder.write("half.md", "<<<<<<< not closed\n")
-        #expect(!GitSync.hasMarkers(at: folder.root.appendingPathComponent("heading.md")))
+        try folder.write("plain.md", "# Title\n\nText\n")
+        #expect(!GitSync.hasMarkers(at: folder.root.appendingPathComponent("heading.md"), separatorIsText: true))
         #expect(GitSync.hasMarkers(at: folder.root.appendingPathComponent("real.md")))
-        #expect(!GitSync.hasMarkers(at: folder.root.appendingPathComponent("half.md")))
+        #expect(GitSync.hasMarkers(at: folder.root.appendingPathComponent("real.md"), separatorIsText: true))
+        #expect(!GitSync.hasMarkers(at: folder.root.appendingPathComponent("plain.md")))
         #expect(!GitSync.hasMarkers(at: folder.root.appendingPathComponent("missing.md")))
+    }
+
+    /// Any one marker line left means the note isn't resolved (#3 of the sync audit).
+    @Test func oneMarkerLineLeftStillCounts() throws {
+        let folder = try TempFolder("half-markers")
+        defer { folder.cleanUp() }
+        try folder.write("open.md", "<<<<<<< HEAD\nmine\ntheirs\n")
+        try folder.write("close.md", "mine\ntheirs\n>>>>>>> origin/main\n")
+        try folder.write("middle.md", "mine\n=======\ntheirs\n")
+        try folder.write("crlf.md", "mine\r\n>>>>>>> origin/main\r\n")
+        for name in ["open.md", "close.md", "middle.md", "crlf.md"] {
+            #expect(GitSync.hasMarkers(at: folder.root.appendingPathComponent(name)), "\(name)")
+        }
+        #expect(!GitSync.hasMarkers(at: folder.root.appendingPathComponent("middle.md"), separatorIsText: true))
     }
 
     @Test func aCopyNeverReplacesAFile() throws {

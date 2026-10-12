@@ -86,6 +86,13 @@ extension GitSync {
         return dates
     }
 
+    /// Commits on the current branch that no remote branch has. Use it when the branch tracks none, so
+    /// `Status.ahead` can't say.
+    func unpushedCommits(at root: URL) async throws -> Int {
+        let out = try await run(["rev-list", "--count", "HEAD", "--not", "--remotes"], at: root)
+        return Int(out.text) ?? 0
+    }
+
     func deleteBranch(_ name: String, at root: URL) async throws {
         try await run(["branch", "--delete", "--force", name], at: root)
     }

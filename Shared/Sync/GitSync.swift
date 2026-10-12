@@ -13,6 +13,8 @@ struct GitSync: Sendable {
         case notARepository
         case folderNotEmpty
         case authFailed(String)
+        /// GitHub turned the push down for a reason of its own, such as a protected branch. Git's reason.
+        case pushRefused(String)
         case failed(String)
 
         var errorDescription: String? {
@@ -25,6 +27,8 @@ struct GitSync: Sendable {
                 "The folder isn't empty."
             case let .authFailed(repo):
                 "GitHub refused the token for \(repo). Check that it can read and write this repository's contents."
+            case let .pushRefused(reason):
+                "GitHub didn't accept the push: \(reason)"
             case let .failed(message):
                 message
             }
@@ -84,6 +88,8 @@ struct GitSync: Sendable {
 
     let git: GitTool
     let secrets: any SecretStore
+    /// Fen cloned this folder (`WorkspaceSettings.clonedByFen`), so `refusal(at:)` skips the settings check.
+    var clonedByFen = false
 
     init(git: GitTool, secrets: any SecretStore = KeychainSecretStore(service: GitHubToken.service)) {
         self.git = git
@@ -213,11 +219,13 @@ struct GitSync: Sendable {
             environment: environment(at: root)
         )
         guard out.succeeded else {
-            if out.stderr.contains("rejected") || out.stderr.contains("non-fast-forward") || out.stderr
-                .contains("fetch first") {
+            // Only "you are behind" means pull first. A protected branch or a rule says `[remote rejected]`.
+            if out.stderr.contains("[rejected]"),
+               out.stderr.contains("non-fast-forward") || out.stderr.contains("fetch first") {
                 return .rejected
             }
-            throw await error(from: out, repo: repo(at: root), token: nil)
+            let repo = await repo(at: root)
+            throw error(from: out, repo: repo, token: repo.flatMap(token(for:)))
         }
         // Without a tracking branch the count is the whole history, so report what was pushed.
         return .pushed(commits: max(status.ahead, 1))
@@ -231,11 +239,17 @@ struct GitSync: Sendable {
             in: root,
             environment: environment(at: root)
         )
-        guard out.succeeded else { throw await error(from: out, repo: repo(at: root), token: nil) }
+        guard out.succeeded else {
+            let repo = await repo(at: root)
+            throw error(from: out, repo: repo, token: repo.flatMap(token(for:)))
+        }
     }
 
+    /// The token goes in only when `refusal(at:)` passes, so a folder's own git settings never see it.
     func environment(at root: URL) async -> [String: String] {
-        guard let repo = await repo(at: root) else { return Self.environment(for: nil, token: nil) }
+        guard let repo = await repo(at: root), await refusal(at: root) == nil else {
+            return Self.environment(for: nil, token: nil)
+        }
         return Self.environment(for: repo.cloneURL, token: token(for: repo))
     }
 
@@ -265,8 +279,7 @@ struct GitSync: Sendable {
     static func environment(for remote: URL?, token: String?) -> [String: String] {
         var settings = [("credential.helper", "")]
         if let token, remote?.scheme == "https", remote?.host == "github.com" {
-            let basic = Data("x-access-token:\(token)".utf8).base64EncodedString()
-            settings.append(("http.https://github.com/.extraheader", "Authorization: Basic \(basic)"))
+            settings.append(("http.https://github.com/.extraheader", "Authorization: Basic \(basicCredential(token))"))
         }
         var env = ["GIT_CONFIG_COUNT": "\(settings.count)"]
         for (index, setting) in settings.enumerated() {
@@ -278,8 +291,9 @@ struct GitSync: Sendable {
 
     func error(from out: GitTool.Output, repo: GitHubRepo?, token: String?) -> SyncError {
         var text = out.stderr
-        if let token {
+        if let token, !token.isEmpty {
             text = text.replacingOccurrences(of: token, with: "***")
+                .replacingOccurrences(of: Self.basicCredential(token), with: "***")
         }
         let denied = [
             "Authentication failed", "could not read Username", "Permission denied", "Permission to",
@@ -288,7 +302,33 @@ struct GitSync: Sendable {
         if denied.contains(where: text.contains) {
             return .authFailed(repo?.title ?? "this repository")
         }
+        if ["[remote rejected]", "declined", "repository rule violations"].contains(where: text.contains) {
+            return .pushRefused(Self.refusalReason(text))
+        }
         return .failed(Self.firstLine(text, fallback: "git failed."))
+    }
+
+    /// The value after `Authorization: Basic`.
+    static func basicCredential(_ token: String) -> String {
+        Data("x-access-token:\(token)".utf8).base64EncodedString()
+    }
+
+    /// GitHub's own words for a refused push: its `remote:` lines, or else the reason git gives in
+    /// brackets after `[remote rejected]`.
+    static func refusalReason(_ text: String) -> String {
+        let lines = text.split(whereSeparator: \.isNewline).map { $0.trimmingCharacters(in: .whitespaces) }
+        let remote = lines.filter { $0.hasPrefix("remote:") }.map { line in
+            let rest = line.dropFirst("remote:".count).trimmingCharacters(in: .whitespaces)
+            return rest.hasPrefix("error:") ? rest.dropFirst("error:".count).trimmingCharacters(in: .whitespaces) : rest
+        }.filter { !$0.isEmpty }
+        if !remote.isEmpty {
+            return remote.joined(separator: " ")
+        }
+        if let line = lines.first(where: { $0.contains("[remote rejected]") }), line.hasSuffix(")"),
+           let open = line.lastIndex(of: "(") {
+            return String(line[line.index(after: open) ..< line.index(before: line.endIndex)])
+        }
+        return firstLine(text, fallback: "GitHub gave no reason.")
     }
 
     static func firstLine(_ text: String, fallback: String) -> String {

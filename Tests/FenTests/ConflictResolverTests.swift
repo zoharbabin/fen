@@ -86,6 +86,29 @@ struct ConflictResolverTests {
         #expect(entry.agent == "Conflicts")
     }
 
+    @Test("A note with edits you haven't committed is fixed from the version on the branch, and your edits stay")
+    func uncommittedEditsInTheTargetStay() async throws {
+        let fixture = try await ConflictFixture(
+            provider: .local, reply: Self.rewrite, approval: .autoApprove, optInReplacing: ["resolve-conflict"],
+            useGit: true
+        )
+        defer { fixture.cleanUp() }
+        let flag = try fixture.plantFlag()
+        let dirty = ConflictFixture.policy + "\nA draft paragraph you haven't committed.\n"
+        try fixture.notes.write("docs/policy.md", dirty)
+        let result = try await fixture.resolver.resolve(
+            flag,
+            workspaceID: fixture.workspaceID,
+            keep: .changed,
+            scope: .passage
+        )
+        #expect(result == .applied)
+        #expect(try fixture.text("docs/policy.md") == dirty)
+        let fixed = try fixture.notes.git("show", "fen/conflicts:docs/policy.md")
+        #expect(fixed.contains(Self.rewrite))
+        #expect(!fixed.contains("draft paragraph"))
+    }
+
     @Test("With the opt-in but no git branch, the fix asks")
     func noBranchAsks() async throws {
         let fixture = try await ConflictFixture(

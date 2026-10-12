@@ -26,6 +26,29 @@ struct GitSyncErrorTests {
         let error = sync.error(from: out, repo: nil, token: "github_pat_secret123")
         #expect(!error.localizedDescription.contains("github_pat_secret123"))
     }
+
+    @Test func theHeaderFormOfTheTokenNeverAppearsInAnError() {
+        let header = Data("x-access-token:github_pat_secret123".utf8).base64EncodedString()
+        let out = GitTool.Output(status: 128, stdout: Data(), stderr: "fatal: sent Authorization: Basic \(header)")
+        let error = sync.error(from: out, repo: nil, token: "github_pat_secret123")
+        #expect(!error.localizedDescription.contains(header))
+    }
+
+    @Test func aBranchRuleOrHookRefusalSaysWhyAndIsNotAPullFirst() {
+        let stderr = """
+        remote: error: GH006: Protected branch update failed for refs/heads/main.
+        remote: error: Changes must be made through a pull request.
+        To https://github.com/octo/notes.git
+         ! [remote rejected] HEAD -> main (protected branch hook declined)
+        error: failed to push some refs to 'https://github.com/octo/notes.git'
+        """
+        let out = GitTool.Output(status: 1, stdout: Data(), stderr: stderr)
+        #expect(sync.error(from: out, repo: SyncFixture.repo, token: nil) == .pushRefused(
+            "GH006: Protected branch update failed for refs/heads/main. Changes must be made through a pull request."
+        ))
+        let bare = " ! [remote rejected] HEAD -> main (pre-receive hook declined)\nerror: failed to push some refs"
+        #expect(GitSync.refusalReason(bare) == "pre-receive hook declined")
+    }
 }
 
 @MainActor
@@ -78,6 +101,7 @@ struct GitHubClonerTests {
         #expect(workspace.settings.syncMode == .pushAsPR)
         #expect(library.registry.workspace(id: workspace.id)?.settings.syncMode == .pushAsPR)
         #expect(library.registry.workspace(id: workspace.id)?.settings.pushesAIChanges == false)
+        #expect(library.registry.workspace(id: workspace.id)?.settings.clonedByFen == true)
     }
 
     @Test func aBroadTokenIsRefusedBeforeAnythingIsCreated() async throws {
@@ -182,8 +206,19 @@ struct GitHubSyncModelTests {
         var changes = 0
     }
 
-    private func model(_ fixture: SyncFixture, root: URL, counter: Counter) -> GitHubSyncModel {
-        GitHubSyncModel(sync: fixture.sync, root: { root }, changed: { counter.changes += 1 })
+    /// `clonedByFen`, because the fixture's `url.*.insteadOf` is a setting only a Fen clone may have.
+    private func model(
+        _ fixture: SyncFixture,
+        root: URL,
+        counter: Counter,
+        clonedByFen: Bool = true
+    ) -> GitHubSyncModel {
+        GitHubSyncModel(
+            sync: fixture.sync,
+            inputs: GitHubSyncModel.Inputs(clonedByFen: { clonedByFen }),
+            root: { root },
+            changed: { counter.changes += 1 }
+        )
     }
 
     @Test func aFolderWithoutAGitHubOriginShowsNothing() async throws {

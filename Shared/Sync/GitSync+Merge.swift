@@ -51,7 +51,11 @@ extension GitSync {
     /// Notes of a waiting merge that still hold conflict markers.
     func conflictedNotes(at root: URL) async throws -> [String] {
         guard await isMerging(at: root) else { return [] }
-        return try await unmergedPaths(at: root).filter { Self.hasMarkers(at: root.appendingPathComponent($0)) }
+        var notes: [String] = []
+        for path in try await unmergedPaths(at: root) where await holdsMarkers(path, at: root) {
+            notes.append(path)
+        }
+        return notes
     }
 
     // MARK: - Steps
@@ -62,7 +66,7 @@ extension GitSync {
         let unmerged = try await unmergedPaths(at: root)
         var copies: [String] = []
         if makeCopies {
-            for path in unmerged where !Self.hasMarkers(at: root.appendingPathComponent(path)) {
+            for path in unmerged where await !holdsMarkers(path, at: root) {
                 if let copy = try await keepBoth(path, at: root) {
                     copies.append(copy)
                 }
@@ -111,12 +115,32 @@ extension GitSync {
 
     // MARK: - Helpers
 
-    /// A real marker pair, not just a line of `=======`, which Markdown uses for headings.
-    static func hasMarkers(at url: URL) -> Bool {
-        guard let data = try? Data(contentsOf: url),
-              let text = String(data: data, encoding: .utf8) else { return false }
-        let lines = text.split(separator: "\n", omittingEmptySubsequences: false)
-        return lines.contains { $0.hasPrefix("<<<<<<< ") } && lines.contains { $0.hasPrefix(">>>>>>> ") }
+    /// Any one marker line left means the note isn't resolved yet. A `=======` line is also how Markdown
+    /// underlines a heading, so it counts only when no version of the note in the merge has one.
+    func holdsMarkers(_ path: String, at root: URL) async -> Bool {
+        var separatorIsText = false
+        for stage in 1 ... 3 {
+            let blob = try? await git.run(["cat-file", "blob", ":\(stage):\(path)"], in: root)
+            if let blob, blob.succeeded, Self.lines(of: blob.stdout).contains("=======") {
+                separatorIsText = true
+                break
+            }
+        }
+        return Self.hasMarkers(at: root.appendingPathComponent(path), separatorIsText: separatorIsText)
+    }
+
+    static func hasMarkers(at url: URL, separatorIsText: Bool = false) -> Bool {
+        guard let data = try? Data(contentsOf: url) else { return false }
+        return lines(of: data).contains { line in
+            line.hasPrefix("<<<<<<< ") || line.hasPrefix(">>>>>>> ") || (!separatorIsText && line == "=======")
+        }
+    }
+
+    /// The lines of a UTF-8 file without their line ends. Empty for anything else.
+    private static func lines(of data: Data) -> [Substring] {
+        guard let text = String(data: data, encoding: .utf8) else { return [] }
+        // `\r\n` is one Character in Swift, and `isNewline` matches it.
+        return text.split(omittingEmptySubsequences: false, whereSeparator: \.isNewline)
     }
 
     /// `name (GitHub copy).ext`, or with a number when that name is taken.

@@ -86,6 +86,9 @@ public struct WorkspaceSettings: Codable, Sendable, Equatable {
     /// Direct-commit only: back up notes with AI changes along with the rest (#61). Off by default,
     /// so an AI change never reaches GitHub before you have looked at it.
     public var pushesAIChanges: Bool
+    /// Fen made this folder with Clone from GitHub (#60), so its git settings are Fen's own. Sync
+    /// checks the settings of any other folder before it runs git there with your token.
+    public var clonedByFen: Bool
     public var includeGlobs: [String]
     public var excludeGlobs: [String]
     public var maxFileBytes: Int
@@ -98,6 +101,7 @@ public struct WorkspaceSettings: Codable, Sendable, Equatable {
         agentBranches: AgentBranchMode = .perAgent,
         syncMode: SyncMode? = nil,
         pushesAIChanges: Bool = false,
+        clonedByFen: Bool = false,
         includeGlobs: [String] = WorkspaceSettings.defaultIncludeGlobs,
         excludeGlobs: [String] = [],
         maxFileBytes: Int = WorkspaceSettings.defaultMaxFileBytes
@@ -109,6 +113,7 @@ public struct WorkspaceSettings: Codable, Sendable, Equatable {
         self.agentBranches = agentBranches
         self.syncMode = syncMode
         self.pushesAIChanges = pushesAIChanges
+        self.clonedByFen = clonedByFen
         self.includeGlobs = includeGlobs
         self.excludeGlobs = excludeGlobs
         self.maxFileBytes = maxFileBytes
@@ -125,6 +130,7 @@ public struct WorkspaceSettings: Codable, Sendable, Equatable {
             agentBranches: container.decodeIfPresent(AgentBranchMode.self, forKey: .agentBranches) ?? .perAgent,
             syncMode: container.decodeIfPresent(SyncMode.self, forKey: .syncMode),
             pushesAIChanges: container.decodeIfPresent(Bool.self, forKey: .pushesAIChanges) ?? false,
+            clonedByFen: container.decodeIfPresent(Bool.self, forKey: .clonedByFen) ?? false,
             includeGlobs: container.decodeIfPresent([String].self, forKey: .includeGlobs)
                 ?? WorkspaceSettings.defaultIncludeGlobs,
             excludeGlobs: container.decodeIfPresent([String].self, forKey: .excludeGlobs) ?? [],
