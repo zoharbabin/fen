@@ -73,8 +73,6 @@ struct WorkspaceSettingsView: View {
                             + "Agent access is off while AI data access is None. "
                             + "Enrich on save adds cited facts under your short bullets after you save a note. "
                             + "A schedule does the same for files that changed since its last run, "
-                            + "while Fen is open. It handles up to 20 files per run. "
-                            + "A schedule does the same for files that changed since its last run, "
                             + "while Fen is open, up to \(EnrichOnSave.defaultMaxFilesPerRun) files per run. "
                             + "The approval mode decides if it asks first. "
                             + "In a git repository, each agent commits to its own fen/ branch. "
