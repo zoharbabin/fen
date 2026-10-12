@@ -162,7 +162,7 @@ actor SearchIndex {
             let known = try database.prepare("SELECT 1 FROM docs WHERE path = ?1")
             known.bind(1, path)
             let existed = try known.step()
-            linksChanged = try !existed || storedLinks(of: path, in: database) != newLinks
+            linksChanged = try !existed || database.storedLinks(ofPath: path) != newLinks
             try database.deleteContent(ofPath: path)
             let doc = try database.prepare(
                 "INSERT OR REPLACE INTO docs (path, hash, size, mtime, title, stem, pathkey, inbound) "
@@ -378,16 +378,6 @@ actor SearchIndex {
         return found
     }
 
-    private func storedLinks(of path: String, in database: SQLiteDatabase) throws -> Set<String> {
-        let statement = try database.prepare("SELECT kind, target FROM links WHERE source = ?1")
-        statement.bind(1, path)
-        var found: Set<String> = []
-        while try statement.step() {
-            found.insert(statement.string(0) + "\u{0}" + statement.string(1))
-        }
-        return found
-    }
-
     private func loadedMatrix(dimension: Int) throws -> VectorMatrix {
         if let matrix {
             return matrix
@@ -513,6 +503,17 @@ enum FTSQuery {
 }
 
 extension SQLiteDatabase {
+    /// The links stored for `path`, as `kind NUL target`.
+    func storedLinks(ofPath path: String) throws -> Set<String> {
+        let statement = try prepare("SELECT kind, target FROM links WHERE source = ?1")
+        statement.bind(1, path)
+        var found: Set<String> = []
+        while try statement.step() {
+            found.insert(statement.string(0) + "\u{0}" + statement.string(1))
+        }
+        return found
+    }
+
     /// Removes a file's chunks and links. A method here, not on the actor, so the database never
     /// crosses an isolation boundary inside a transaction.
     func deleteContent(ofPath path: String) throws {
