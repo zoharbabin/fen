@@ -57,6 +57,10 @@ public final class MarkdownDocument: ReferenceFileDocument, @unchecked Sendable 
         guard let data = snapshot.data(using: .utf8) else {
             throw CocoaError(.fileWriteInapplicableStringEncoding)
         }
+        // The file lands a moment after this returns. Enrich on save waits for a quiet period anyway.
+        if let url = fileURL {
+            Task { @MainActor in EnrichOnSave.shared.noteSaved(url) }
+        }
         return FileWrapper(regularFileWithContents: data)
     }
 
