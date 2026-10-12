@@ -241,7 +241,7 @@ public final class WorkspaceLibrary {
     private func requestIndex(_ id: UUID, recheck: Set<String> = []) {
         guard indexing, !indexingStopped.contains(id), let source = source(for: id),
               state(for: id).hasScanned else { return }
-        search.reindex(id: id, source: source, files: state(for: id).snapshot.documents, recheck: recheck)
+        search.reindex(id: id, source: source, files: state(for: id).snapshot.unsortedDocuments, recheck: recheck)
     }
 
     /// Why a file isn't listed, or `nil` if it is.

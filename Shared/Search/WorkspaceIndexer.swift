@@ -39,6 +39,7 @@ enum WorkspaceIndexer {
                 || old.modified != file.modified.timeIntervalSince1970
                 || (embedder != nil && old.hasMissingVectors)
         }
+        .sorted(by: WorkspaceFile.isInPathOrder)
         result.unchanged = files.count - todo.count
 
         for (position, file) in todo.enumerated() {
