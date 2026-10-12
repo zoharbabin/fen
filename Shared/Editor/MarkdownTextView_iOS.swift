@@ -341,6 +341,7 @@
             /// open documents/windows. Not `private`: `MarkdownTextView+LivePreview_iOS.swift`'s
             /// extension needs access from another file in the module.
             var livePreviewStyledText: String?
+            var livePreviewBlockCache = LivePreviewBlockContext.Cache()
             var livePreviewCaretParagraphRange: NSRange?
             var livePreviewImageCache: [String: PlatformImage] = [:]
             var livePreviewCheckboxOverlays: [Int: UIButton] = [:]

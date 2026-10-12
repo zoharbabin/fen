@@ -23,10 +23,12 @@ struct LivePreviewBlockContext {
     private let tableRoles: [Int: LivePreviewBlockStyle.TableRole]
     /// Blocks shown as a picture of their rendered result, for the kinds passed to `init`.
     let rendered: [RenderedBlock]
+    private let renderedRanges: [NSRange]
 
     init(text: String, rendering kinds: Set<RenderedBlock.Kind> = []) {
         fenced = LivePreviewEditing.fencedRanges(text: text)
         rendered = LivePreviewEditing.renderedBlocks(in: text, fenced: fenced, kinds: kinds)
+        renderedRanges = rendered.map(\.range)
         frontMatterEnd = LivePreviewEditing.frontMatterRange(text: text).map { NSMaxRange($0) } ?? 0
         var roles: [Int: LivePreviewBlockStyle.TableRole] = [:]
         for table in LivePreviewEditing.tables(in: text, excluding: fenced) {
@@ -37,12 +39,30 @@ struct LivePreviewBlockContext {
         tableRoles = roles
     }
 
+    /// Keeps the last context, so moving the caret in an unchanged document doesn't scan it again.
+    struct Cache {
+        private var text: String?
+        private var kinds: Set<RenderedBlock.Kind> = []
+        private var context: LivePreviewBlockContext?
+
+        mutating func context(for text: String, rendering kinds: Set<RenderedBlock.Kind>) -> LivePreviewBlockContext {
+            if let context, self.kinds == kinds, self.text == text {
+                return context
+            }
+            let fresh = LivePreviewBlockContext(text: text, rendering: kinds)
+            self.text = text
+            self.kinds = kinds
+            context = fresh
+            return fresh
+        }
+    }
+
     /// `start` is where the line begins. Fenced ranges are whole lines, so a line is in one if its start is.
     func kind(ofLineAt start: Int) -> Kind {
         if start < frontMatterEnd {
             return .skipped
         }
-        if fenced.contains(where: { start >= $0.location && start < NSMaxRange($0) }) {
+        if Self.index(containing: start, in: fenced) != nil {
             return .code
         }
         return tableRoles[start].map(Kind.table) ?? .text
@@ -59,7 +79,23 @@ struct LivePreviewBlockContext {
     }
 
     func renderedBlock(at start: Int) -> RenderedBlock? {
-        rendered.first { NSLocationInRange(start, $0.range) }
+        Self.index(containing: start, in: renderedRanges).map { rendered[$0] }
+    }
+
+    /// The index of the range that holds `location`, in ranges that are sorted and don't overlap.
+    private static func index(containing location: Int, in ranges: [NSRange]) -> Int? {
+        var low = 0
+        var high = ranges.count
+        while low < high {
+            let mid = (low + high) / 2
+            if ranges[mid].location > location {
+                high = mid
+            } else {
+                low = mid + 1
+            }
+        }
+        guard low > 0, NSLocationInRange(location, ranges[low - 1]) else { return nil }
+        return low - 1
     }
 }
 

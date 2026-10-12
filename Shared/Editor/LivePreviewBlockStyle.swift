@@ -45,21 +45,52 @@ enum LivePreviewBlockStyle {
         return false
     }
 
-    /// Undoes what `apply` did inside `range`. The caller restores color and font from their own stash.
+    /// Block attributes. They go wherever they are found.
+    private static let blockKeys: [NSAttributedString.Key] = [
+        .fenBlockDecoration, .fenBlockInk, .fenTablePipe, .fenBlockImage, .baselineOffset,
+        .livePreviewOriginalParagraphStyle,
+    ]
+    /// Marker styling. It goes only from runs marked `livePreviewTouched`, because Highlightr sets links and
+    /// underlines of its own. The stashed color and font are put back first.
+    private static let markerKeys: [NSAttributedString.Key] = [
+        .livePreviewTouched, .livePreviewOriginalForegroundColor, .livePreviewOriginalFont,
+        .strikethroughStyle, .underlineStyle, .link,
+    ]
+
+    /// Undoes every Live Preview attribute inside `range`: the marker styling (color, font, strike, underline,
+    /// link), the paragraph styles and the block decorations. Call it between `beginEditing()` and `endEditing()`.
+    ///
+    /// It reads the whole range once and writes each affected run once. Highlightr's storage makes every write
+    /// expensive, and `enumerateAttribute(_:in:)` and `removeAttribute(_:range:)` over a range are quadratic in a
+    /// long document, so a key-by-key pass takes minutes on a few thousand lines.
     static func restore(in range: NSRange, storage: NSTextStorage) {
-        storage.enumerateAttribute(.livePreviewOriginalParagraphStyle, in: range) { value, subrange, _ in
-            guard let stash = value as? ParagraphStash else { return }
-            if let style = stash.style {
-                storage.addAttribute(.paragraphStyle, value: style, range: subrange)
-            } else {
-                storage.removeAttribute(.paragraphStyle, range: subrange)
+        var runs: [(range: NSRange, attributes: [NSAttributedString.Key: Any])] = []
+        storage.enumerateAttributes(in: range, options: []) { attributes, subrange, _ in
+            guard attributes[.livePreviewTouched] != nil || blockKeys.contains(where: { attributes[$0] != nil })
+            else { return }
+            runs.append((subrange, attributes))
+        }
+        for run in runs {
+            var attributes = run.attributes
+            if attributes[.livePreviewTouched] != nil {
+                if let color = attributes[.livePreviewOriginalForegroundColor] as? PlatformColor {
+                    attributes[.foregroundColor] = color
+                }
+                if let font = attributes[.livePreviewOriginalFont] as? PlatformFont {
+                    attributes[.font] = font
+                }
+                for key in markerKeys {
+                    attributes[key] = nil
+                }
             }
-            storage.removeAttribute(.livePreviewOriginalParagraphStyle, range: subrange)
+            if let stash = attributes[.livePreviewOriginalParagraphStyle] as? ParagraphStash {
+                attributes[.paragraphStyle] = stash.style
+            }
+            for key in blockKeys {
+                attributes[key] = nil
+            }
+            storage.setAttributes(attributes, range: run.range)
         }
-        for key: NSAttributedString.Key in [.fenBlockDecoration, .fenBlockInk, .fenTablePipe, .fenBlockImage] {
-            storage.removeAttribute(key, range: range)
-        }
-        storage.removeAttribute(.baselineOffset, range: range)
     }
 
     // MARK: - Lists

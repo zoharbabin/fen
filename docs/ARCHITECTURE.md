@@ -184,7 +184,7 @@ PDF export and Print… both load the composed HTML into an offscreen `WKWebView
 
 ## Highlightr fork (`Dependency/Highlightr`)
 
-The editor's live syntax highlighting uses a vendored fork of [Highlightr](https://github.com/raspu/Highlightr), not the upstream package, because upstream resolves its bundled JS/CSS against `resourceURL` in a way that broke under the same macOS 26 resource lookup change described above. See the fork's own commit history for the exact patch. HTML-export syntax highlighting is separate — it loads the same underlying [highlight.js](https://highlightjs.org) library directly (core script, theme CSS, and an init script) through `HTMLComposer`, rather than going through Highlightr's JavaScriptCore wrapper.
+The editor's live syntax highlighting uses a vendored fork of [Highlightr](https://github.com/raspu/Highlightr), not the upstream package, because upstream resolves its bundled JS/CSS against `resourceURL` in a way that broke under the same macOS 26 resource lookup change described above. See the fork's own commit history for the exact patch. The fork also forwards attribute reads and edits, and `beginEditing()` and `endEditing()`, to its inner storage (`CodeAttributedString`). Without that, each attribute write fixed attributes on its own and cost more as the note grew, so Live Preview took about 5 seconds to style 6000 lines. `LivePreviewPerformanceTests` guards this. HTML-export syntax highlighting is separate — it loads the same underlying [highlight.js](https://highlightjs.org) library directly (core script, theme CSS, and an init script) through `HTMLComposer`, rather than going through Highlightr's JavaScriptCore wrapper.
 
 ## HTML sanitization: fail closed, not fail open
 

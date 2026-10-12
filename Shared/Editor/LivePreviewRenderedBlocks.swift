@@ -65,8 +65,12 @@ extension LivePreviewEditing {
         var blocks: [RenderedBlock] = []
         var location = start
         while location < ns.length {
-            let line = ns.lineRange(for: NSRange(location: location, length: 0))
+            // Jump to the next `$$`, so a long note without math costs one search and not a look at every line.
+            let hit = ns.range(of: "$$", options: [], range: NSRange(location: location, length: ns.length - location))
+            guard hit.location != NSNotFound else { break }
+            let line = ns.lineRange(for: NSRange(location: hit.location, length: 0))
             guard line.length > 0 else { break }
+            location = line.location
             let next = NSMaxRange(line)
             if let fence = fenced.first(where: { location >= $0.location && location < NSMaxRange($0) }) {
                 location = NSMaxRange(fence)

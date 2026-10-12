@@ -96,7 +96,7 @@
             guard ns.length > 0 else { return }
             // Rule 2.1/2.2 (issue #128), tables, front matter and rendered blocks (issue #135): computed once per
             // call, because a fence or a table spans lines and no single line can tell if it belongs to one.
-            let blocks = LivePreviewBlockContext(text: text, rendering: LivePreviewSnapshots.shared.kinds())
+            let blocks = livePreviewBlockCache.context(for: text, rendering: LivePreviewSnapshots.shared.kinds())
             let expandedRange = ns.lineRange(for: blocks.widened(boundedRange(range, in: ns)))
             clearLivePreviewStyling(in: expandedRange, textStorage: textStorage)
             removeOverlays(overlapping: expandedRange, textView: textView)
@@ -309,25 +309,6 @@
         @MainActor private func clearLivePreviewStyling(in range: NSRange, textStorage: NSTextStorage) {
             guard range.length > 0 else { return }
             textStorage.beginEditing()
-            textStorage.enumerateAttribute(.livePreviewTouched, in: range, options: []) { value, subrange, _ in
-                guard value != nil else { return }
-                if let originalColor = textStorage.attribute(
-                    .livePreviewOriginalForegroundColor, at: subrange.location, effectiveRange: nil
-                ) as? NSColor {
-                    textStorage.addAttribute(.foregroundColor, value: originalColor, range: subrange)
-                }
-                if let originalFont = textStorage.attribute(
-                    .livePreviewOriginalFont, at: subrange.location, effectiveRange: nil
-                ) as? NSFont {
-                    textStorage.addAttribute(.font, value: originalFont, range: subrange)
-                }
-                textStorage.removeAttribute(.livePreviewOriginalForegroundColor, range: subrange)
-                textStorage.removeAttribute(.livePreviewOriginalFont, range: subrange)
-                textStorage.removeAttribute(.livePreviewTouched, range: subrange)
-                textStorage.removeAttribute(.strikethroughStyle, range: subrange)
-                textStorage.removeAttribute(.underlineStyle, range: subrange)
-                textStorage.removeAttribute(.link, range: subrange)
-            }
             LivePreviewBlockStyle.restore(in: range, storage: textStorage)
             textStorage.endEditing()
         }

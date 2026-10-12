@@ -345,6 +345,7 @@ func caretColor(for background: PlatformColor) -> PlatformColor {
             /// so a no-op call (rule 4.1) can be skipped. Not `private`:
             /// `MarkdownTextView+LivePreview.swift`'s extension needs access from another file.
             var livePreviewStyledText: String?
+            var livePreviewBlockCache = LivePreviewBlockContext.Cache()
             /// The paragraph range containing the caret the last time live-preview styling ran
             /// (rule 4.2) -- a pure selection move only re-styles the previous and new caret
             /// paragraphs, never the whole document. Not `private` for the same reason.

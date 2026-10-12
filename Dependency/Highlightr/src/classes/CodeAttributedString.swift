@@ -116,6 +116,52 @@ open class CodeAttributedString : NSTextStorage
         return stringStorage.attributes(at: location, effectiveRange: range)
     }
     
+    // The attribute reads and edits below go straight to the inner storage. The inherited versions rebuild a
+    // bridged attributes dictionary for every call and take time that grows with the number of runs, which makes
+    // styling a long document (Live Preview, issue #135) quadratic.
+
+    // The inner storage fixes attributes after every edit unless it is told a batch is open. Without this, a
+    // batch of N edits makes N fixing passes over a storage that gets slower as it grows.
+    open override func beginEditing()
+    {
+        super.beginEditing()
+        stringStorage.beginEditing()
+    }
+
+    open override func endEditing()
+    {
+        stringStorage.endEditing()
+        super.endEditing()
+    }
+
+    open override func attribute(_ attrName: AttributedStringKey, at location: Int, effectiveRange range: NSRangePointer?) -> Any?
+    {
+        return stringStorage.attribute(attrName, at: location, effectiveRange: range)
+    }
+
+    open override func attribute(_ attrName: AttributedStringKey, at location: Int, longestEffectiveRange range: NSRangePointer?, in rangeLimit: NSRange) -> Any?
+    {
+        return stringStorage.attribute(attrName, at: location, longestEffectiveRange: range, in: rangeLimit)
+    }
+
+    open override func addAttribute(_ name: AttributedStringKey, value: Any, range: NSRange)
+    {
+        stringStorage.addAttribute(name, value: value, range: range)
+        self.edited(TextStorageEditActions.editedAttributes, range: range, changeInLength: 0)
+    }
+
+    open override func addAttributes(_ attrs: [AttributedStringKey : Any] = [:], range: NSRange)
+    {
+        stringStorage.addAttributes(attrs, range: range)
+        self.edited(TextStorageEditActions.editedAttributes, range: range, changeInLength: 0)
+    }
+
+    open override func removeAttribute(_ name: AttributedStringKey, range: NSRange)
+    {
+        stringStorage.removeAttribute(name, range: range)
+        self.edited(TextStorageEditActions.editedAttributes, range: range, changeInLength: 0)
+    }
+
     /**
      Replaces the characters at the given range with the provided string.
      
