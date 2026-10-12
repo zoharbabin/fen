@@ -100,15 +100,18 @@ final class MCPServer: @unchecked Sendable {
             }
         }
         connection.start(queue: queue)
-        // A client that connects and sends nothing, or sends a byte a second, is cut off.
+        // A client that connects and sends nothing, or sends a byte a second, is cut off. The
+        // limit covers receiving the request only, so a slow tool call still gets its answer.
+        // Whichever comes first wins: the whole request, or the time limit.
+        let deadline = Once()
         queue.asyncAfter(deadline: .now() + requestTimeout) { [weak connection] in
-            guard let connection, connection.state != .cancelled else { return }
+            guard let connection, connection.state != .cancelled, deadline.first() else { return }
             connection.cancel()
         }
-        read(connection, buffer: Data())
+        read(connection, buffer: Data(), deadline: deadline)
     }
 
-    private func read(_ connection: NWConnection, buffer: Data) {
+    private func read(_ connection: NWConnection, buffer: Data, deadline: Once) {
         connection.receive(minimumIncompleteLength: 1, maximumLength: 65536) { [weak self] data, _, isComplete, error in
             guard let self else { return }
             var buffer = buffer
@@ -117,14 +120,16 @@ final class MCPServer: @unchecked Sendable {
             }
             switch MCPHTTPParser.parse(buffer) {
             case let .request(request):
+                guard deadline.first() else { return }
                 respond(to: request, on: connection)
             case let .reject(status):
+                guard deadline.first() else { return }
                 send(.empty(status), on: connection)
             case .needMore:
                 if error != nil || isComplete {
                     connection.cancel()
                 } else {
-                    read(connection, buffer: buffer)
+                    read(connection, buffer: buffer, deadline: deadline)
                 }
             }
         }

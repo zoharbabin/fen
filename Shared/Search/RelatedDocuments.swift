@@ -107,6 +107,7 @@ extension WorkspaceSearch {
             anyWord: true,
             in: [workspace],
             scope: .workspace(workspace.id),
+            destination: .shownToUser,
             origin: SearchOrigin(workspaceID: workspace.id, relativePath: path),
             limit: limit * 4 + 1
         )

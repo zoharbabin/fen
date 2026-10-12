@@ -202,15 +202,44 @@ struct WriteGateTests {
         #expect(fx.text("b.md") == "# B\n")
     }
 
-    @Test("paths that leave the workspace, hide, or look secret are refused", arguments: [
-        "../outside.md", "/etc/hosts", "notes/../../x.md", ".git/config", ".fen/schema.yaml", ".env", "keys/server.pem",
-        "",
-    ])
+    @Test(
+        "paths that leave the workspace, hide, look secret, or hold a quote or control character are refused",
+        arguments: [
+            "../outside.md", "/etc/hosts", "notes/../../x.md", ".git/config", ".fen/schema.yaml", ".env",
+            "keys/server.pem",
+            "", "x.md\n0 0000000000000000000000000000000000000000\ta.md", "\"q.md\"", "tab\t.md",
+        ]
+    )
     func invalidPaths(path: String) throws {
         let fx = try GateHarness(settings: autoSettings())
         defer { fx.cleanUp() }
         let change = try fx.change(.createFile(path: path, content: "x"), base: .some(nil))
         #expect(throws: WriteError.invalidPath(path)) { try fx.gate.submit(change) }
+    }
+
+    @Test("paths the workspace's exclude globs or .gitignore leave out are refused, existing or not")
+    func excludedPaths() throws {
+        var settings = autoSettings()
+        settings.excludeGlobs = ["private/**"]
+        let fx = try GateHarness(
+            files: ["a.md": "# A\n", "private/p.md": "# P\n", "build/x.md": "# X\n"],
+            settings: settings,
+            git: true
+        )
+        defer { fx.cleanUp() }
+        let changes: [(String, EditOperation, String??)] = [
+            ("private/new.md", .createFile(path: "private/new.md", content: "x"), .some(nil)),
+            ("private/p.md", .createFile(path: "private/p.md", content: "x"), .some(nil)),
+            ("build/x.md", .append(path: "build/x.md", text: "x"), .some(ContentHash.of(Data("# X\n".utf8)))),
+            ("private/a.md", .move(from: "a.md", to: "private/a.md"), nil),
+        ]
+        for (path, edit, base) in changes {
+            let change = try fx.change(edit, base: base)
+            #expect(throws: WriteError.invalidPath(path)) { try fx.gate.submit(change) }
+        }
+        #expect(!fx.exists("private/new.md"))
+        #expect(fx.text("build/x.md") == "# X\n")
+        #expect(fx.text("a.md") == "# A\n")
     }
 
     @Test("a symlink that points outside the workspace is refused")
@@ -310,5 +339,24 @@ struct WriteGateTests {
             return
         }
         #expect(item.reason == .overCap)
+    }
+
+    @Test("Approve All leaves deletes, moves, and whole-file replacements waiting")
+    func approveAllSkipsDestructive() throws {
+        let fx = try GateHarness(files: ["a.md": "# A\n", "b.md": "# B\n", "c.md": "# C\n", "d.md": "# D\n"])
+        defer { fx.cleanUp() }
+        let edits: [EditOperation] = [
+            .append(path: "a.md", text: "More."),
+            .replaceText(path: "b.md", find: "B", with: "Bee"),
+            .delete(path: "c.md"),
+            .move(from: "d.md", to: "e.md"),
+            .overwrite(path: "a.md", content: "# New\n"),
+        ]
+        for edit in edits {
+            try fx.gate.submit(fx.change(edit))
+        }
+        let batch = WorkspaceActivityView.batchApprovable(fx.gate.pending(for: fx.workspaceID))
+        #expect(batch.approvable.map(\.change.edit.primaryPath) == ["a.md", "b.md"])
+        #expect(batch.destructive == 3)
     }
 }

@@ -31,7 +31,7 @@ struct WorkspaceSearchView: View {
                 // A debounce that a new keystroke cancels. It waits out typing, not another task.
                 try? await Task.sleep(for: .milliseconds(200))
                 guard !Task.isCancelled else { return }
-                let found = await library.search(query, scope: scope, origin: origin)
+                let found = await library.search(query, scope: scope, destination: .shownToUser, origin: origin)
                 guard !Task.isCancelled else { return }
                 results = found
                 searched = true

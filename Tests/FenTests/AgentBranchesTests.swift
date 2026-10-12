@@ -140,6 +140,29 @@ struct AgentBranchesTests {
         #expect(try fixture.git("show", "fen/claude:new/deep.md") == "n\n")
     }
 
+    @Test func aPathWithANewlineOrQuoteCannotAddASecondIndexEntry() async throws {
+        let fixture = try GitFixture()
+        defer { fixture.cleanUp() }
+        let branch = try await fixture.branch("Claude")
+        let zero = String(repeating: "0", count: 40)
+        let smuggled = "x.md\n0 \(zero)\ta.md"
+        _ = try await fixture.branches.commit(
+            [
+                AgentFileChange(path: smuggled, data: Data("x\n".utf8), mode: nil),
+                AgentFileChange(path: "\"q.md\"", data: Data("q\n".utf8), mode: nil),
+            ],
+            message: AgentCommitMessage(subject: "x", trailers: []),
+            on: branch,
+            expectedTip: nil
+        )
+        let names = try fixture.git("ls-tree", "-r", "-z", "--name-only", "fen/claude")
+            .split(separator: "\0").map(String.init)
+        #expect(names.contains("a.md"))
+        #expect(names.contains(smuggled))
+        #expect(names.contains("\"q.md\""))
+        #expect(!names.contains("q.md"))
+    }
+
     @Test func aWorkspaceBelowTheRepositoryRootCommitsUnderItsFolder() async throws {
         let fixture = try GitFixture()
         defer { fixture.cleanUp() }

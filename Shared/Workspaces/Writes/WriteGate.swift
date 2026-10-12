@@ -119,8 +119,7 @@ public final class WriteGate {
             return .blocked
         case let .ask(reason):
             let item = Pending(change: change, reason: reason, diff: plan.diff, tier: plan.tier)
-            pending.removeAll { $0.id == item.id }
-            pending.append(item)
+            try enqueue(item)
             return .pending(item)
         case .apply:
             let entry = try perform(plan, change, context, approvedBy: change.invokedByUser ? .invoked : .auto)
@@ -187,7 +186,15 @@ public final class WriteGate {
         ProposalStatsStore(file: home.proposalStatsFile(id: workspaceID)).load()
     }
 
-    func enqueue(_ item: Pending) {
+    /// How many changes one MCP client may have waiting at once. A client gets a fresh run for
+    /// each proposal, so `maxFilesPerRun` never bounds it.
+    static let maxPendingPerClient = 50
+
+    func enqueue(_ item: Pending) throws {
+        if let client = item.change.client,
+           pending.count(where: { $0.change.client == client && $0.id != item.id }) >= Self.maxPendingPerClient {
+            throw WriteError.tooManyPending
+        }
         pending.removeAll { $0.id == item.id }
         pending.append(item)
     }
@@ -265,13 +272,29 @@ public final class WriteGate {
         return GateContext(workspace: workspace, root: PathGate.canonicalURL(of: root) ?? root)
     }
 
-    /// A path Fen may write: relative, inside the root, no hidden part, not secret-looking.
+    /// A path Fen may write: relative, inside the root, no hidden part, not secret-looking, and no
+    /// control character or `"`, which git would read as an entry break or a quoted path.
     func resolve(_ path: String, _ context: GateContext) throws -> URL {
         let parts = path.split(separator: "/", omittingEmptySubsequences: false).map(String.init)
-        guard !path.isEmpty, !path.hasPrefix("/"), !parts.contains(""), !parts.contains(".."), !parts.contains("."),
+        let unsafe = path.unicodeScalars.contains { $0 == "\"" || CharacterSet.controlCharacters.contains($0) }
+        guard !path.isEmpty, !unsafe, !path.hasPrefix("/"), !parts.contains(""), !parts.contains(".."),
+              !parts.contains("."),
               !parts.contains(where: { $0.hasPrefix(".") }),
               !FileEligibility.looksSecret(fileName: parts[parts.count - 1]),
               let url = PathGate.resolve(relativePath: path, in: context.root) else {
+            throw WriteError.invalidPath(path)
+        }
+        return url
+    }
+
+    /// `resolve`, plus the workspace's own lists: a path `.gitignore` or an exclude glob leaves out
+    /// is refused before Fen looks at the file. A change can't land where a read can't see, and
+    /// the answer doesn't tell whether the file exists. With `checkingInclude`, a path the include
+    /// globs don't match is refused too.
+    func resolveListed(_ path: String, _ context: GateContext, checkingInclude: Bool = false) throws -> URL {
+        let url = try resolve(path, context)
+        let source = LocalFolderSource(root: context.root, settings: context.workspace.settings)
+        guard source.ruleExclusion(forRelativePath: path, checkingInclude: checkingInclude) == nil else {
             throw WriteError.invalidPath(path)
         }
         return url
@@ -288,7 +311,7 @@ public final class WriteGate {
             throw WriteError.outsideScope(path)
         }
         let path = change.edit.primaryPath
-        let url = try resolve(path, context)
+        let url = try resolveListed(path, context)
         let limit = context.workspace.settings.maxFileBytes
         let before = try prefetched.map { try check($0.before, path: path, limit: limit) }
             ?? readCurrent(url, path: path, limit: limit)
@@ -298,7 +321,7 @@ public final class WriteGate {
         var toPath: String?
         var toURL: URL?
         if case let .move(_, destination) = change.edit {
-            let target = try resolve(destination, context)
+            let target = try resolveListed(destination, context)
             guard !(prefetched?.destinationTaken ?? FileManager.default.fileExists(atPath: target.path))
             else { throw WriteError.alreadyExists(destination) }
             toPath = destination

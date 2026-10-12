@@ -184,9 +184,8 @@ public final class WorkspaceSearch {
     /// Searches the indexes of the workspaces in `scope`.
     ///
     /// - Parameters:
-    ///   - destination: where the results would go. Pass `nil` to show them to you. Pass a
-    ///     destination when they feed a model, and workspaces whose AI data access does not allow
-    ///     it are left out, even for `.all`.
+    ///   - destination: where the results go. With `.model`, workspaces whose AI data access does
+    ///     not allow that destination are left out, even for `.all`.
     ///   - origin: the file you are in. Files near it rank a little higher.
     ///   - meaning: the text to embed, when it should differ from the words to match. A long
     ///     selection matches by a few key words and by its whole meaning.
@@ -198,14 +197,18 @@ public final class WorkspaceSearch {
         anyWord: Bool = false,
         in workspaces: [Workspace],
         scope: WorkspaceScope,
-        destination: ModelDestination? = nil,
+        destination: SearchDestination,
         origin: SearchOrigin? = nil,
         limit: Int = 30
     ) async -> [SearchResult] {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return [] }
-        let targets = WorkspaceAccessPolicy.eligible(workspaces, scope: scope, destination: destination)
-            .compactMap { workspace in indexes[workspace.id].map { (workspace, $0) } }
+        let targets = WorkspaceAccessPolicy.eligible(
+            workspaces,
+            scope: scope,
+            destination: destination.modelDestination
+        )
+        .compactMap { workspace in indexes[workspace.id].map { (workspace, $0) } }
         guard !targets.isEmpty else { return [] }
 
         let queryVector = await vector(forQuery: meaning?.trimmingCharacters(in: .whitespacesAndNewlines) ?? trimmed)

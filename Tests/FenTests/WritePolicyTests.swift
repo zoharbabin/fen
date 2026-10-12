@@ -292,6 +292,40 @@ struct FrontMatterAndDiffTests {
         #expect(diff.changedFraction == 0.05)
     }
 
+    @Test("a diff cut at maxLines says how many lines it doesn't show")
+    func cutDiffSaysSo() {
+        let old = (1 ... 30).map { "line \($0)" }.joined(separator: "\n")
+        let new = (1 ... 30).map { "LINE \($0)" }.joined(separator: "\n")
+        let diff = LineDiff.make(old: old, new: new, maxLines: 10)
+        #expect(diff.lines.count == 11)
+        #expect(diff.lines.last == LineDiff.Line(kind: .gap, text: "50 more lines not shown"))
+        #expect(diff.rendered.hasSuffix("… 50 more lines not shown"))
+        #expect(diff.added == 30 && diff.removed == 30)
+    }
+
+    @Test("a very large change skips the line compare and shows the changed region removed, then added")
+    func largeDiffIsBounded() {
+        // Every other line changes, so a line compare would keep half. Too big to compare, so
+        // the whole region between the common first and last line counts as changed.
+        let count = LineDiff.maxComparedLines
+        let oldLines = ["# Same"] + (1 ... count).map { "x \($0)" } + ["end"]
+        let newLines = ["# Same"] + (1 ... count).map { $0.isMultiple(of: 2) ? "x \($0)" : "y \($0)" } + ["end"]
+        let diff = LineDiff.make(
+            old: oldLines.joined(separator: "\n"),
+            new: newLines.joined(separator: "\n"),
+            maxLines: 4
+        )
+        #expect(diff.removed == count - 1 && diff.added == count - 1)
+        #expect(diff.lines.map(\.kind) == [.context, .removed, .removed, .removed, .gap])
+        #expect(diff.lines[1].text == "x 1")
+        // A small change in a big file is still compared line by line.
+        let small = LineDiff.make(
+            old: oldLines.joined(separator: "\n"),
+            new: (oldLines + ["more"]).joined(separator: "\n")
+        )
+        #expect(small.added == 1 && small.removed == 0)
+    }
+
     @Test("an identical text has an empty diff")
     func emptyDiff() {
         #expect(LineDiff.make(old: "a\nb", new: "a\nb").isEmpty)

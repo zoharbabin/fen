@@ -100,9 +100,17 @@ struct ActivityLog {
             try line.write(to: file, options: .atomic)
             return
         }
-        let handle = try FileHandle(forWritingTo: file)
+        let handle = try FileHandle(forUpdating: file)
         defer { try? handle.close() }
-        try handle.seekToEnd()
+        let end = try handle.seekToEnd()
+        // A torn last line (a crash mid-write) gets its own line, so this record isn't absorbed.
+        if end > 0 {
+            try handle.seek(toOffset: end - 1)
+            if try handle.read(upToCount: 1) != Data([0x0A]) {
+                line.insert(0x0A, at: 0)
+            }
+            try handle.seekToEnd()
+        }
         try handle.write(contentsOf: line)
     }
 }

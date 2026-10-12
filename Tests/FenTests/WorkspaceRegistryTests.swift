@@ -51,6 +51,22 @@ struct WorkspaceRegistryTests {
         #expect(try reopened.rootURL(for: reopened.workspaces[1].id) == work)
     }
 
+    @Test func aCorruptListIsNeverOverwrittenByAnEmptyOne() throws {
+        let fixture = try Fixture()
+        defer { fixture.sandbox.cleanUp() }
+        try fixture.fenHome.ensureExists()
+        let corrupt = Data("{ not json".utf8)
+        try corrupt.write(to: fixture.fenHome.workspacesFile)
+
+        #expect(throws: (any Error).self) { try fixture.registry.load() }
+        #expect(fixture.registry.isListUnreadable)
+        let folder = try fixture.sandbox.folder("notes")
+        #expect(throws: WorkspaceError.listUnreadable) { try fixture.registry.add(folder: folder) }
+
+        #expect(fixture.registry.workspaces.isEmpty)
+        #expect(try Data(contentsOf: fixture.fenHome.workspacesFile) == corrupt)
+    }
+
     @Test func newWorkspacesGetTheSafeDefaults() throws {
         let fixture = try Fixture()
         defer { fixture.sandbox.cleanUp() }

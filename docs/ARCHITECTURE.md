@@ -224,7 +224,7 @@ A workspace is a folder you grant to Fen. You can add as many as you like. Fen l
 
 | Piece | What it does |
 |---|---|
-| `WorkspaceRegistry` | The list of granted folders, saved atomically in `~/.fen/workspaces.json`. Refuses overlaps, your home folder, a volume root, and `~/.fen`. Keeps a security-scoped bookmark per folder. |
+| `WorkspaceRegistry` | The list of granted folders, saved atomically in `~/.fen/workspaces.json`. Refuses overlaps, your home folder, a volume root, and `~/.fen`. Keeps a security-scoped bookmark per folder. If the file can't be read, Fen won't save over it, and adding a workspace is off until you fix or move it. |
 | `PathGate` | The one containment check for the app. `isContained`, `resolve(relativePath:in:)` and `overlaps` follow symlinks (including dangling ones) and compare whole path components. The preview handler and every workspace read go through it. |
 | `LocalFolderSource` | A `WorkspaceSource` for a folder. Read-only. Skips hidden files, `.gitignore`d files, secret-looking names, binaries, files over the size limit, and symlinks that leave the folder. Never follows a symlinked folder. |
 | `GitRepository` | Reads branch, ignore rules and dirty state straight from `.git`. It runs no `git` process: the system `git` doesn't exist on iOS, and on a Mac without developer tools it opens an install prompt. A test greps `Shared/Workspaces` for `Process()`, and only `Agents/GitTool.swift` may use it (see [Agent branches](#agent-branches-an-mcp-client-commits-to-its-own-branch-your-checkout-stays-put)). Staged-but-uncommitted changes aren't detected. |
@@ -325,7 +325,7 @@ AI features never write to a workspace themselves. They build a `ProposedChange`
 
 **What the gate does with each change**, in this order:
 
-1. The workspace must exist. Every path must be in the run's `scope` and resolve inside the root through `PathGate`. Hidden parts (`.git`, `.env`), secret-looking names, binary files and files over the size limit are refused.
+1. The workspace must exist. Every path must be in the run's `scope` and resolve inside the root through `PathGate`. Hidden parts (`.git`, `.env`), secret-looking names, quotes and control characters, paths the workspace leaves out (`.gitignore`, exclude globs), binary files and files over the size limit are refused.
 2. The file must still hash to `baseHash` (compare-and-swap). If you or another tool changed it, the write fails with `targetChanged`. Nothing is overwritten. Take the hash with `WriteGate.contentHash` when you read the file for the model.
 3. `WritePolicy.mode` picks the mode, then `decide` returns apply, ask or block (below).
 4. Apply: save the old bytes to `history/preimages/<path hash>-<content hash>`, write atomically with the same permissions, append to `history/activity.jsonl`.
@@ -336,7 +336,7 @@ AI features never write to a workspace themselves. They build a `ProposedChange`
 
 **Undo.** `WriteGate.undo` restores the saved bytes only if the file still hashes to what Fen wrote, so it never overwrites your later edit. `revertRun` undoes every change of one run, newest first, and lists the ones it left alone. The log and pre-images survive a restart. `Provenance.commitTrailer` gives the `AI-Assisted-By:` line for a commit you write. Fen adds no markers to files, and `FrontMatterEditor` changes one line and keeps every other byte.
 
-Tests: `WritePolicyTests` (matrix, precedence, parser, injection fixtures, front matter, diff) and `WriteGateTests` (CAS, scope, symlinks, caps, pause, restart, undo, and a real git repo and a plain folder end to end). The approval list and undo are in the Workspaces window, Activity.
+Tests: `WritePolicyTests` (matrix, precedence, parser, injection fixtures, front matter, diff) and `WriteGateTests` (CAS, scope, symlinks, caps, pause, restart, undo, and a real git repo and a plain folder end to end). The approval list and undo are in the Workspaces window, Activity. Approve All skips destructive changes, so you approve each delete, move and overwrite by hand.
 
 ## Search: one index per workspace, words and meaning, nothing leaves the Mac
 
@@ -350,7 +350,7 @@ Tests: `WritePolicyTests` (matrix, precedence, parser, injection fixtures, front
 
 **Query.** Words: a strict AND of the query terms, then a loose OR if that finds nothing, ranked by BM25. Meaning: the query is embedded, and a brute-force cosine search runs over the vectors held in memory. `HybridRanker` fuses the two ranked lists across all queried workspaces with reciprocal rank fusion, so BM25 scores and cosines need no tuning against each other. Two boosts, for files that other files link to and for files near the one you are in, are capped so they only break ties. A file appears once, with its best chunk.
 
-**Who may be searched.** `WorkspaceAccessPolicy.eligible` filters the workspaces first. A scope never overrides a workspace's AI data access. Passing a model `destination` drops workspaces that don't allow it. A search for the Workspaces window passes none. Searches read the indexes only, never your files.
+**Who may be searched.** `WorkspaceAccessPolicy.eligible` filters the workspaces first. A scope never overrides a workspace's AI data access. Every search must pass a `SearchDestination`. `.model(_)` drops workspaces that don't allow that destination. The Workspaces window and related documents pass `.shownToUser`, and the MCP `search` tool passes `.mcpClient`. Searches read the indexes only, never your files.
 
 **The embedder.** `AppleSentenceEmbeddingProvider` uses the sentence model that ships with the OS. It loads on first use, runs in-process, needs no download and sends nothing out. English only. Where it gives no vector, a file is still found by words. The choice, the measurements and what we did not measure are in [docs/spikes/embedding-model.md](spikes/embedding-model.md).
 
@@ -410,7 +410,7 @@ Tests: `AskAnswerTests`, `AskControllerTests` (loopback provider: citations, not
 
 ## Ask AI and Enrich: you start it, one edit, one Undo
 
-`InlineAIController` (`Shared/InlineAI/`) rewrites the selection (or the paragraph at the caret) and enriches bullets. The toolbar's sparkles button opens the panel (`Shared/Views/InlineAIView.swift`). A slash-menu entry is not built yet.
+`InlineAIController` (`Shared/InlineAI/`) rewrites the selection (or the paragraph at the caret) and enriches bullets. The toolbar's sparkles button opens the panel (`Shared/Views/InlineAIView.swift`). It is off in Preview mode, and so are the Properties controls, because their edits go through the editor. A slash-menu entry is not built yet.
 
 **One edit.** The answer streams into the panel (`streamed`). The document is not touched until the answer is complete. Then the controller builds one `EditorInsertion` and hands it to the editor (`SplitEditorView+InlineAI.swift`), which applies it through the text view's undo stack, so one Cmd+Z restores the original. If the text under the range changed while Fen worked, the edit is refused. "Preview before applying" (`Preferences.inlineAIPreviewFirst`, in the panel and in AI settings) holds the edit until you click Apply. It never changes the workspace approval mode.
 
@@ -450,7 +450,7 @@ Fen can serve your workspaces to a tool on the same Mac over [MCP](https://model
 
 | Part | Job |
 |---|---|
-| `MCPServer` | Carries bytes. `NWListener` bound to `127.0.0.1` with `requiredLocalEndpoint`, so no other address answers. One request per connection. Caps on open connections and on time to send a request |
+| `MCPServer` | Carries bytes. `NWListener` bound to `127.0.0.1` with `requiredLocalEndpoint`, so no other address answers. One request per connection. Caps on open connections and on time to send a request. The time limit ends once the request is in, so a slow answer is not cut off |
 | `MCPHTTPParser` | Reads one request. Hard limits on header size, header count and body size. Refuses chunked bodies, repeated headers and bad lengths |
 | `MCPRequestGuard` | The checks every request passes, in order. Pure functions |
 | `MCPEndpoint` | Runs the guard, then the method. No socket, so tests call it directly |
@@ -466,11 +466,11 @@ Fen can serve your workspaces to a tool on the same Mac over [MCP](https://model
 
 **Reads.** `search` uses the shared index, so it finds files nobody has open. `get_document` and `get_links` read through the workspace's `LocalFolderSource`, which refuses hidden files, secret-looking files, files over the size limit and anything outside the granted root, symlinks included. Enabling the server widens nothing beyond that. Document text comes back as data, and the server's instructions tell the client not to follow instructions inside it.
 
-**Writes.** `propose_edit` builds a `ProposedChange` (operation `mcp.<op>`, `invokedByUser: false`, client name, provider `mcp`) and submits it to `WriteGate`, the same gate as every other AI write. `EditResultParser` checks the edit, and a path outside the edit's own scope is refused. `baseHash` (the `contentHash` from `get_document`) is required except for `createFile`, so a stale view can't overwrite newer text. `WritePolicy.mode` caps a client's change at Ask unless a rule of kind client names that client, so the workspace default and path or type rules can't auto-approve it. Activity shows the client's name on each change.
+**Writes.** `propose_edit` builds a `ProposedChange` (operation `mcp.<op>`, `invokedByUser: false`, client name, provider `mcp`) and submits it to `WriteGate`, the same gate as every other AI write. `EditResultParser` checks the edit, and a path outside the edit's own scope is refused. `baseHash` (the `contentHash` from `get_document`) is required except for `createFile`, so a stale view can't overwrite newer text. `WritePolicy.mode` caps a client's change at Ask unless a rule of kind client names that client, so the workspace default and path or type rules can't auto-approve it. Activity shows the client's name on each change. A client can have up to 50 changes waiting for review (`WriteGate.maxPendingPerClient`). Past that, `propose_edit` returns an error until you review some.
 
 **Tokens.** A token is `fen_` and 32 random bytes. Fen shows it once and stores only its SHA-256 hash, in a file only you can read. A new token replaces the old one at once. Removing a client ends its access on the next request. A damaged client file leaves no client able to connect.
 
-Tests: `MCPRequestGuardTests` and `MCPHTTPParserTests` (every rule, no socket), `MCPClientStoreTests`, `MCPEndpointTests` (a real library and gate: scoping, reads, Ask, rules, bad edits), `MCPWritePolicyTests`, and `MCPServerTests` (real sockets: bound to loopback, rebinding Host, size cap, slow client, connection cap).
+Tests: `MCPRequestGuardTests` and `MCPHTTPParserTests` (every rule, no socket), `MCPClientStoreTests`, `MCPEndpointTests` (a real library and gate: scoping, reads, Ask, rules, bad edits), `MCPWritePolicyTests`, and `MCPServerTests` (real sockets: bound to loopback, rebinding Host, size cap, slow client, slow answer, connection cap).
 
 ## Agent branches: an MCP client commits to its own branch, your checkout stays put
 
@@ -485,7 +485,7 @@ In a git workspace, a Read-and-propose MCP client (issue #93) does not write to 
 | `WriteGate+AgentBranches` | `submitRouted`, `approveRouted`, `undoRouted`, `revertRunRouted`, `agentRead`. Same policy, pre-images, provenance and activity log as in-place writes. The commit carries the `Fen-*` trailers and `AI-Assisted-By` |
 | `AsyncLocks` | One writer at a time per branch inside Fen |
 
-**What an agent sees.** `get_document` returns the file as the agent's branch has it (with a `branch` field), or your version if the agent hasn't changed it. `propose_edit` checks `baseHash` against that view.
+**What an agent sees.** `get_document` returns the file as the agent's branch has it (with a `branch` field), or your version if the agent hasn't changed it. A branch read follows the same rules as your files: hidden, ignored, excluded, not-included and secret-looking paths are refused. `propose_edit` checks `baseHash` against that view.
 
 **Safe when agents race.**
 

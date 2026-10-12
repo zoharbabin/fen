@@ -29,7 +29,7 @@ private struct Harness {
     func found(
         _ query: String,
         scope: WorkspaceScope = .all,
-        destination: ModelDestination? = nil
+        destination: SearchDestination = .shownToUser
     ) async -> [SearchResult] {
         await library.search(query, scope: scope, destination: destination)
     }
@@ -37,14 +37,14 @@ private struct Harness {
     /// Waits until `path` is the best result for the query.
     func eventually(_ query: String, topIs path: String) async throws -> Bool {
         try await pollUntilTrue(timeout: .seconds(30)) {
-            await library.search(query, scope: .all).first?.relativePath == path
+            await library.search(query, scope: .all, destination: .shownToUser).first?.relativePath == path
         }
     }
 
     /// Waits until `path` is no longer a result for the query.
     func eventually(_ query: String, dropsOut path: String) async throws -> Bool {
         try await pollUntilTrue(timeout: .seconds(30)) {
-            await !library.search(query, scope: .all).contains { $0.relativePath == path }
+            await !library.search(query, scope: .all, destination: .shownToUser).contains { $0.relativePath == path }
         }
     }
 }
@@ -145,8 +145,8 @@ struct WorkspaceSearchTests {
 
         let names: ([SearchResult]) -> [String] = { $0.map(\.workspaceName).sorted() }
         #expect(await names(harness.found("secret plan")) == ["Any", "Local", "None"])
-        #expect(await names(harness.found("secret plan", destination: .local)) == ["Any", "Local"])
-        #expect(await names(harness.found("secret plan", destination: .remote)) == ["Any"])
+        #expect(await names(harness.found("secret plan", destination: .model(.local))) == ["Any", "Local"])
+        #expect(await names(harness.found("secret plan", destination: .model(.remote))) == ["Any"])
     }
 
     @Test("hidden, ignored, secret-looking, excluded and binary files are never indexed")
@@ -326,7 +326,7 @@ struct WorkspaceSearchTests {
         let workspace = try library.add(folder: folder.root)
         #expect(try await pollUntilTrue { library.state(for: workspace.id).hasScanned })
         #expect(!FileManager.default.fileExists(atPath: home.home.indexDirectory(id: workspace.id).path))
-        #expect(await library.search("alpha", scope: .all).isEmpty)
+        #expect(await library.search("alpha", scope: .all, destination: .shownToUser).isEmpty)
     }
 
     @Test("an empty or blank query returns nothing and never touches an index")

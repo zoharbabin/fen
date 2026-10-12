@@ -52,6 +52,16 @@ struct MCPAgentBranchTests {
         )
     }
 
+    @Test func aTrackedFileAnExcludeGlobHidesIsNotReadFromTheBranch() async throws {
+        let fixture = try await MCPFixture(git: true)
+        defer { fixture.cleanUp() }
+        try fixture.library.updateSettings(id: fixture.notesID) { $0.excludeGlobs = ["meetings/**"] }
+        let token = try fixture.addClient("Claude", level: .readAndPropose)
+        let read = await fixture.tool("get_document", ["path": "meetings/retro.md"], token: token)
+        #expect(read.isError)
+        #expect(read.data["text"] == nil)
+    }
+
     @Test func aReadOnlyClientReadsYourFilesNotABranch() async throws {
         let fixture = try await MCPFixture(git: true)
         defer { fixture.cleanUp() }

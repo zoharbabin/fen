@@ -293,6 +293,27 @@ struct MCPEndpointTests {
         #expect(try fixture.text("ideas.md") == before)
     }
 
+    @Test("A client can't queue changes without limit. Past the cap it gets a clear error")
+    func pendingIsCappedPerClient() async throws {
+        let fixture = try await MCPFixture()
+        defer { fixture.cleanUp() }
+        let token = try fixture.addClient(level: .readAndPropose)
+        func create(_ index: Int) async -> (data: [String: Any], isError: Bool, status: Int) {
+            let edit: [String: Any] = ["op": "createFile", "path": "new-\(index).md", "content": "# New\n"]
+            return await fixture.tool("propose_edit", ["edit": edit], token: token)
+        }
+        for index in 0 ..< WriteGate.maxPendingPerClient {
+            #expect(await create(index).data["status"] as? String == "waiting_for_approval")
+        }
+        let over = await create(WriteGate.maxPendingPerClient)
+        #expect(over.isError)
+        #expect((over.data["error"] as? String)?.contains("waiting for review") == true)
+        #expect(fixture.gate.pending(for: fixture.notesID).count == WriteGate.maxPendingPerClient)
+
+        try fixture.gate.reject(#require(fixture.gate.pending(for: fixture.notesID).first).id)
+        #expect(await create(WriteGate.maxPendingPerClient).data["status"] as? String == "waiting_for_approval")
+    }
+
     @Test("A confirmed rule that names the client lets its change apply")
     func clientRuleApplies() async throws {
         let fixture = try await MCPFixture()

@@ -9,6 +9,9 @@ import Observation
 @MainActor @Observable
 public final class WorkspaceRegistry {
     public private(set) var workspaces: [Workspace] = []
+    /// `true` after `load()` found a file it couldn't read. Every save then throws, so the empty list
+    /// never overwrites the saved one.
+    public private(set) var isListUnreadable = false
 
     public let home: FenHome
     private let userHome: URL
@@ -25,16 +28,24 @@ public final class WorkspaceRegistry {
     }
 
     /// Reads the saved list. A missing file means no workspaces. A corrupt file throws and is left
-    /// in place, so nothing is silently lost.
+    /// in place: until a later `load()` succeeds, every change throws `listUnreadable` instead of
+    /// saving over it.
     public func load() throws {
         guard FileManager.default.fileExists(atPath: home.workspacesFile.path) else {
             workspaces = []
+            isListUnreadable = false
             return
         }
-        let data = try Data(contentsOf: home.workspacesFile)
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        workspaces = try decoder.decode(FileFormat.self, from: data).workspaces
+        do {
+            let data = try Data(contentsOf: home.workspacesFile)
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            workspaces = try decoder.decode(FileFormat.self, from: data).workspaces
+        } catch {
+            isListUnreadable = true
+            throw error
+        }
+        isListUnreadable = false
         roots = [:]
     }
 
@@ -176,6 +187,7 @@ public final class WorkspaceRegistry {
     // MARK: - Private
 
     private func save() throws {
+        guard !isListUnreadable else { throw WorkspaceError.listUnreadable }
         try home.ensureExists()
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]

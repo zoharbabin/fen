@@ -7,6 +7,26 @@ public enum WorkspaceScope: Sendable, Equatable {
     case all
 }
 
+/// Where search results go. Every search must say, so one that feeds a model can't skip the AI
+/// data access filter by leaving it out.
+public enum SearchDestination: Sendable, Equatable {
+    /// You see the results in Fen. No model is involved, so no AI data access filter.
+    case shownToUser
+    /// An MCP client gets them. The caller's scope holds only workspaces with MCP access on,
+    /// which is off whenever AI data access is None.
+    case mcpClient
+    /// They feed a model there. Workspaces whose AI data access doesn't allow it are left out,
+    /// even for `.all`.
+    case model(ModelDestination)
+
+    var modelDestination: ModelDestination? {
+        if case let .model(destination) = self {
+            return destination
+        }
+        return nil
+    }
+}
+
 /// The one place that decides which workspaces may take part in a query. A scope never overrides
 /// a workspace's AI data access setting: a workspace set to None is dropped from every query that
 /// sends content to a model, even for `.all`. The provider layer (#4) calls this before it sends.

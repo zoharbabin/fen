@@ -215,6 +215,40 @@ public struct LocalFolderSource: WorkspaceSource {
         )
     }
 
+    /// Why the workspace's rules leave `relativePath` out, judged by its name alone: a hidden or
+    /// ignored folder above it, a secret-looking name, `.gitignore`, and the exclude globs. With
+    /// `checkingInclude`, also a path the include globs don't match. The file need not exist.
+    /// Used by `WriteGate` for content read from git or about to be written.
+    func ruleExclusion(forRelativePath relativePath: String, checkingInclude: Bool) -> ExclusionReason? {
+        let parts = relativePath.split(separator: "/").map(String.init)
+        guard !parts.isEmpty else { return .outsideRoot }
+        if parts.contains(where: { $0.hasPrefix(".") }) {
+            return .hidden
+        }
+        guard let stack = stack(forDirectory: parts.dropLast().joined(separator: "/")) else { return .gitignored }
+        return nameExclusion(relativePath, stack: stack, checkingInclude: checkingInclude)
+    }
+
+    private func nameExclusion(
+        _ relativePath: String,
+        stack: GitIgnoreStack,
+        checkingInclude: Bool
+    ) -> ExclusionReason? {
+        if FileEligibility.looksSecret(fileName: (relativePath as NSString).lastPathComponent) {
+            return .secretLooking
+        }
+        if stack.isIgnored(gitPath(relativePath), isDirectory: false) {
+            return .gitignored
+        }
+        if exclude.matches(relativePath) {
+            return .excludedByGlob
+        }
+        if checkingInclude, !include.isEmpty, !include.matches(relativePath) {
+            return .notIncluded
+        }
+        return nil
+    }
+
     private func evaluateFile(
         at url: URL,
         relativePath: String,
@@ -222,18 +256,8 @@ public struct LocalFolderSource: WorkspaceSource {
         modified: Date?,
         stack: GitIgnoreStack
     ) -> Result<WorkspaceFile, ExclusionReason> {
-        let name = (relativePath as NSString).lastPathComponent
-        if FileEligibility.looksSecret(fileName: name) {
-            return .failure(.secretLooking)
-        }
-        if stack.isIgnored(gitPath(relativePath), isDirectory: false) {
-            return .failure(.gitignored)
-        }
-        if exclude.matches(relativePath) {
-            return .failure(.excludedByGlob)
-        }
-        if !include.isEmpty, !include.matches(relativePath) {
-            return .failure(.notIncluded)
+        if let reason = nameExclusion(relativePath, stack: stack, checkingInclude: true) {
+            return .failure(reason)
         }
         let bytes = size ?? 0
         if bytes > settings.maxFileBytes {

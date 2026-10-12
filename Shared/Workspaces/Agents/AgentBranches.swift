@@ -234,13 +234,15 @@ final class AgentBranches: Sendable {
             let repoPath = branch.repoPath(change.path)
             if let data = change.data {
                 let blob = try await check(run(["hash-object", "-w", "--stdin"], branch, input: data)).text
-                lines += "\(change.mode ?? "100644") \(blob)\t\(repoPath)\n"
+                lines += "\(change.mode ?? "100644") \(blob)\t\(repoPath)\0"
             } else {
-                lines += "0 \(Self.zero)\t\(repoPath)\n"
+                lines += "0 \(Self.zero)\t\(repoPath)\0"
             }
         }
+        // `-z`: entries end in NUL and paths are taken as is. Without it, git splits on newlines
+        // and unquotes a path that starts with `"`, so one path could add a second entry.
         try await check(run(
-            ["update-index", "--index-info"],
+            ["update-index", "-z", "--index-info"],
             branch,
             input: Data(lines.utf8),
             environment: env

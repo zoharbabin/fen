@@ -232,6 +232,8 @@ extension SplitEditorView {
                 library: .shared,
                 change: applyPropertyEdit(_:)
             )
+            // Its edits go through the editor, so it is read-only in Preview mode.
+            .disabled(!isEditorShown)
             BacklinksSection(fileURL: document.fileURL, library: .shared, open: openInternalLink(_:))
         }
         .frame(minWidth: 140, idealWidth: 200, maxWidth: 320)

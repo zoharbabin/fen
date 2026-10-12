@@ -72,7 +72,7 @@ enum EnrichmentPipeline {
                 anyWord: true,
                 in: library.registry.workspaces,
                 scope: .workspace(workspace.id),
-                destination: destination,
+                destination: .model(destination),
                 limit: Enrichment.passagesPerBullet + 2
             )
             let others = results.filter { $0.relativePath != path }.prefix(Enrichment.passagesPerBullet)

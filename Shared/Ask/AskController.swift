@@ -104,7 +104,7 @@ public final class AskController {
             anyWord: true,
             in: workspaces,
             scope: scope,
-            destination: destination,
+            destination: .model(destination),
             limit: Self.maxPassages
         )
         let found = await AskPrompt.fitting(library.search.passages(for: results))

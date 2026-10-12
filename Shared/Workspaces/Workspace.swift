@@ -39,6 +39,7 @@ public enum WorkspaceError: Error, Equatable, LocalizedError {
     case containsWorkspace(name: String)
     case unknownWorkspace
     case accessLost(name: String)
+    case listUnreadable
 
     public var errorDescription: String? {
         switch self {
@@ -60,6 +61,9 @@ public enum WorkspaceError: Error, Equatable, LocalizedError {
             "That workspace no longer exists."
         case let .accessLost(name):
             "Fen can no longer reach the folder for “\(name)”. Remove the workspace and add the folder again."
+        case .listUnreadable:
+            "Fen couldn't read your saved workspace list, so it won't change it. "
+                + "Fix or move ~/.fen/workspaces.json, then reopen Fen."
         }
     }
 }

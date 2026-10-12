@@ -79,7 +79,8 @@ public final class WorkspaceLibrary {
             try registry.load()
             loadError = nil
         } catch {
-            loadError = "Fen couldn't read your workspace list: \(error.localizedDescription)"
+            loadError = "Fen couldn't read your workspace list: \(error.localizedDescription) "
+                + "Adding a workspace is off until you fix or move ~/.fen/workspaces.json and reopen Fen."
             return
         }
         guard !registry.workspaces.isEmpty else { return }
@@ -191,7 +192,7 @@ public final class WorkspaceLibrary {
     public func search(
         _ query: String,
         scope: WorkspaceScope,
-        destination: ModelDestination? = nil,
+        destination: SearchDestination,
         origin: SearchOrigin? = nil,
         limit: Int = 30
     ) async -> [SearchResult] {

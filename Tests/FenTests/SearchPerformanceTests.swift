@@ -69,7 +69,7 @@ struct SearchPerformanceTests {
         for number in 0 ..< 20 {
             let query = "\(vocabulary[number % vocabulary.count]) \(vocabulary[(number + 5) % vocabulary.count])"
             let begin = clock.now
-            let results = await library.search(query, scope: .all)
+            let results = await library.search(query, scope: .all, destination: .shownToUser)
             latencies.append(clock.now - begin)
             #expect(!results.isEmpty)
         }

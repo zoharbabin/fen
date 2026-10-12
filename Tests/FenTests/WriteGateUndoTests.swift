@@ -132,6 +132,26 @@ struct WriteGateUndoTests {
         #expect(fx.restartedGate().entries(for: fx.workspaceID).map(\.id) == [entry.id])
     }
 
+    @Test("a torn last line in the log doesn't swallow the next record")
+    func tornLogTail() throws {
+        let fx = try GateHarness(settings: autoSettings())
+        defer { fx.cleanUp() }
+        guard case let .applied(first) = try fx.gate.submit(fx.change(.append(path: "a.md", text: "Two."))) else {
+            Issue.record("expected applied")
+            return
+        }
+        let log = fx.homeFolder.home.activityLogFile(id: fx.workspaceID)
+        let handle = try FileHandle(forWritingTo: log)
+        try handle.seekToEnd()
+        try handle.write(contentsOf: Data("{\"applied\":{\"id".utf8))
+        try handle.close()
+        guard case let .applied(second) = try fx.gate.submit(fx.change(.append(path: "b.md", text: "More."))) else {
+            Issue.record("expected applied")
+            return
+        }
+        #expect(fx.restartedGate().entries(for: fx.workspaceID).map(\.id) == [first.id, second.id])
+    }
+
     @Test("file permissions survive a write and an undo")
     func permissions() throws {
         let fx = try GateHarness(settings: autoSettings())

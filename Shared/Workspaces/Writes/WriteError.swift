@@ -18,6 +18,8 @@ public enum WriteError: Error, Equatable, LocalizedError {
     /// The file is no longer as Fen left it, so undo would overwrite your newer edits.
     case changedSinceApply(String)
     case preImageMissing(String)
+    /// One MCP client already has `WriteGate.maxPendingPerClient` changes waiting.
+    case tooManyPending
 
     public var errorDescription: String? {
         switch self {
@@ -39,6 +41,8 @@ public enum WriteError: Error, Equatable, LocalizedError {
         case .alreadyUndone: "That change was already undone."
         case let .changedSinceApply(path): "“\(path)” changed since Fen wrote it, so Fen won't undo over your edits."
         case let .preImageMissing(path): "Fen has no saved copy of “\(path)” to restore."
+        case .tooManyPending:
+            "Too many of your changes are waiting for review. Wait until the workspace owner reviews them."
         }
     }
 }

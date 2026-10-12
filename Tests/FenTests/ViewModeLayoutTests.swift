@@ -23,6 +23,16 @@ struct ViewModeLayoutTests {
         #expect(Mode.editorOnly.shown(compactWidth: true) == .editorOnly)
     }
 
+    /// Properties and Ask AI hand their edit to the editor, so they turn off when it isn't on screen.
+    @Test
+    func onlyPreviewModeHidesTheEditor() {
+        #expect(!Mode.previewOnly.showsEditor(compactWidth: false))
+        #expect(!Mode.previewOnly.showsEditor(compactWidth: true))
+        #expect(Mode.split.showsEditor(compactWidth: false))
+        #expect(Mode.split.showsEditor(compactWidth: true))
+        #expect(Mode.editorOnly.showsEditor(compactWidth: false))
+    }
+
     @Test(arguments: [Mode.split, .editorOnly, .previewOnly])
     func theShownModeIsAlwaysOneThePickerOffers(mode: Mode) {
         for compact in [true, false] {

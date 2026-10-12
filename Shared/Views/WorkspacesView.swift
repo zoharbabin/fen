@@ -211,8 +211,13 @@ public struct WorkspacesView: View {
         }
     }
 
-    @ViewBuilder
     private var addButton: some View {
+        addMenu
+            .disabled(library.loadError != nil)
+    }
+
+    @ViewBuilder
+    private var addMenu: some View {
         if GitTool.locate() != nil {
             Menu {
                 Button("Add Folder…") { showingImporter = true }

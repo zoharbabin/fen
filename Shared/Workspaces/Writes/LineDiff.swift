@@ -5,7 +5,7 @@ public enum DiffLineKind: String, Codable, Sendable {
     case context
     case added
     case removed
-    /// Stands for skipped unchanged lines.
+    /// Stands for skipped unchanged lines. With text, it says how many lines past the limit aren't shown.
     case gap
 }
 
@@ -37,15 +37,36 @@ public struct LineDiff: Codable, Sendable, Equatable {
         text.isEmpty ? [] : text.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
     }
 
+    /// Above this many changed-region lines (old plus new), Fen skips the line-by-line compare,
+    /// which grows with the square of the change, and shows the region as removed, then added.
+    static let maxComparedLines = 4000
+
     public static func make(old: String, new: String, context: Int = 2, maxLines: Int = 400) -> LineDiff {
         let oldLines = split(old)
         let newLines = split(new)
+        // Only the region between the common first and last lines can differ.
+        let shorter = min(oldLines.count, newLines.count)
+        var head = 0
+        while head < shorter, oldLines[head] == newLines[head] {
+            head += 1
+        }
+        var tail = 0
+        while tail < shorter - head, oldLines[oldLines.count - 1 - tail] == newLines[newLines.count - 1 - tail] {
+            tail += 1
+        }
+        let oldRegion = head ..< oldLines.count - tail
+        let newRegion = head ..< newLines.count - tail
         var removedAt = Set<Int>()
         var insertedAt = Set<Int>()
-        for change in newLines.difference(from: oldLines) {
-            switch change {
-            case let .remove(offset, _, _): removedAt.insert(offset)
-            case let .insert(offset, _, _): insertedAt.insert(offset)
+        if oldRegion.count + newRegion.count > maxComparedLines {
+            removedAt = Set(oldRegion)
+            insertedAt = Set(newRegion)
+        } else {
+            for change in Array(newLines[newRegion]).difference(from: Array(oldLines[oldRegion])) {
+                switch change {
+                case let .remove(offset, _, _): removedAt.insert(head + offset)
+                case let .insert(offset, _, _): insertedAt.insert(head + offset)
+                }
             }
         }
         let all = interleave(oldLines, newLines, removedAt: removedAt, insertedAt: insertedAt)
@@ -83,7 +104,8 @@ public struct LineDiff: Codable, Sendable, Equatable {
         return all
     }
 
-    /// Keeps `context` lines around each change and folds the rest into one gap marker.
+    /// Keeps `context` lines around each change and folds the rest into one gap marker. Past
+    /// `maxLines`, a last gap marker says how many lines aren't shown.
     private static func trim(_ all: [Line], context: Int, maxLines: Int) -> [Line] {
         var keep = Set<Int>()
         for index in all.indices where all[index].kind != .context {
@@ -91,16 +113,27 @@ public struct LineDiff: Codable, Sendable, Equatable {
         }
         var lines: [Line] = []
         var skipping = false
+        var hidden = 0
         for (index, line) in all.enumerated() {
             if keep.contains(index) {
                 skipping = false
                 if lines.count < maxLines {
                     lines.append(line)
+                } else {
+                    hidden += 1
                 }
             } else if !skipping {
                 skipping = true
-                lines.append(Line(kind: .gap, text: ""))
+                if lines.count < maxLines {
+                    lines.append(Line(kind: .gap, text: ""))
+                }
             }
+        }
+        if hidden > 0 {
+            lines.append(Line(
+                kind: .gap,
+                text: hidden == 1 ? "1 more line not shown" : "\(hidden) more lines not shown"
+            ))
         }
         return lines
     }
@@ -112,7 +145,7 @@ public struct LineDiff: Codable, Sendable, Equatable {
             case .context: "  " + line.text
             case .added: "+ " + line.text
             case .removed: "- " + line.text
-            case .gap: "…"
+            case .gap: line.text.isEmpty ? "…" : "… " + line.text
             }
         }
         return rendered.joined(separator: "\n")

@@ -186,6 +186,25 @@ struct WriteGateAgentBranchTests {
         }
     }
 
+    @Test func aTrackedFileTheWorkspaceLeavesOutIsNotReadFromABranch() async throws {
+        var settings = agentSettings("Claude")
+        settings.excludeGlobs = ["private/**"]
+        let harness = try GateHarness.agents(settings, files: [
+            "a.md": "# A\n", "private/p.md": "# Private\n", "data.json": "{}\n",
+        ])
+        defer { harness.cleanUp() }
+        try harness.folder.write("build/out.md", "# Ignored\n")
+        try harness.git("add", "-f", "build/out.md")
+        try harness.git("commit", "-q", "-m", "force")
+        let id = harness.workspaceID
+        #expect(try await harness.gate.agentRead(workspaceID: id, path: "a.md", client: "Claude") != nil)
+        for path in ["private/p.md", "build/out.md", "data.json"] {
+            await #expect(throws: WriteError.invalidPath(path)) {
+                _ = try await harness.gate.agentRead(workspaceID: id, path: path, client: "Claude")
+            }
+        }
+    }
+
     @Test func afterYouMergeTheBranchTheAgentBuildsOnYourHistory() async throws {
         let harness = try GateHarness.agents()
         defer { harness.cleanUp() }

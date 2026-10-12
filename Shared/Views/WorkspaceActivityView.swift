@@ -27,8 +27,10 @@ struct WorkspaceActivityView: View {
                         HStack {
                             Text("Waiting for you")
                             Spacer()
-                            if waiting.count > 1 {
-                                Button("Approve All (\(waiting.count))") { confirmingApproveAll = true }
+                            if Self.batchApprovable(waiting).approvable.count > 1 {
+                                Button("Approve All (\(Self.batchApprovable(waiting).approvable.count))") {
+                                    confirmingApproveAll = true
+                                }
                             }
                         }
                     }
@@ -52,13 +54,14 @@ struct WorkspaceActivityView: View {
                 ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
             }
             .confirmationDialog(
-                "Approve all \(waiting.count) changes?",
+                "Approve all \(Self.batchApprovable(waiting).approvable.count) changes?",
                 isPresented: $confirmingApproveAll,
                 titleVisibility: .visible
             ) {
                 Button("Approve All") { approveAll(waiting) }
             } message: {
-                Text("Each change is applied as shown. You can undo any of them afterwards.")
+                Text("Each change is applied as shown. You can undo any of them afterwards. "
+                    + "Deletes, moves, and whole-file replacements still wait for you one by one.")
             }
             .alert("Activity", isPresented: Binding(get: { message != nil }, set: {
                 if !$0 {
@@ -83,18 +86,36 @@ struct WorkspaceActivityView: View {
         }
     }
 
+    /// What Approve All may apply. A destructive change (delete, move, whole-file replace) always
+    /// gets its own ask, so it is counted and left waiting.
+    static func batchApprovable(_ items: [WriteGate.Pending]) -> (approvable: [WriteGate.Pending], destructive: Int) {
+        let approvable = items.filter { $0.tier != .destructive }
+        return (approvable, items.count - approvable.count)
+    }
+
     private func approveAll(_ items: [WriteGate.Pending]) {
+        let batch = Self.batchApprovable(items)
         Task {
             var failures: [String] = []
-            for item in items {
+            for item in batch.approvable {
                 do {
                     try await gate.approveRouted(item.id)
                 } catch {
                     failures.append("\(item.change.edit.primaryPath): \(error.localizedDescription)")
                 }
             }
+            var lines: [String] = []
             if !failures.isEmpty {
-                message = "Left alone:\n" + failures.joined(separator: "\n")
+                lines.append("Left alone:\n" + failures.joined(separator: "\n"))
+            }
+            if batch.destructive > 0 {
+                lines.append(batch.destructive == 1
+                    ? "One change deletes, moves, or replaces a whole file, so it still waits. Approve it on its own."
+                    : "\(batch.destructive) changes delete, move, or replace a whole file, so they still wait. "
+                    + "Approve each one on its own.")
+            }
+            if !lines.isEmpty {
+                message = lines.joined(separator: "\n\n")
             }
         }
     }
@@ -265,7 +286,7 @@ private struct DiffText: View {
         case .added: "+ "
         case .removed: "- "
         case .context: "  "
-        case .gap: "…"
+        case .gap: line.text.isEmpty ? "…" : "… "
         }
     }
 

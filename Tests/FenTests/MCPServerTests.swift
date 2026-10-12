@@ -254,6 +254,26 @@ struct MCPServerTests {
         #expect(Date().timeIntervalSince(started) < 4)
     }
 
+    /// The handler answers only after a second, idle connection has been cut off by the timeout.
+    /// That one was opened later, so the first connection's time limit has passed too.
+    @Test("The time limit covers sending the request, not the answer")
+    func slowAnswerIsNotCutOff() async throws {
+        let server = MCPServer(requestTimeout: 0.3) { _, port in
+            await Task.detached { () -> MCPHTTPResponse in
+                let (fd, _) = Self.connect(host: "127.0.0.1", port: port)
+                defer { close(fd) }
+                _ = Self.readAll(fd)
+                return .json(200, ["ok": true])
+            }.value
+        }
+        let port = try await server.start(port: 0)
+        defer { server.stop() }
+        let request = "POST /mcp HTTP/1.1\r\nHost: 127.0.0.1:\(port)\r\nContent-Length: 2\r\n\r\n{}"
+        let reply = await Task.detached { Self.send(Data(request.utf8), to: port) }.value
+        #expect(reply.text.hasPrefix("HTTP/1.1 200"))
+        #expect(reply.text.contains("\"ok\":true"))
+    }
+
     @Test("More than the connection limit at once are turned away")
     func connectionCap() async throws {
         let fixture = try await MCPFixture()

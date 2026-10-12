@@ -262,7 +262,12 @@ final class MCPTools {
             Set(accessible(to: client).map(\.id))
         }
         guard !scope.isEmpty else { return ["results": [[String: Any]]()] }
-        let found = await library.search(query, scope: .chosen(scope), destination: nil, limit: Self.limit(arguments))
+        let found = await library.search(
+            query,
+            scope: .chosen(scope),
+            destination: .mcpClient,
+            limit: Self.limit(arguments)
+        )
         let results: [[String: Any]] = found.map { hit in
             [
                 "workspace": hit.workspaceID.uuidString.lowercased(),
@@ -308,8 +313,18 @@ final class MCPTools {
     ) async throws -> ClientRead {
         if client.level == .readAndPropose, let path = arguments["path"] as? String, !path.isEmpty {
             _ = try ready(workspace)
-            if let found = try? await gate.agentRead(workspaceID: workspace.id, path: path, client: client.name),
-               let text = String(data: found.data, encoding: .utf8) {
+            // A git error or a refused path fails the read. It never falls back to your folder,
+            // which may hold a different version than the branch the client builds on.
+            let found: WriteGate.AgentRead?
+            do {
+                found = try await gate.agentRead(workspaceID: workspace.id, path: path, client: client.name)
+            } catch {
+                throw MCPToolError("Fen can't read “\(path)” in this workspace.")
+            }
+            if let found {
+                guard let text = String(data: found.data, encoding: .utf8) else {
+                    throw MCPToolError("Fen can't read “\(path)” in this workspace.")
+                }
                 return ClientRead(data: found.data, text: text, path: path, branch: found.branch)
             }
         }

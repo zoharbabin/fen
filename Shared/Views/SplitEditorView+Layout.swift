@@ -22,6 +22,12 @@ extension SplitEditorView.ViewMode {
         compactWidth && self == .split ? .editorOnly : self
     }
 
+    /// Whether the editor is on screen. Edits from Properties and Ask AI go through the editor, so
+    /// they are off when it isn't.
+    func showsEditor(compactWidth: Bool) -> Bool {
+        shown(compactWidth: compactWidth) != .previewOnly
+    }
+
     /// The mode after "Toggle Preview": hide the preview if it shows, otherwise show it.
     func afterTogglingPreview(compactWidth: Bool) -> Self {
         switch shown(compactWidth: compactWidth) {
@@ -47,6 +53,10 @@ extension SplitEditorView {
         #else
             false
         #endif
+    }
+
+    var isEditorShown: Bool {
+        viewMode.showsEditor(compactWidth: isCompactWidth)
     }
 
     /// The picker shows what is on screen, and writes the chosen mode through.

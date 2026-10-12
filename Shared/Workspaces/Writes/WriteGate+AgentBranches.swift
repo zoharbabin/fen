@@ -27,7 +27,8 @@ extension WriteGate {
     public func agentRead(workspaceID: UUID, path: String, client: String) async throws -> AgentRead? {
         let context = try context(for: workspaceID)
         guard let branch = await branch(for: client, invokedByUser: false, context) else { return nil }
-        _ = try resolve(path, context)
+        // The same rules as a read from your folder: git may hold a file the workspace leaves out.
+        _ = try resolveListed(path, context, checkingInclude: true)
         return try await locks.run(lockKey(branch)) {
             try await agentBranches.fastForwardIfMerged(branch)
             guard let file = try await agentBranches.read(path, on: branch) else { return nil }
@@ -60,7 +61,7 @@ extension WriteGate {
                 return .blocked
             case let .ask(reason):
                 let item = Pending(change: change, reason: reason, diff: plan.diff, tier: plan.tier)
-                enqueue(item)
+                try enqueue(item)
                 return .pending(item)
             case .apply:
                 let entry = try await land(
@@ -154,13 +155,13 @@ extension WriteGate {
             throw WriteError.outsideScope(path)
         }
         let path = change.edit.primaryPath
-        let url = try resolve(path, context)
+        let url = try resolveListed(path, context)
         try await agentBranches.fastForwardIfMerged(branch)
         let tip = try await agentBranches.tip(of: branch)
         let file = try await agentBranches.read(path, on: branch, tip: tip)
         var taken = false
         if case let .move(_, destination) = change.edit {
-            let target = try resolve(destination, context)
+            let target = try resolveListed(destination, context)
             let onBranch = try await agentBranches.read(destination, on: branch, tip: tip)
             taken = onBranch != nil || FileManager.default.fileExists(atPath: target.path)
         }
