@@ -175,4 +175,19 @@ final class WorkspaceControlsUITests: XCTestCase {
         waitForExpectations(timeout: 10)
         XCTAssertFalse(fix.waitForExistence(timeout: 2), "the hint stays after the fix")
     }
+
+    /// The Activity sheet opens from the workspace header and closes with Done (issue #140).
+    func testActivitySheetOpensAndCloses() {
+        launch()
+        let window = addWorkspace()
+        window.outlineRows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).click()
+        let activity = window.buttons["Activity"].firstMatch
+        XCTAssertTrue(activity.waitForExistence(timeout: 10), "no Activity button:\n\(window.debugDescription)")
+        activity.click()
+        let sheet = app.sheets.firstMatch
+        XCTAssertTrue(sheet.waitForExistence(timeout: 5))
+        XCTAssertTrue(sheet.staticTexts["No AI changes yet."].exists, sheet.debugDescription)
+        sheet.buttons["Done"].firstMatch.click()
+        XCTAssertTrue(sheet.waitForNonExistence(timeout: 5))
+    }
 }
