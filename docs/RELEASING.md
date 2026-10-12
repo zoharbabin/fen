@@ -38,9 +38,9 @@ Look for a line like `Developer ID Application: Your Name (ABCDE12345)`. The 10-
 
 ### Add repository secrets (one time)
 
-This repo already has all six secrets configured (`gh secret list` shows them), and every release since v0.2.0 has published automatically through this path — skip to [Cut a release](#cut-a-release) unless you're rotating credentials or setting up a fork.
+This repo has the six signing secrets configured (`gh secret list` shows them), and every release since v0.2.0 has published automatically through this path. The seventh, `SPARKLE_PRIVATE_KEY`, is needed for in-app updates (see [Sparkle key](#sparkle-key-in-app-updates)). Skip to [Cut a release](#cut-a-release) unless you're rotating credentials or setting up a fork.
 
-In GitHub: **Settings → Secrets and variables → Actions → New repository secret**. Add all six:
+In GitHub: **Settings → Secrets and variables → Actions → New repository secret**. Add all seven:
 
 | Secret | Value |
 |--------|-------|
@@ -50,12 +50,29 @@ In GitHub: **Settings → Secrets and variables → Actions → New repository s
 | `APPLE_ID` | your Apple ID email |
 | `APPLE_APP_PASSWORD` | the app-specific password from step 2 |
 | `APPLE_TEAM_ID` | the 10-character Team ID |
+| `SPARKLE_PRIVATE_KEY` | the EdDSA private key for in-app updates (see below) |
 
 To produce `MACOS_CERTIFICATE`: in **Keychain Access**, find your *Developer ID Application* certificate, right-click → **Export…**, save as a `.p12` with a password, then convert it to base64 text:
 
 ```sh
 base64 -i Certificates.p12 | pbcopy   # now paste into the secret
 ```
+
+### Sparkle key (in-app updates)
+
+**Fen > Check for Updates…** installs a build only if its zip carries an EdDSA signature made with the private key that matches `SUPublicEDKey` in `macOS/Info.plist`. A tagged release fails at "Build appcast" without the secret, so a release can't ship without an appcast.
+
+Create the key once on your Mac (Sparkle's `generate_keys` is in the [Sparkle release](https://github.com/sparkle-project/Sparkle/releases) and in `.build/artifacts/sparkle/Sparkle/bin` after `swift package resolve`). It stores the private key in your login Keychain and prints the public key for `Info.plist`.
+
+Put the private key in the secret, then delete the exported file:
+
+```sh
+generate_keys -x sparkle_private_key          # writes the key to a file
+gh secret set SPARKLE_PRIVATE_KEY < sparkle_private_key
+rm sparkle_private_key
+```
+
+Keep a backup of the key in a password manager. If you lose it, installed copies of Fen can't verify any future update, and everyone has to download a new build by hand. If it leaks, replace the key and `SUPublicEDKey` in one release, signed with the old key, before you revoke anything.
 
 ### Cut a release
 
@@ -64,7 +81,7 @@ git tag v0.1.0
 git push origin v0.1.0
 ```
 
-The **Release** workflow runs automatically: it tests, builds, signs, notarizes, staples, zips, and creates a GitHub Release with `Fen.app.zip` attached.
+The **Release** workflow runs automatically: it tests, builds, signs, notarizes, staples, zips, signs the zip for Sparkle, and creates a GitHub Release with `Fen.app.zip` and `appcast.xml` attached.
 
 > Skip the secrets and the workflow still runs, but it produces an **unsigned** build — fine for testing, though people will see a Gatekeeper warning.
 
@@ -107,6 +124,23 @@ cd dist
 ditto -c -k --keepParent "Fen.app" "Fen.app.zip"
 gh release create v0.1.0 Fen.app.zip --generate-notes
 ```
+
+---
+
+## Update the Homebrew cask
+
+`Casks/fen.rb` installs the zip from a release. After you publish a release, point the cask at it and open a PR:
+
+```sh
+scripts/update-cask.sh v0.1.0   # sets version and sha256, refuses a build that isn't notarized
+brew style Casks/fen.rb
+```
+
+CI checks the cask's style and that its sha256 matches the published zip. `master` is protected, so the workflow can't push the change for you. Until the PR merges, `brew upgrade` still installs the previous release.
+
+The cask sets `auto_updates true` because Fen updates itself through Sparkle. A plain `brew upgrade` skips Fen. `brew upgrade --cask fen` and `brew upgrade --greedy` still upgrade it.
+
+We don't submit to the official `homebrew-cask` repo. Users tap this repo (see [README](../README.md#install)).
 
 ---
 

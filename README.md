@@ -33,7 +33,7 @@ If Fen ever charges for anything, we'll favor a one-time purchase over a subscri
 ## Features
 
 - **Live preview with scroll sync** — the preview pane tracks your scroll position as you type
-- **WYSIWYG-in-source live preview mode (Experimental)** (Cmd+Shift+P) — an optional editor mode that hides markdown markers (`**`, `#`, `` ` ``, and more) off-focus and renders the styling they imply directly in the source, without leaving plain text. It covers inline emphasis, headings, blockquotes, checkboxes, links, and images; tables and fenced code blocks stay as raw Markdown source for now (tracked in [issue #135](https://github.com/zoharbabin/fen/issues/135))
+- **WYSIWYG-in-source live preview mode (Experimental)** (Cmd+Shift+P) — an optional editor mode that hides markdown markers (`**`, `#`, `` ` ``, and more) off-focus and renders the styling they imply directly in the source, without leaving plain text. It covers inline emphasis, headings, blockquotes, checkboxes, links, images, horizontal rules, list indents with round bullets, footnote references, pipe tables (shaded header, column and row lines) and a panel behind fenced code. Mermaid diagrams and `$$` math blocks show as pictures while the caret is elsewhere, and so do `geojson`/`topojson` maps when the map preference is on. Put the caret in one and its source comes back. Inline `$x$` math stays as source ([issue #135](https://github.com/zoharbabin/fen/issues/135))
 - **Slash-command menu** — type `/` at the start of a line (or after whitespace) to insert a heading, table, image, quote, code block, horizontal rule, or Mermaid diagram from a filterable popup
 - **Outline/table of contents sidebar** (Cmd+Shift+O) — a per-document heading tree with fold/expand state; click a heading to jump both panes to it
 - **Focus/typewriter mode** (Cmd+Shift+F) — dims every paragraph except the one you're editing and keeps your cursor vertically centered as you type
@@ -43,7 +43,10 @@ If Fen ever charges for anything, we'll favor a one-time purchase over a subscri
 - **A welcome document on first launch** — a genuinely fresh install opens a bundled document that walks through formatting, math/Mermaid rendering, and the slash-command menu instead of a blank page; every document after that opens blank as usual
 - **GitHub-Flavored Markdown** via Apple's [`swift-cmark`](https://github.com/apple/swift-cmark) — tables, task lists, strikethrough, autolinks, footnotes, and `==highlight==` marks, plus GitHub-style alert/callout blocks (`> [!NOTE]`, `[!TIP]`, `[!WARNING]`, and more)
 - **A formatting toolbar and menu commands** — bold, italic, strikethrough, code, headings, lists, task items, blockquotes, links, images, tables, and more, one click or keyboard shortcut away
+- **iPad and hardware keyboards** — the same shortcuts as the Mac (hold Cmd to list them), in the iPadOS menu bar too. A narrow window, such as a phone or Slide Over, shows the editor or the preview one at a time instead of squeezing two panes side by side
+- **Share sheet in and out (iOS)** — choose Fen in another app's share sheet or Files to open a Markdown file in place. Use the share button in a document to send it out as a `.md` file, or as text to apps that only take text
 - **Editing quality-of-life** — auto-pair brackets/quotes, tabs-to-spaces, smart Home key, and list/blockquote continuation on Enter
+- **Vim keys (macOS, off by default)** — turn on Normal and Insert mode in Settings. Esc leaves Insert mode. In Normal mode `h j k l`, `w b`, `0 $`, `gg G` move, and `i a I A` start typing. Nothing else from Vim is included
 - **Set as your default `.md` editor** — a proper Finder document icon, Open Recent, and session restore on both platforms
 - **Autosave and crash recovery** — an unsaved buffer is periodically saved to a recovery file; Fen offers to restore it the next time you reopen that document after an unclean exit
 - **External change detection** — if a file you have open changes on disk (another app, `git checkout`, a sync conflict), Fen prompts you to reload it or keep your own edits
@@ -67,6 +70,15 @@ If Fen ever charges for anything, we'll favor a one-time purchase over a subscri
 Download the latest `Fen.app.zip` from the [Releases page](https://github.com/zoharbabin/fen/releases), unzip, and drag **Fen.app** to your Applications folder.
 
 We sign every release with an Apple Developer ID and notarize it, so it opens without Gatekeeper warnings. Requires macOS 15+.
+
+Or install with Homebrew:
+
+```sh
+brew tap zoharbabin/fen https://github.com/zoharbabin/fen
+brew install --cask fen
+```
+
+To update, choose **Fen > Check for Updates…**. Fen checks only when you ask. If a newer version exists, it downloads, verifies and installs it, then relaunches. If you installed with Homebrew, `brew upgrade --cask fen` works too. A build from source only opens the Releases page.
 
 ## Build from source
 

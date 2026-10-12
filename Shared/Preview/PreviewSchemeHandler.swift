@@ -67,21 +67,17 @@ final class PreviewSchemeHandler: NSObject, WKURLSchemeHandler {
     /// `internalLinkTarget(for:baseDirectory:)` (deciding whether a clicked link points at
     /// another file on disk), so both paths enforce the exact same traversal guard.
     ///
-    /// Resolves symlinks (`resolvingSymlinksInPath`) on both sides before the prefix check, not
-    /// just `standardizedFileURL` (which only collapses `.`/`..` segments): a symlink planted
-    /// inside `baseDirectory` but pointing outside it would otherwise pass the prefix check on
-    /// its un-resolved path and then read whatever it points at on disk.
+    /// The containment check is `PathGate.isContained(_:in:)`, shared with workspaces (issue #5).
+    /// It resolves symlinks on both sides and compares by path component: a symlink planted inside
+    /// `baseDirectory` but pointing outside it, or a sibling folder that merely shares the name's
+    /// prefix (`/notes-evil` next to `/notes`), would otherwise pass a plain string-prefix check.
     private static func resolvedFileURL(for url: URL, baseDirectory: URL?) -> URL? {
         guard let baseDirectory,
-              let candidate = URL(string: String(url.path.dropFirst()), relativeTo: baseDirectory) else {
+              let candidate = URL(string: String(url.path.dropFirst()), relativeTo: baseDirectory)?.absoluteURL,
+              PathGate.isContained(candidate, in: baseDirectory) else {
             return nil
         }
-        let fileURL = candidate.resolvingSymlinksInPath()
-        let resolvedBase = baseDirectory.resolvingSymlinksInPath()
-        guard fileURL.path.hasPrefix(resolvedBase.path) else {
-            return nil
-        }
-        return fileURL
+        return PathGate.canonicalURL(of: candidate)
     }
 
     /// A clicked link that resolves to a *different* file on disk (as opposed to a same-page

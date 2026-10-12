@@ -179,6 +179,11 @@ public final class Preferences {
         didSet { defaults.set(editorSmartHome, forKey: "editorSmartHome") }
     }
 
+    /// A small Vim subset on macOS: Normal and Insert mode only (issue #102). Off by default.
+    var editorVimMode: Bool = false {
+        didSet { defaults.set(editorVimMode, forKey: "editorVimMode") }
+    }
+
     /// Shows source-line numbers in the editor gutter and, via the matching preview-side CSS,
     /// alongside the rendered HTML (issue #21). Rendering the preview gutter needs a rebuild
     /// (it's CSS baked into the composed HTML document), so — unlike `editorFocusModeEnabled`/
@@ -236,6 +241,21 @@ public final class Preferences {
 
     var editorOnRight: Bool = false {
         didSet { defaults.set(editorOnRight, forKey: "editorOnRight") }
+    }
+
+    /// "Ask AI" and "Enrich" show their result and wait for a click instead of applying it (issue #6).
+    var inlineAIPreviewFirst: Bool = false {
+        didSet { defaults.set(inlineAIPreviewFirst, forKey: "inlineAIPreviewFirst") }
+    }
+
+    /// Fen's MCP server runs while this is on (issue #10). Off until you turn it on.
+    var mcpServerEnabled: Bool = false {
+        didSet { defaults.set(mcpServerEnabled, forKey: "mcpServerEnabled") }
+    }
+
+    /// The port the MCP server listens on, on this Mac only.
+    var mcpPort: UInt16 = MCPController.defaultPort {
+        didSet { defaults.set(Int(mcpPort), forKey: "mcpPort") }
     }
 
     var editorShowWordCount: Bool = false {
@@ -478,6 +498,7 @@ public final class Preferences {
             ? defaults.bool(forKey: "editorFocusModeCentersCaret") : true
         editorLivePreviewEnabled = defaults.bool(forKey: "editorLivePreviewEnabled")
         editorShowLineNumbers = defaults.bool(forKey: "editorShowLineNumbers")
+        editorVimMode = defaults.bool(forKey: "editorVimMode")
         editorSmartHome = defaults.object(forKey: "editorSmartHome") != nil
             ? defaults.bool(forKey: "editorSmartHome") : true
         migrateEditorThemeDefaults(from: defaults)
@@ -492,6 +513,10 @@ public final class Preferences {
         editorMaximumWidth = maxWidth > 0 ? maxWidth : 800
         editorOnRight = defaults.bool(forKey: "editorOnRight")
         editorShowWordCount = defaults.bool(forKey: "editorShowWordCount")
+        inlineAIPreviewFirst = defaults.bool(forKey: "inlineAIPreviewFirst")
+        mcpServerEnabled = defaults.bool(forKey: "mcpServerEnabled")
+        mcpPort = (defaults.object(forKey: "mcpPort") as? Int).flatMap { UInt16(exactly: $0) } ?? MCPController
+            .defaultPort
         editorScrollsPastEnd = defaults.object(forKey: "editorScrollsPastEnd") != nil
             ? defaults.bool(forKey: "editorScrollsPastEnd") : true
         editorEnsuresNewlineAtEndOfFile = defaults.object(forKey: "editorEnsuresNewlineAtEndOfFile") != nil

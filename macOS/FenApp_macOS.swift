@@ -5,6 +5,10 @@ import SwiftUI
 struct FenApp: App {
     @Environment(\.openWindow) private var openWindow
 
+    init() {
+        MCPController.shared.launch()
+    }
+
     var body: some Scene {
         DocumentGroup(newDocument: { MarkdownDocument.makeNew() }, editor: { file in
             SplitEditorView(document: file.document)
@@ -22,6 +26,11 @@ struct FenApp: App {
                 SettingsView()
             }
 
+            Window("Workspaces", id: "workspaces") {
+                WorkspacesView()
+            }
+            .defaultSize(width: 860, height: 560)
+
             Window("About Fen", id: "about") {
                 AboutView()
             }
@@ -35,6 +44,9 @@ struct FenApp: App {
             Button("About Fen") {
                 openWindow(id: "about")
             }
+            Button("Check for Updates…") {
+                Task { await AppUpdater.checkForUpdates() }
+            }
         }
 
         CommandGroup(replacing: .help) {
@@ -42,108 +54,37 @@ struct FenApp: App {
         }
 
         findCommands()
-        formattingCommands()
+        FormattingCommands()
         copyCommands()
+        fileMenuCommands()
+
+        ViewCommands()
+    }
+
+    /// Grouped because `CommandsBuilder` accepts at most ten children.
+    @CommandsBuilder
+    func fileMenuCommands() -> some Commands {
+        CommandGroup(after: .newItem) {
+            Button("Workspaces…") {
+                openWindow(id: "workspaces")
+            }
+            .keyboardShortcut("l", modifiers: [.command, .shift])
+
+            Button("Ask Your Workspaces…") {
+                AskPanelRequest.shared.isRequested = true
+                openWindow(id: "workspaces")
+            }
+            .keyboardShortcut("a", modifiers: [.command, .option])
+        }
+        // The system's Browse All Versions (issue #59). It is also under Revert To, which is easy to miss.
+        CommandGroup(after: .saveItem) {
+            Button("Browse Version History…") {
+                NSApp.sendAction(#selector(NSDocument.browseVersions(_:)), to: nil, from: nil)
+            }
+        }
         exportHTMLCommands()
         exportPDFCommands()
         printCommands()
-
-        CommandGroup(after: .sidebar) {
-            Section {
-                Button("Toggle Preview") {
-                    NotificationCenter.default.post(name: .togglePreview, object: nil)
-                }
-                .keyboardShortcut("r", modifiers: [.command, .shift])
-
-                Button("Toggle Editor") {
-                    NotificationCenter.default.post(name: .toggleEditor, object: nil)
-                }
-                .keyboardShortcut("e", modifiers: [.command, .shift])
-
-                Button("Toggle Outline") {
-                    NotificationCenter.default.post(name: DocumentOutline.toggleOutlineNotification, object: nil)
-                }
-                .keyboardShortcut("o", modifiers: [.command, .shift])
-
-                // NotificationCenter post, matching Toggle Outline above -- `editorFocusModeEnabled`
-                // is `internal` to FenCore (like `editorSyncScrolling`), so a cross-module direct
-                // mutation from this FenMacOS target isn't possible; unlike Zoom In/Out/Actual
-                // Size, there's no public `Preferences` method to call instead (issue #19 rule
-                // 5.3). The notification name lives on `FocusModeEditing` in FenCore, mirroring
-                // `DocumentOutline.toggleOutlineNotification`'s pattern, since `SplitEditorView`'s
-                // subscriber (also in FenCore) needs to reference the same name.
-                Button("Toggle Focus Mode") {
-                    NotificationCenter.default.post(name: FocusModeEditing.toggleFocusModeNotification, object: nil)
-                }
-                .keyboardShortcut("f", modifiers: [.command, .shift])
-
-                // Mirrors Toggle Focus Mode immediately above -- `editorLivePreviewEnabled` is
-                // `internal` to FenCore, so this posts through the same cross-module notification
-                // pattern rather than mutating `Preferences.shared` directly (issue #2).
-                Button("Toggle Live Preview") {
-                    NotificationCenter.default.post(name: LivePreviewEditing.toggleLivePreviewNotification, object: nil)
-                }
-                .keyboardShortcut("p", modifiers: [.command, .shift])
-            }
-        }
-
-        CommandGroup(after: .toolbar) {
-            Section {
-                Button("Zoom In") {
-                    Preferences.shared.increaseFontSize()
-                }
-                .keyboardShortcut("+", modifiers: .command)
-
-                Button("Zoom Out") {
-                    Preferences.shared.decreaseFontSize()
-                }
-                .keyboardShortcut("-", modifiers: .command)
-
-                Button("Actual Size") {
-                    Preferences.shared.resetFontSize()
-                }
-                .keyboardShortcut("0", modifiers: .command)
-            }
-        }
-    }
-
-    @CommandsBuilder
-    func formattingCommands() -> some Commands {
-        CommandGroup(after: .textFormatting) {
-            Section {
-                formattingButton(.bold).keyboardShortcut("b", modifiers: .command)
-                formattingButton(.italic).keyboardShortcut("i", modifiers: .command)
-                formattingButton(.strikethrough).keyboardShortcut("x", modifiers: [.command, .shift])
-                formattingButton(.inlineCode).keyboardShortcut("k", modifiers: [.command, .shift])
-                formattingButton(.codeBlock).keyboardShortcut("k", modifiers: [.command, .option])
-            }
-
-            Section {
-                formattingButton(.heading1).keyboardShortcut("1", modifiers: .command)
-                formattingButton(.heading2).keyboardShortcut("2", modifiers: .command)
-                formattingButton(.heading3).keyboardShortcut("3", modifiers: .command)
-            }
-
-            Section {
-                formattingButton(.bulletList).keyboardShortcut("u", modifiers: [.command, .shift])
-                formattingButton(.numberedList).keyboardShortcut("n", modifiers: [.command, .shift])
-                formattingButton(.taskItem).keyboardShortcut("j", modifiers: [.command, .shift])
-                formattingButton(.blockquote).keyboardShortcut("q", modifiers: [.command, .shift])
-            }
-
-            Section {
-                formattingButton(.link).keyboardShortcut("k", modifiers: .command)
-                formattingButton(.image).keyboardShortcut("i", modifiers: [.command, .shift])
-                formattingButton(.horizontalRule).keyboardShortcut("h", modifiers: [.command, .shift])
-                formattingButton(.table).keyboardShortcut("t", modifiers: [.command, .shift])
-            }
-        }
-    }
-
-    private func formattingButton(_ action: FormattingAction) -> some View {
-        Button(action.title) {
-            NotificationCenter.default.post(name: .insertMarkdownFormatting, object: action.identifier)
-        }
     }
 
     @CommandsBuilder
@@ -183,11 +124,4 @@ private func performTextFinderAction(_ action: NSTextFinder.Action) {
     let item = NSMenuItem()
     item.tag = action.rawValue
     NSApp.sendAction(#selector(NSResponder.performTextFinderAction(_:)), to: nil, from: item)
-}
-
-// MARK: - Notification Names
-
-extension Notification.Name {
-    static let togglePreview = Notification.Name("togglePreview")
-    static let toggleEditor = Notification.Name("toggleEditor")
 }

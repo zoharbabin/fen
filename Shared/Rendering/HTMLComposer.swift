@@ -36,6 +36,7 @@ public struct HTMLComposer: Sendable {
         styleTags.append(inlineStyle(fontScaleCSS(preferences: preferences)))
         styleTags.append(inlineStyle(Self.listMarkerCSS))
         styleTags.append(inlineStyle(Self.alertsCSS))
+        styleTags.append(inlineStyle(Self.wikiLinkCSS))
         styleTags.append(inlineStyle(Self.focusModeCSS))
         styleTags.append(inlineStyle(Self.tableOverflowCSS))
 
@@ -211,6 +212,11 @@ public struct HTMLComposer: Sendable {
     .markdown-alert-caution p.markdown-alert-title { color: #cf222e; }
     """
 
+    /// A `[[name]]` with no document (issue #36) reads as plain, muted text with a dotted underline.
+    private static let wikiLinkCSS = """
+    span.wikilink-unresolved { opacity: 0.6; border-bottom: 1px dotted currentColor; cursor: help; }
+    """
+
     /// Focus mode's preview-pane sync (issue #127 rule 3.1): dims a rendered block that falls
     /// outside the editor's active Focus Mode range. Unconditionally included in every composed
     /// document, like `listMarkerCSS` -- toggling Focus Mode on/off never triggers a recompose
@@ -376,6 +382,7 @@ public struct HTMLComposer: Sendable {
         preferences: Preferences,
         includeStyles: Bool,
         includeHighlighting: Bool,
+        appearanceOverride: PreviewAppearanceMode? = nil,
         documentOverrides: DocumentPreviewOverrides = .none
     ) -> String {
         let (styleTags, scriptTags) = exportStyleAndScriptTags(
@@ -383,6 +390,7 @@ public struct HTMLComposer: Sendable {
             body: body,
             includeStyles: includeStyles,
             includeHighlighting: includeHighlighting,
+            appearanceOverride: appearanceOverride,
             documentOverrides: documentOverrides
         )
         return htmlDocument(

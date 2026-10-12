@@ -61,6 +61,12 @@ func caretColor(for background: PlatformColor) -> PlatformColor {
         /// bounds whenever it changes, or `nil` when focus mode or its dimming preference is off
         /// (issue #127 rule 3.3) -- threads into `PreviewWebView.focusLineRange` via `SplitEditorView`.
         var onFocusRangeChange: ((FocusLineRange?) -> Void)?
+        /// The selection, or the paragraph you are typing in, for related documents (issue #8).
+        var onSelectionChange: ((EditorSelection?) -> Void)?
+        /// An edit to apply once, through the undo stack. See `MarkdownTextView+Related.swift`.
+        var insertion: EditorInsertion?
+        /// Filled with the caret or selection, for "Ask AI" (issue #6).
+        var caret: EditorCaret?
 
         func makeCoordinator() -> Coordinator {
             Coordinator(self)
@@ -91,7 +97,7 @@ func caretColor(for background: PlatformColor) -> PlatformColor {
             // dim attributes reapply after (never before) it wipes attributes (issue #19 rule 4.3).
             textStorage.highlightDelegate = context.coordinator
 
-            let layoutManager = NSLayoutManager()
+            let layoutManager = DecorationLayoutManager()
             textStorage.addLayoutManager(layoutManager)
 
             let textContainer = NSTextContainer(size: NSSize(width: 0, height: CGFloat.greatestFiniteMagnitude))
@@ -137,6 +143,7 @@ func caretColor(for background: PlatformColor) -> PlatformColor {
             textView.imagePasteCoordinator = context.coordinator
             context.coordinator.textView = textView
             context.coordinator.documentURL = documentURL
+            context.coordinator.apply(insertion, to: textView)
 
             scrollView.documentView = textView
 
@@ -250,6 +257,7 @@ func caretColor(for background: PlatformColor) -> PlatformColor {
             weak var textView: MarkdownNSTextView?
             var themeName: String
             var documentURL: URL?
+            let related = RelatedEditorState()
             private var isApplyingExternalScroll = false
             private var lastAppliedScrollFraction: CGFloat?
             private var lastAppliedTotalHeight: CGFloat?
@@ -337,6 +345,7 @@ func caretColor(for background: PlatformColor) -> PlatformColor {
             /// so a no-op call (rule 4.1) can be skipped. Not `private`:
             /// `MarkdownTextView+LivePreview.swift`'s extension needs access from another file.
             var livePreviewStyledText: String?
+            var livePreviewBlockCache = LivePreviewBlockContext.Cache()
             /// The paragraph range containing the caret the last time live-preview styling ran
             /// (rule 4.2) -- a pure selection move only re-styles the previous and new caret
             /// paragraphs, never the whole document. Not `private` for the same reason.
@@ -374,6 +383,8 @@ func caretColor(for background: PlatformColor) -> PlatformColor {
                 recomputeSlashMenu(in: textView)
                 refreshGutterLineStartOffsetsIfNeeded(text: textView.string)
                 applyLivePreviewStylingIfNeeded(in: textView, fullDocument: false)
+                noteEdit()
+                reportSelection(in: textView)
             }
 
             @MainActor func textViewDidChangeSelection(_ notification: Notification) {
@@ -383,6 +394,7 @@ func caretColor(for background: PlatformColor) -> PlatformColor {
                 recenterCaretOnActiveLine(in: textView)
                 recomputeSlashMenu(in: textView)
                 applyLivePreviewStylingIfNeeded(in: textView, fullDocument: false)
+                reportSelection(in: textView)
             }
 
             /// Writes `data` into the document's sidecar assets folder and inserts a Markdown
@@ -424,10 +436,13 @@ func caretColor(for background: PlatformColor) -> PlatformColor {
                 alert.runModal()
             }
 
+            /// Every open editor hears this notification. Only the one in the key window applies it,
+            /// so Bold in one document doesn't also edit the others.
             @MainActor @objc func applyFormattingNotification(_ notification: Notification) {
                 guard let identifier = notification.object as? String,
                       let action = FormattingAction(identifier: identifier),
-                      let textView else { return }
+                      let textView,
+                      textView.window?.isKeyWindow == true else { return }
                 let selection = textView.selectedRange()
                 let result = MarkdownFormatting.apply(action, to: textView.string, selection: selection)
                 textView.string = result.text

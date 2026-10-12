@@ -27,6 +27,9 @@ public struct MarkdownRenderer: Sendable {
         /// there), so this is applied as a post-processing pass over the rendered HTML, same as
         /// `highlight` above -- see `applyEmojiShortcodes` in `MarkdownRenderer+Emoji.swift`.
         public var emojiShortcodes: Bool = true
+        /// `[[name]]` -> a link to a document of the same workspace (issue #36), or `nil` to leave
+        /// the text as written. See `applyWikiLinks` in `MarkdownRenderer+WikiLinks.swift`.
+        public var wikiLinks: WikiLinkResolver?
         /// Lets raw HTML in the source pass through cmark-gfm (which otherwise strips it to an
         /// HTML comment) via `CMARK_OPT_UNSAFE`, matching GitHub's rendering of tags like
         /// `<details>`/`<sub>`/`<kbd>`. Always paired with an async DOMPurify sanitize pass --
@@ -188,6 +191,10 @@ public struct MarkdownRenderer: Sendable {
             html = applyEmojiShortcodes(to: html)
         }
 
+        if let resolver = options.wikiLinks {
+            html = applyWikiLinks(to: html, resolver: resolver)
+        }
+
         // Heading extraction always runs so RenderResult.headings is populated regardless of
         // renderTOC (the document outline navigator, issue #12, needs it even with [TOC] off);
         // only the HTML itself is rewritten with ids/TOC markup when renderTOC is on, to keep
@@ -267,7 +274,7 @@ public struct MarkdownRenderer: Sendable {
         guard lines.count > 2 else { return FrontMatterResult(stripped: text, yaml: nil, lineCount: 0) }
 
         var endIndex: Int?
-        for i in 1 ..< lines.count where lines[i].trimmingCharacters(in: .whitespaces) == "---" {
+        for i in 1 ..< lines.count where lines[i].trimmingCharacters(in: .whitespacesAndNewlines) == "---" {
             endIndex = i
             break
         }

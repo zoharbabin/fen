@@ -194,10 +194,11 @@ struct LivePreviewTests {
         )
     }
 
-    /// Rule 5.3: any line containing a table pipe (`|`) is left completely unstyled by design --
-    /// live preview doesn't attempt to render tables, so it must not touch their raw syntax.
+    /// Rule 5.3, as changed by issue #135: a real table is rendered (see `LivePreviewBlockRenderTests`), but the
+    /// delimiter line and the pipes still must not be misread as emphasis or any other inline syntax, and the
+    /// document text never changes.
     @Test @MainActor
-    func tableSyntaxIsLeftUnstyled() throws {
+    func tableStylingNeverChangesTheText() {
         let text = "Intro.\n\n| a | table |\n|---|---|\n| **bold** | *italic* |"
         let (textView, coordinator) = makeAttachedTextView(text: text)
 
@@ -205,15 +206,6 @@ struct LivePreviewTests {
         coordinator.applyLivePreviewStylingIfNeeded(in: textView, fullDocument: false)
 
         #expect(textView.string == text)
-        let textStorage = try #require(textView.textStorage)
-        let ns = text as NSString
-        for marker in ["a", "table", "---", "bold", "italic"] {
-            let location = ns.range(of: marker).location
-            #expect(
-                textStorage.attribute(.livePreviewTouched, at: location, effectiveRange: nil) == nil,
-                "Expected table row content '\(marker)' to be left completely unstyled"
-            )
-        }
     }
 
     /// Regression coverage for a checkbox-overlay contrast bug found while manually verifying

@@ -19,8 +19,8 @@ public struct SplitEditorView: View {
     @State private var renderer = MarkdownRenderer()
     @State private var composer = HTMLComposer()
     @State private var htmlSanitizer = HTMLSanitizer()
-    @State private var scrollSync = ScrollSync()
-    @State private var outline = DocumentOutline()
+    @State var scrollSync = ScrollSync()
+    @State var outline = DocumentOutline()
     @State private var externalChangeController = ExternalChangeController()
     @State private var autosaveController = AutosaveController()
     @State private var htmlExportController = HTMLExportController()
@@ -31,8 +31,8 @@ public struct SplitEditorView: View {
     @State private var renderedHTML: String = ""
     @State private var renderTask: Task<Void, Never>?
     @State private var isOutlineVisible = false
-    @State private var sourceLineCount = 1
-    @State private var sourceLineOffset = 0
+    @State var sourceLineCount = 1
+    @State var sourceLineOffset = 0
     /// Raw-source-line-adjusted `MarkdownRenderer.RenderResult.blockStartLines` (issue #113),
     /// fed to the editor as `MarkdownTextView.breakpoints` so both panes' anchor tables sample
     /// the same lines. See `EditorScrollAnchors.swift`'s `computeEditorLineAnchors` doc comment.
@@ -40,11 +40,12 @@ public struct SplitEditorView: View {
     /// The editor's active Focus Mode range, translated to raw source line bounds, threaded into
     /// `PreviewWebView.focusLineRange` for preview-pane dimming sync (issue #127 rule 3.4).
     @State private var focusLineRange: FocusLineRange?
-    /// Monotonic counter guarding `renderMarkdown()`'s async sanitize step (issue #118): a
-    /// render started by an earlier keystroke could otherwise finish sanitizing after a later
-    /// keystroke's render and overwrite `renderedHTML` with stale content. Each call captures
-    /// the generation it incremented to before awaiting, and only assigns `renderedHTML` if
-    /// that generation is still current when the await resolves.
+    @State var related = RelatedController()
+    @State var inlineAI = InlineAIController()
+    @State var editorCaret = EditorCaret()
+    /// Guards `renderMarkdown()`'s async sanitize step (issue #118): each call captures the
+    /// generation it incremented to, and assigns `renderedHTML` only if it is still current, so
+    /// a slow earlier render can't overwrite a later one.
     @State private var renderGeneration = 0
 
     let preferences = Preferences.shared
@@ -55,14 +56,13 @@ public struct SplitEditorView: View {
         case previewOnly = "Preview"
     }
 
-    /// Not `private` -- `SplitEditorView+LivePreviewMode.swift` reads/writes both to enforce the
-    /// Live-Preview/`.editorOnly` invariant, mirroring how the iOS export `@State` above drops
-    /// `private` for the same cross-file-extension reason.
+    /// Not `private`: `SplitEditorView+LivePreviewMode.swift` reads and writes both to enforce the
+    /// Live-Preview/`.editorOnly` invariant.
     @State var viewMode: ViewMode = .split
-    /// Rule 1.1 (issue #128): the `viewMode` Live Preview overrode to force `.editorOnly`, so
-    /// turning Live Preview back off restores it instead of leaving the user stuck on the single
-    /// editor pane. `nil` when Live Preview was turned on while already in `.editorOnly` (rule
-    /// 1.3, nothing to remember) or after a restore/manual-switch has consumed it.
+
+    /// Rule 1.1 (issue #128): the `viewMode` Live Preview overrode to force `.editorOnly`, restored
+    /// when Live Preview turns off. `nil` when it was already `.editorOnly` (rule 1.3) or a
+    /// restore/manual switch has consumed it.
     @State var stashedViewModeBeforeLivePreview: ViewMode?
     @State private var editorOnRight = false
     #if os(macOS)
@@ -101,6 +101,7 @@ public struct SplitEditorView: View {
                 Task { await renderMarkdown() }
                 externalChangeController.start(for: document)
                 autosaveController.start(for: document)
+                bindInlineAI()
             }
             .onDisappear {
                 externalChangeController.stop()
@@ -115,6 +116,7 @@ public struct SplitEditorView: View {
             .onChange(of: preferences.renderRevision) { _, _ in
                 Task { await renderMarkdown() }
             }
+            .onChange(of: WorkspaceLibrary.shared.listingRevision) { _, _ in scheduleRender() }
             .onChange(of: document.fileURL) { _, _ in
                 externalChangeController.start(for: document)
                 autosaveController.start(for: document)
@@ -131,38 +133,35 @@ public struct SplitEditorView: View {
                 viewModeDidChange(to: newValue)
             }
 
+        let withToggles = withChangeHandlers.modifier(
+            ViewCommandReceivers(
+                outline: { isOutlineVisible.toggle() },
+                focusMode: { preferences.editorFocusModeEnabled.toggle() },
+                livePreview: { preferences.editorLivePreviewEnabled.toggle() },
+                preview: { viewMode = viewMode.afterTogglingPreview(compactWidth: isCompactWidth) },
+                editor: { viewMode = viewMode.afterTogglingEditor(compactWidth: isCompactWidth) }
+            )
+        )
+
         #if os(macOS)
-            let withReceivers = withChangeHandlers
-                .onReceive(NotificationCenter.default.publisher(for: DocumentOutline.toggleOutlineNotification)) { _ in
-                    isOutlineVisible.toggle()
-                }
-                .onReceive(
-                    NotificationCenter.default.publisher(for: FocusModeEditing.toggleFocusModeNotification)
-                ) { _ in
-                    preferences.editorFocusModeEnabled.toggle()
-                }
-                .onReceive(
-                    NotificationCenter.default.publisher(for: LivePreviewEditing.toggleLivePreviewNotification)
-                ) { _ in
-                    preferences.editorLivePreviewEnabled.toggle()
-                }
-                .onReceive(NotificationCenter.default.publisher(for: .exportToHTML)) { _ in
+            let withReceivers = withToggles
+                .onWindowCommand(.exportToHTML) {
                     htmlExportController.presentSavePanel(document: document, preferences: preferences)
                 }
-                .onReceive(NotificationCenter.default.publisher(for: .exportToPDF)) { _ in
+                .onWindowCommand(.exportToPDF) {
                     pdfExportController.presentSavePanel(document: document, preferences: preferences)
                 }
-                .onReceive(NotificationCenter.default.publisher(for: .printDocument)) { _ in
+                .onWindowCommand(.printDocument) {
                     printController.printDocument(document: document, preferences: preferences)
                 }
-                .onReceive(NotificationCenter.default.publisher(for: .copyAsRawHTML)) { _ in
+                .onWindowCommand(.copyAsRawHTML) {
                     Task {
                         await ClipboardExporter().copyAsRawHTML(
                             markdown: document.text, documentURL: document.fileURL, preferences: preferences
                         )
                     }
                 }
-                .onReceive(NotificationCenter.default.publisher(for: .copyAsRichTextFormatted)) { _ in
+                .onWindowCommand(.copyAsRichTextFormatted) {
                     Task {
                         await ClipboardExporter().copyAsRichTextFormatted(
                             markdown: document.text, documentURL: document.fileURL, preferences: preferences
@@ -170,7 +169,10 @@ public struct SplitEditorView: View {
                     }
                 }
         #else
-            let withReceivers = withChangeHandlers
+            let withReceivers = withToggles
+                .onWindowCommand(.printDocument) {
+                    presentPrint()
+                }
         #endif
 
         #if os(iOS)
@@ -229,7 +231,7 @@ public struct SplitEditorView: View {
 
     private var centerContent: some View {
         ZStack {
-            switch viewMode {
+            switch viewMode.shown(compactWidth: isCompactWidth) {
             case .split:
                 splitView
             case .editorOnly:
@@ -238,22 +240,6 @@ public struct SplitEditorView: View {
                 previewView
             }
         }
-    }
-
-    // MARK: - Outline
-
-    private var outlineSidebar: some View {
-        DocumentOutlineSidebar(outline: outline, onSelectHeading: jumpToHeading(_:))
-    }
-
-    /// Scrolls both panes to a heading's source line, expressed as the same source-fraction
-    /// `ScrollSync` already shares between the editor and preview -- reusing the identical
-    /// `(startLine - 1 + lineOffset) / totalLines` formula `scroll-sync.js` uses for its own
-    /// `data-sourcepos` anchors, so a jump lands exactly where scroll-sync would place that line.
-    private func jumpToHeading(_ heading: Heading) {
-        guard let startLine = heading.startLine, sourceLineCount > 0 else { return }
-        let fraction = CGFloat(startLine - 1 + sourceLineOffset) / CGFloat(sourceLineCount)
-        scrollSync.jumpToSourceFraction(min(1, max(0, fraction)))
     }
 
     // MARK: - Split View
@@ -324,10 +310,15 @@ public struct SplitEditorView: View {
             },
             onFocusRangeChange: { range in
                 focusLineRange = range
-            }
+            },
+            onSelectionChange: { related.editorChanged($0, fileURL: document.fileURL) },
+            insertion: related.insertion,
+            caret: editorCaret
         )
         .accessibilityIdentifier("EditorTextView")
         .accessibilityValue(scrollFractionLabel(scrollSync.editorScrollFraction))
+        .relatedSuggestions(related)
+        .requestedLineJumps(fileURL: document.fileURL, lineCount: sourceLineCount, jump: jumpToLine(_:))
         #if os(macOS)
             .frame(minWidth: 200)
         #endif
@@ -425,7 +416,7 @@ public struct SplitEditorView: View {
     /// an arbitrary file URL as its own window via `openDocument`; iOS has no equivalent
     /// arbitrary-URL API for a `DocumentGroup`-based app, so the link hands off to the system
     /// document viewer/editor instead, matching how an external link already behaves there.
-    private func openInternalLink(_ url: URL) {
+    func openInternalLink(_ url: URL) {
         #if os(macOS)
             Task {
                 try? await openDocument(at: url)
@@ -471,8 +462,10 @@ public struct SplitEditorView: View {
             .help("Formatting")
             .accessibilityIdentifier("FormattingMenuButton")
 
-            Picker("View", selection: $viewMode) {
-                ForEach(ViewMode.allCases, id: \.self) { mode in
+            inlineAIButton
+
+            Picker("View", selection: shownViewMode) {
+                ForEach(ViewMode.available(compactWidth: isCompactWidth), id: \.self) { mode in
                     Text(mode.rawValue).tag(mode)
                 }
             }
@@ -494,6 +487,12 @@ public struct SplitEditorView: View {
             }
 
             #if os(iOS)
+                VersionHistoryButton(document: document)
+                ShareLink(
+                    item: SharedMarkdown(document: document),
+                    preview: SharePreview(SharedMarkdown(document: document).fileName)
+                )
+                .accessibilityIdentifier("ShareDocumentButton")
                 exportMenu
             #endif
         }
@@ -564,6 +563,7 @@ public struct SplitEditorView: View {
 
         var options = MarkdownRenderer.Options.from(preferences: preferences)
         options.sourcePositions = true
+        options.wikiLinks = wikiLinkResolver()
         options.renderTOC = documentOverrides.rendersTOC ?? options.renderTOC
         let result = renderer.render(document.text, options: options)
 

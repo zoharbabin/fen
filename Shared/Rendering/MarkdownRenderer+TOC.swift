@@ -105,9 +105,7 @@ extension MarkdownRenderer {
     }
 
     private func uniqueSlug(for text: String, usedSlugs: inout [String: Int]) -> String {
-        let base = text.lowercased()
-            .replacingOccurrences(of: " ", with: "-")
-            .replacingOccurrences(of: "[^a-z0-9-]", with: "", options: .regularExpression)
+        let base = HeadingAnchor.slug(text)
 
         guard let count = usedSlugs[base] else {
             usedSlugs[base] = 0

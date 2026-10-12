@@ -40,6 +40,12 @@
         var onTextChange: (() -> Void)?
         /// Mirrors the macOS `MarkdownTextView.onFocusRangeChange` doc comment (issue #127 rule 3.3).
         var onFocusRangeChange: ((FocusLineRange?) -> Void)?
+        /// Mirrors the macOS `MarkdownTextView.onSelectionChange` doc comment (issue #8).
+        var onSelectionChange: ((EditorSelection?) -> Void)?
+        /// Mirrors the macOS `MarkdownTextView.insertion` doc comment (issue #8).
+        var insertion: EditorInsertion?
+        /// Mirrors the macOS `MarkdownTextView.caret` doc comment (issue #6).
+        var caret: EditorCaret?
 
         func makeCoordinator() -> Coordinator {
             Coordinator(self)
@@ -55,7 +61,7 @@
             // mirrors the macOS Coordinator's wiring for issue #19 rule 4.3.
             textStorage.highlightDelegate = context.coordinator
 
-            let layoutManager = NSLayoutManager()
+            let layoutManager = DecorationLayoutManager()
             textStorage.addLayoutManager(layoutManager)
 
             let textContainer = NSTextContainer(size: CGSize(width: 0, height: CGFloat.greatestFiniteMagnitude))
@@ -69,6 +75,8 @@
             textView.autocapitalizationType = .none
             textView.smartQuotesType = .no
             textView.smartDashesType = .no
+            // Cmd+F, Cmd+G and Cmd+Shift+G on a hardware keyboard (issue #42).
+            textView.isFindInteractionEnabled = true
 
             let background = textStorage.highlightr.theme.themeBackgroundColor ?? .systemBackground
             textView.backgroundColor = background
@@ -174,6 +182,7 @@
             let livePreviewJustToggled = context.coordinator.parent.isLivePreviewEnabled != isLivePreviewEnabled
             context.coordinator.parent = self
             context.coordinator.documentURL = documentURL
+            context.coordinator.apply(insertion, to: textView)
             if isScrollSyncEnabled {
                 context.coordinator.applyScrollFraction(scrollFraction, to: textView)
             }
@@ -289,6 +298,7 @@
             /// `textPasteConfigurationSupporting(_:transform:)`'s completion can fire
             /// after `updateUIView` has already run again with a new `parent`.
             var documentURL: URL?
+            let related = RelatedEditorState()
             private var isApplyingExternalScroll = false
             private var lastAppliedScrollFraction: CGFloat?
             private var lastAppliedContentHeight: CGFloat?
@@ -331,6 +341,7 @@
             /// open documents/windows. Not `private`: `MarkdownTextView+LivePreview_iOS.swift`'s
             /// extension needs access from another file in the module.
             var livePreviewStyledText: String?
+            var livePreviewBlockCache = LivePreviewBlockContext.Cache()
             var livePreviewCaretParagraphRange: NSRange?
             var livePreviewImageCache: [String: PlatformImage] = [:]
             var livePreviewCheckboxOverlays: [Int: UIButton] = [:]
@@ -353,6 +364,8 @@
                 recomputeSlashMenu(in: textView)
                 refreshGutterLineStartOffsetsIfNeeded(text: textView.text)
                 applyLivePreviewStylingIfNeeded(in: textView, fullDocument: false)
+                noteEdit()
+                reportSelection(in: textView)
             }
 
             /// Rebuilds `gutterLineStartOffsets` only when the text actually changed since the
@@ -372,6 +385,7 @@
                 recenterCaretOnActiveLine(in: textView)
                 recomputeSlashMenu(in: textView)
                 applyLivePreviewStylingIfNeeded(in: textView, fullDocument: false)
+                reportSelection(in: textView)
             }
 
             // MARK: - Pasted/dropped image (issue #18)
@@ -441,10 +455,15 @@
                     .present(alert, animated: true)
             }
 
+            /// Every open editor hears this notification. Only the editor in use applies it, so a
+            /// shortcut doesn't edit a second Fen window. In Split View both scenes are
+            /// foreground-active, so `CommandTarget` also asks for the key window and first responder.
             @objc func applyFormattingNotification(_ notification: Notification) {
                 guard let identifier = notification.object as? String,
                       let action = FormattingAction(identifier: identifier),
-                      let textView else { return }
+                      let textView,
+                      CommandTarget.accepts(window: textView.window, isFirstResponder: textView.isFirstResponder)
+                else { return }
                 let selection = textView.selectedRange
                 let result = MarkdownFormatting.apply(action, to: textView.text, selection: selection)
                 textView.text = result.text

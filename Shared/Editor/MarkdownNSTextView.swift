@@ -103,6 +103,37 @@
             return super.readSelection(from: pasteboard, type: type)
         }
 
+        // MARK: - Vim Normal/Insert subset (issue #102)
+
+        /// Whether Vim keys are on. A closure so tests can turn them on without touching the app preferences.
+        var isVimEnabled: () -> Bool = { Preferences.shared.editorVimMode }
+        var vimMode: VimMode = .normal
+        var vimIsWaitingForSecondG = false
+
+        override func keyDown(with event: NSEvent) {
+            if !handleVimKey(event) {
+                super.keyDown(with: event)
+            }
+        }
+
+        override func drawInsertionPoint(in rect: NSRect, color: NSColor, turnedOn flag: Bool) {
+            guard isVimEnabled(), vimMode == .normal else {
+                return super.drawInsertionPoint(in: rect, color: color, turnedOn: flag)
+            }
+            var block = rect
+            block.size.width = vimCaretWidth
+            super.drawInsertionPoint(in: block, color: color.withAlphaComponent(0.5), turnedOn: flag)
+        }
+
+        /// The block caret is wider than the line caret AppKit invalidates, so widen what it redraws.
+        override func setNeedsDisplay(_ invalidRect: NSRect, avoidAdditionalLayout flag: Bool) {
+            var rect = invalidRect
+            if isVimEnabled(), vimMode == .normal {
+                rect.size.width += vimCaretWidth
+            }
+            super.setNeedsDisplay(rect, avoidAdditionalLayout: flag)
+        }
+
         // MARK: - Limit editor width (issue #50)
 
         var baseHorizontalInset: CGFloat = 15

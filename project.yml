@@ -15,6 +15,9 @@ settings:
 packages:
   Fen:
     path: .
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    from: 2.10.0
 
 targets:
   FenMacOSApp:
@@ -37,6 +40,7 @@ targets:
     dependencies:
       - package: Fen
         product: FenCore
+      - package: Sparkle
       - target: FenQuickLook
         embed: true
 

@@ -18,6 +18,12 @@ public struct SettingsView: View {
                 Tab("Rendering", systemImage: "eye") {
                     RenderingSettingsTab()
                 }
+                Tab("AI", systemImage: "sparkles") {
+                    AISettingsTab()
+                }
+                Tab("Agents", systemImage: "point.3.connected.trianglepath.dotted") {
+                    MCPSettingsTab()
+                }
             }
             .frame(width: 500)
         #else
@@ -27,6 +33,7 @@ public struct SettingsView: View {
                     NavigationLink("Editor") { EditorSettingsTab() }
                     NavigationLink("Markdown") { MarkdownSettingsTab() }
                     NavigationLink("Rendering") { RenderingSettingsTab() }
+                    NavigationLink("AI") { AISettingsTab() }
                 }
                 .navigationTitle("Settings")
             }
@@ -131,8 +138,10 @@ struct EditorSettingsTab: View {
                 if prefs.editorLivePreviewEnabled {
                     Text(
                         "Renders bold/italic/strikethrough, inline code, headings, blockquotes, " +
-                            "checkboxes, links, and images inline as you type. Tables and fenced code " +
-                            "blocks are left as raw Markdown source for now — see issue #135."
+                            "checkboxes, links, images, rules, lists, footnotes, tables, and code " +
+                            "block panels inline as you type. Mermaid, math, and map blocks show as " +
+                            "pictures until you put the caret in them. Inline math stays as source — " +
+                            "see issue #135."
                     )
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -145,6 +154,15 @@ struct EditorSettingsTab: View {
                 Toggle("Editor on right", isOn: $prefs.editorOnRight)
                 #if os(macOS)
                     Toggle("Smart Home key", isOn: $prefs.editorSmartHome)
+                    Toggle("Vim keys (Normal and Insert mode)", isOn: $prefs.editorVimMode)
+                    if prefs.editorVimMode {
+                        Text(
+                            "Esc leaves Insert mode. In Normal mode: h j k l, w b, 0 $, gg G move; " +
+                                "i a I A start typing. Nothing else is supported."
+                        )
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    }
                 #endif
             }
         }

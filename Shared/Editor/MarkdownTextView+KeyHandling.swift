@@ -9,7 +9,7 @@
             let preferences = Preferences.shared
             switch selector {
             case #selector(NSResponder.cancelOperation(_:)):
-                return dismissSlashMenuIfOpenOnEscape()
+                return handleEscape(in: textView)
             case #selector(NSResponder.insertTab(_:)):
                 guard preferences.editorConvertTabs, textView.selectedRange().length == 0 else { return false }
                 insertTabAsSpaces(in: textView)
@@ -33,6 +33,11 @@
             default:
                 return false
             }
+        }
+
+        /// Esc closes the slash menu first. With no menu open it leaves Vim's Insert mode (issue #102).
+        @MainActor private func handleEscape(in textView: NSTextView) -> Bool {
+            dismissSlashMenuIfOpenOnEscape() || (textView as? MarkdownNSTextView)?.leaveVimInsertMode() == true
         }
 
         @MainActor func textView(

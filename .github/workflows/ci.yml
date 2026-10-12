@@ -4,7 +4,6 @@ on:
   push:
     branches: [master]
   pull_request:
-    branches: [master]
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -44,6 +43,37 @@ jobs:
       - name: Run tests
         run: swift test --no-parallel
 
+      # The runner starts with no ~/.fen. Tests pass a temp FenHome everywhere, so one here means
+      # a test or feature wrote to the real home (issue #9).
+      - name: Check tests left the real ~/.fen alone
+        run: |
+          if [ -e "$HOME/.fen" ]; then
+            echo "::error::A test created ~/.fen. Pass a temp FenHome instead of FenHome.standard."
+            ls -laR "$HOME/.fen"
+            exit 1
+          fi
+
+  build-ios:
+    name: build iOS app (simulator)
+    runs-on: macos-15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select latest Xcode
+        run: |
+          LATEST=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -1)
+          [ -n "$LATEST" ] && sudo xcode-select -s "$LATEST"
+
+      # `swift test` compiles only the macOS side. This catches iOS-only breakage, such as an
+      # async call missing `await` inside an `#else` branch.
+      - name: Build
+        run: |
+          brew install xcodegen >/dev/null
+          xcodegen generate
+          xcodebuild -project FenUITesting.xcodeproj -scheme FeniOSApp \
+            -destination 'generic/platform=iOS Simulator' build CODE_SIGNING_ALLOWED=NO
+
   docs-links:
     name: check doc & site links
     runs-on: ubuntu-latest
@@ -68,3 +98,23 @@ jobs:
             --exclude "https://highlightjs\.org/.*"
             './**/*.md' './site/*.html'
           fail: true
+
+  cask:
+    name: check Homebrew cask
+    runs-on: macos-15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # The cask must pass Homebrew's style rules, and its sha256 must match the
+      # published zip it points at. A wrong sha makes every `brew install` fail.
+      - name: Style
+        run: brew style Casks/fen.rb
+
+      - name: Check sha256 against the release
+        run: |
+          version="$(sed -n 's/^  version "\(.*\)"/\1/p' Casks/fen.rb)"
+          expected="$(sed -n 's/^  sha256 "\(.*\)"/\1/p' Casks/fen.rb)"
+          curl -fsSL -o Fen.app.zip "https://github.com/zoharbabin/fen/releases/download/v${version}/Fen.app.zip"
+          actual="$(shasum -a 256 Fen.app.zip | cut -d' ' -f1)"
+          test "$actual" = "$expected" || { echo "sha256 mismatch for v${version}: cask has ${expected}, release has ${actual}"; exit 1; }
