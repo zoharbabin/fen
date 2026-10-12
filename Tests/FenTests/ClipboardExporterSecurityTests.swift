@@ -101,6 +101,10 @@ struct ClipboardExporterSecurityTests {
         _ = ClipboardExporter().attributedString(from: html)
 
         Thread.sleep(forTimeInterval: 0.5)
-        #expect(probe.hits.value > 0, "expected the OS HTML importer to fetch the remaining remote reference")
+        // Older macOS fetches here and macOS 26 does not. This test only documents the OS, so it
+        // must not fail on either. The stripping test above is the one that guards Fen.
+        withKnownIssue("newer macOS no longer fetches remote images in the HTML importer", isIntermittent: true) {
+            #expect(probe.hits.value > 0, "expected the OS HTML importer to fetch the remaining remote reference")
+        }
     }
 }
