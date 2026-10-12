@@ -250,6 +250,7 @@ struct TypingLatencyProxyTests {
             }
         }
         // All workspaces are listed and at least one is still building its index.
+
         func indexing() -> Bool {
             ids.allSatisfy { library.state(for: $0).hasScanned }
                 && ids.contains { library.indexStatus(for: $0).phase != .idle }
