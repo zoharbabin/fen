@@ -92,6 +92,8 @@ public struct WorkspaceSettings: Codable, Sendable, Equatable {
     public var includeGlobs: [String]
     public var excludeGlobs: [String]
     public var maxFileBytes: Int
+    /// Saving a document here enriches its short bullets, under `approvalMode` (issue #6). Off by default.
+    public var enrichOnSave: Bool
 
     public init(
         aiDataAccess: AIDataAccess = .localProvidersOnly,
@@ -104,7 +106,8 @@ public struct WorkspaceSettings: Codable, Sendable, Equatable {
         clonedByFen: Bool = false,
         includeGlobs: [String] = WorkspaceSettings.defaultIncludeGlobs,
         excludeGlobs: [String] = [],
-        maxFileBytes: Int = WorkspaceSettings.defaultMaxFileBytes
+        maxFileBytes: Int = WorkspaceSettings.defaultMaxFileBytes,
+        enrichOnSave: Bool = false
     ) {
         self.aiDataAccess = aiDataAccess
         self.approvalMode = approvalMode
@@ -117,6 +120,7 @@ public struct WorkspaceSettings: Codable, Sendable, Equatable {
         self.includeGlobs = includeGlobs
         self.excludeGlobs = excludeGlobs
         self.maxFileBytes = maxFileBytes
+        self.enrichOnSave = enrichOnSave
     }
 
     /// Missing keys fall back to defaults, so a registry written by an older Fen still loads.
@@ -135,7 +139,8 @@ public struct WorkspaceSettings: Codable, Sendable, Equatable {
                 ?? WorkspaceSettings.defaultIncludeGlobs,
             excludeGlobs: container.decodeIfPresent([String].self, forKey: .excludeGlobs) ?? [],
             maxFileBytes: container.decodeIfPresent(Int.self, forKey: .maxFileBytes)
-                ?? WorkspaceSettings.defaultMaxFileBytes
+                ?? WorkspaceSettings.defaultMaxFileBytes,
+            enrichOnSave: container.decodeIfPresent(Bool.self, forKey: .enrichOnSave) ?? false
         )
     }
 

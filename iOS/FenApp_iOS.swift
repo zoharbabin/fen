@@ -1,5 +1,8 @@
 import FenCore
 import SwiftUI
+#if os(iOS)
+    import UIKit
+#endif
 
 @main
 struct FenApp: App {
@@ -31,6 +34,11 @@ struct FenApp: App {
         #if os(iOS)
             DocumentGroupLaunchScene("Fen") {
                 NewDocumentButton("New Document")
+                // Text from another app (a Safari selection, Notes) cannot open as a file, so copy
+                // it and make a document from the clipboard (issue #43).
+                NewDocumentButton("New from Clipboard", for: MarkdownDocument.self) {
+                    try await MainActor.run { try SharedTextImport.document(from: UIPasteboard.general.string) }
+                }
                 WorkspacesButton()
             }
         #endif
