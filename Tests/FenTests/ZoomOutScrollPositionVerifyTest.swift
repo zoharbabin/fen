@@ -103,6 +103,7 @@ struct ZoomOutScrollPositionVerifyTest {
         // new page's `didFinish` has run, so its scroll-restore JS is already queued. The caller
         // then polls for the specific post-reload condition it cares about (collapsed height,
         // restored scrollTop).
+
         func reloadTo(_ newHTML: String) async {
             let finishesBefore = relay.finishCount
             let generation = coordinator.beginReload()
