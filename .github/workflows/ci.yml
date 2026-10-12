@@ -84,7 +84,8 @@ jobs:
       # Catches dead links left behind by a rename/move in docs or the
       # landing page -- the cheapest signal we have that a doc has drifted
       # from what it links to. Retries handle transient network flakiness;
-      # a genuinely broken link still fails the job.
+      # a genuinely broken link (404 and the like) still fails the job. A 429 or 5xx
+      # from a server is its outage, not a broken link, so it doesn't fail the job.
       - name: Link check
         uses: lycheeverse/lychee-action@v2
         with:
@@ -93,6 +94,7 @@ jobs:
             --max-retries 4
             --retry-wait-time 10
             --max-concurrency 8
+            --accept 200..=299,429,500..=599
             --exclude-path FenUITesting.xcodeproj
             --exclude-path .harness-runs
             --exclude "https://news\.ycombinator\.com/.*"
