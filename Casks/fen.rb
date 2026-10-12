@@ -1,6 +1,6 @@
 cask "fen" do
-  version "0.5.1"
-  sha256 "28c630f2c75b1d2e2364f5a816de894ffdedd2e442f121d6f3942b6b7e4e1c67"
+  version "0.6.0"
+  sha256 "8ac4be1d62750640ffebff1059887ac011dab3c24ab3959e42b2d70c23df0325"
 
   url "https://github.com/zoharbabin/fen/releases/download/v#{version}/Fen.app.zip"
   name "Fen"
