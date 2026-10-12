@@ -46,19 +46,36 @@ struct FenApp: App {
     }
 }
 
-/// Opens the workspaces list as a sheet, from the launch screen or inside a document.
+/// Opens the workspaces list as a sheet, from the launch screen or inside a document. UIKit
+/// presents it, because on iPad the launch screen puts this button in a menu and a SwiftUI sheet
+/// attached to the button goes away with the menu.
 private struct WorkspacesButton: View {
-    @State private var showing = false
+    var body: some View {
+        Button("Workspaces", systemImage: "folder.badge.gearshape") { WorkspacesSheet.present() }
+    }
+}
+
+private struct WorkspacesSheet: View {
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        Button("Workspaces", systemImage: "folder.badge.gearshape") { showing = true }
-            .sheet(isPresented: $showing) {
-                NavigationStack {
-                    WorkspacesView()
-                        .toolbar {
-                            ToolbarItem(placement: .cancellationAction) { Button("Done") { showing = false } }
-                        }
+        NavigationStack {
+            WorkspacesView()
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } }
                 }
+        }
+    }
+
+    @MainActor static func present() {
+        #if os(iOS)
+            let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+            let scene = scenes.first { $0.activationState == .foregroundActive } ?? scenes.first
+            guard var top = scene?.keyWindow?.rootViewController else { return }
+            while let presented = top.presentedViewController {
+                top = presented
             }
+            top.present(UIHostingController(rootView: WorkspacesSheet()), animated: true)
+        #endif
     }
 }

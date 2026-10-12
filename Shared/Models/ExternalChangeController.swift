@@ -113,6 +113,9 @@ public final class ExternalChangeController {
         guard let document, let fileURL = document.fileURL,
               let onDiskContent = try? String(contentsOf: fileURL, encoding: .utf8) else { return }
         guard onDiskContent.trimmingTrailingNewline != document.text.trimmingTrailingNewline else { return }
+        // Your own autosave lands while you keep typing, so the file can trail the buffer.
+        let lastWritten = document.lastWrittenText.withLock { $0 }
+        guard onDiskContent.trimmingTrailingNewline != lastWritten?.trimmingTrailingNewline else { return }
 
         // Rule 3.1: coalesce rapid successive external writes into the one alert already showing,
         // rather than stacking a second alert.

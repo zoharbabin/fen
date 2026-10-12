@@ -1,3 +1,4 @@
+import os
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -17,6 +18,10 @@ public final class MarkdownDocument: ReferenceFileDocument, @unchecked Sendable 
 
     /// The file URL this document was loaded from (set externally by the document group).
     public var fileURL: URL?
+
+    /// The text of the last save Fen made. A save lands while you keep typing, so the file can lag
+    /// the buffer. `ExternalChangeController` uses this to tell Fen's own save from an outside one.
+    @ObservationIgnored let lastWrittenText = OSAllocatedUnfairLock<String?>(initialState: nil)
 
     public static var readableContentTypes: [UTType] {
         [.markdown, .plainText]
@@ -53,10 +58,15 @@ public final class MarkdownDocument: ReferenceFileDocument, @unchecked Sendable 
         return content
     }
 
+    func recordSave(_ snapshot: String) {
+        lastWrittenText.withLock { $0 = snapshot }
+    }
+
     public func fileWrapper(snapshot: String, configuration _: WriteConfiguration) throws -> FileWrapper {
         guard let data = snapshot.data(using: .utf8) else {
             throw CocoaError(.fileWriteInapplicableStringEncoding)
         }
+        recordSave(snapshot)
         // The file lands a moment after this returns. Enrich on save waits for a quiet period anyway.
         if let url = fileURL {
             Task { @MainActor in EnrichOnSave.shared.noteSaved(url) }

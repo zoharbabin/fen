@@ -162,4 +162,41 @@ struct ExternalFileChangeVerifyTest {
         }
         #expect(!firedUnexpectedly, "Fen's own coordinated save must not be treated as an external change")
     }
+
+    @Test("Fen's own save does not prompt when you kept typing after it started")
+    @MainActor
+    func ownSaveWhileTypingNeverTriggersThePrompt() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ExternalFileChangeVerifyTest-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let fileURL = directory.appendingPathComponent("notes.md")
+        try "original".write(to: fileURL, atomically: true, encoding: .utf8)
+
+        let document = MarkdownDocument(text: "original")
+        document.fileURL = fileURL
+        let controller = ExternalChangeController()
+        defer { controller.stop() }
+
+        var promptCount = 0
+        controller.presentReloadAlert = { _, _ in promptCount += 1 }
+        controller.start(for: document)
+
+        document.text = "saved by Fen"
+        let snapshot = try document.snapshot(contentType: .markdown)
+        document.recordSave(snapshot)
+        // More typing lands before the file does, so the file now trails the buffer.
+        document.text = "saved by Fen, then more typing"
+        let coordinator = NSFileCoordinator()
+        var coordinationError: NSError?
+        coordinator.coordinate(writingItemAt: fileURL, options: [], error: &coordinationError) { url in
+            try? snapshot.data(using: .utf8)?.write(to: url)
+        }
+        #expect(coordinationError == nil)
+
+        let firedUnexpectedly = try await pollUntilTrue(timeout: .seconds(2)) {
+            promptCount > 0
+        }
+        #expect(!firedUnexpectedly, "an autosave that trails the buffer is not an external change")
+    }
 }
