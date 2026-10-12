@@ -1,11 +1,5 @@
 import SwiftUI
 
-/// Where a search from the Workspaces window looks.
-enum WorkspaceSearchScope: Hashable {
-    case workspace
-    case all
-}
-
 /// Results of a search across the workspace indexes (issue #35). Searching reads the indexes only,
 /// never the files, so nothing needs to be open.
 struct WorkspaceSearchView: View {
@@ -14,6 +8,8 @@ struct WorkspaceSearchView: View {
     let scope: WorkspaceScope
     let origin: SearchOrigin?
     let showsWorkspace: Bool
+    /// "Chosen Workspaces" is on and none is checked yet.
+    var needsChoice = false
     let open: (SearchResult) -> Void
 
     @State private var results: [SearchResult] = []
@@ -44,7 +40,7 @@ struct WorkspaceSearchView: View {
             ProgressView().controlSize(.small).frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if results.isEmpty {
             ContentUnavailableView {
-                Label("No matches", systemImage: "magnifyingglass")
+                Label(needsChoice ? "No workspaces chosen" : "No matches", systemImage: "magnifyingglass")
             } description: {
                 Text(emptyHint)
             }
@@ -59,6 +55,9 @@ struct WorkspaceSearchView: View {
     }
 
     private var emptyHint: String {
+        if needsChoice {
+            return "Choose which workspaces to search."
+        }
         let indexing = library.workspaces.contains {
             if case .indexing = library.indexStatus(for: $0.id).phase {
                 return true
