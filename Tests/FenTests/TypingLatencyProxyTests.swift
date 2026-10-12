@@ -332,8 +332,13 @@ struct TypingLatencyProxyTests {
                 "cache",
             ]
             for index in 0 ..< files {
-                let body = (0 ..< 40).map { words[($0 * 7 + index * 3) % words.count] + String(($0 + index) % 13) }
-                    .joined(separator: " ")
+                var tokens: [String] = []
+                for position in 0 ..< 40 {
+                    let word: String = words[(position * 7 + index * 3) % words.count]
+                    let suffix: Int = (position + index) % 13
+                    tokens.append("\(word)\(suffix)")
+                }
+                let body = tokens.joined(separator: " ")
                 try folder.write(
                     "section-\(index / 25)/note-\(index).md",
                     "# Note \(index)\n\n\(body).\n\n## Part two\n\n\(body).\n"
