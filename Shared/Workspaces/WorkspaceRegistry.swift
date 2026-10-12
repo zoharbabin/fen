@@ -143,6 +143,18 @@ public final class WorkspaceRegistry {
         }
     }
 
+    public func setScheduledEnrich(id: UUID, _ state: ScheduledEnrichState?) throws {
+        guard let index = workspaces.firstIndex(where: { $0.id == id }) else { throw WorkspaceError.unknownWorkspace }
+        let before = workspaces[index]
+        workspaces[index].scheduledEnrich = state
+        do {
+            try save()
+        } catch {
+            workspaces[index] = before
+            throw error
+        }
+    }
+
     // MARK: - Lookup
 
     public func workspace(id: UUID) -> Workspace? {

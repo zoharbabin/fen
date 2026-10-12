@@ -7,6 +7,7 @@ struct FenApp: App {
 
     init() {
         MCPController.shared.launch()
+        ScheduledEnrichment.launch()
     }
 
     var body: some Scene {
