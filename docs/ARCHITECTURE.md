@@ -356,6 +356,7 @@ Tests: `WritePolicyTests` (matrix, precedence, parser, injection fixtures, front
 
 **The embedder.** `AppleSentenceEmbeddingProvider` uses the sentence model that ships with the OS. It loads on first use, runs in-process, needs no download and sends nothing out. English only. Where it gives no vector, a file is still found by words. The choice, the measurements and what we did not measure are in [docs/spikes/embedding-model.md](spikes/embedding-model.md).
 
+**Launch and typing latency.** Headless proxy tests time the main-actor work behind launch and typing (`LaunchLatencyProxyTests`, `TypingLatencyProxyTests`). The numbers, what they don't cover and the Live Preview cost in a long note are in [docs/spikes/latency-proxies.md](spikes/latency-proxies.md).
 Tests: `MarkdownChunkerTests`, `VectorStoreTests`, `SearchIndexTests`, `HybridRankerTests`, `WorkspaceIndexerTests`, `WorkspaceSearchTests` (library end to end, including a real git repo that stays clean), `SearchQualityTests` (real model, hybrid beats each half), `SearchPerformanceTests`, `SearchScopeSelectionTests` and `IndexingNoNetworkTests`. The last one indexes a folder with the real model while a `URLProtocol` spy and a `URLSession` creation counter watch the process. Both must stay at zero. It cannot see traffic from outside the process, such as a system service, so the source scan in `WorkspaceSearchTests.noNetwork` stays as well.
 
 ## Related documents: a card on request, never a panel

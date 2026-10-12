@@ -27,6 +27,11 @@ public struct WorkspaceFile: Sendable, Hashable, Identifiable {
         self.modified = modified
         self.isSchema = isSchema
     }
+
+    /// The order files are listed and indexed in.
+    static func isInPathOrder(_ lhs: WorkspaceFile, _ rhs: WorkspaceFile) -> Bool {
+        lhs.relativePath.localizedStandardCompare(rhs.relativePath) == .orderedAscending
+    }
 }
 
 /// Why a file isn't listed. Shown by "Why isn't this file here?" and checked by tests.
@@ -52,8 +57,13 @@ public struct WorkspaceSnapshot: Sendable, Equatable {
 
     /// Files in path order, without the schema file.
     public var documents: [WorkspaceFile] {
+        unsortedDocuments.sorted(by: WorkspaceFile.isInPathOrder)
+    }
+
+    /// The same files as `documents`, in no particular order. Cheap enough for the main actor: sorting
+    /// thousands of paths there takes tens of milliseconds, so sort off it with `isInPathOrder`.
+    var unsortedDocuments: [WorkspaceFile] {
         files.values.filter { !$0.isSchema }
-            .sorted { $0.relativePath.localizedStandardCompare($1.relativePath) == .orderedAscending }
     }
 
     public var schemaFile: WorkspaceFile? {
