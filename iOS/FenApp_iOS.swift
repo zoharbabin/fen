@@ -8,6 +8,7 @@ import SwiftUI
 struct FenApp: App {
     init() {
         ShareTemporaryFiles.removeStale()
+        ScheduledEnrichment.launch()
     }
 
     var body: some Scene {

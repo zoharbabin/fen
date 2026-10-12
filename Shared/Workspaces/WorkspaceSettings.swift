@@ -67,6 +67,30 @@ public enum SyncMode: String, Codable, Sendable, CaseIterable {
     }
 }
 
+/// How often Fen enriches the files that changed in a workspace while it runs (issue #6).
+public enum EnrichSchedule: String, Codable, CaseIterable, Sendable {
+    case off
+    case daily
+    case weekly
+
+    public var title: String {
+        switch self {
+        case .off: "Off"
+        case .daily: "Daily"
+        case .weekly: "Weekly"
+        }
+    }
+
+    /// Time between runs. `nil` when off.
+    public var interval: TimeInterval? {
+        switch self {
+        case .off: nil
+        case .daily: 24 * 60 * 60
+        case .weekly: 7 * 24 * 60 * 60
+        }
+    }
+}
+
 /// Per-workspace settings. Defaults are the safest useful values: Local providers only, Ask, and
 /// MCP access Off.
 public struct WorkspaceSettings: Codable, Sendable, Equatable {
@@ -94,6 +118,8 @@ public struct WorkspaceSettings: Codable, Sendable, Equatable {
     public var maxFileBytes: Int
     /// Saving a document here enriches its short bullets, under `approvalMode` (issue #6). Off by default.
     public var enrichOnSave: Bool
+    /// Enriches the files that changed since the last run, while Fen is running (issue #6). Off by default.
+    public var enrichSchedule: EnrichSchedule
 
     public init(
         aiDataAccess: AIDataAccess = .localProvidersOnly,
@@ -107,7 +133,8 @@ public struct WorkspaceSettings: Codable, Sendable, Equatable {
         includeGlobs: [String] = WorkspaceSettings.defaultIncludeGlobs,
         excludeGlobs: [String] = [],
         maxFileBytes: Int = WorkspaceSettings.defaultMaxFileBytes,
-        enrichOnSave: Bool = false
+        enrichOnSave: Bool = false,
+        enrichSchedule: EnrichSchedule = .off
     ) {
         self.aiDataAccess = aiDataAccess
         self.approvalMode = approvalMode
@@ -121,6 +148,7 @@ public struct WorkspaceSettings: Codable, Sendable, Equatable {
         self.excludeGlobs = excludeGlobs
         self.maxFileBytes = maxFileBytes
         self.enrichOnSave = enrichOnSave
+        self.enrichSchedule = enrichSchedule
     }
 
     /// Missing keys fall back to defaults, so a registry written by an older Fen still loads.
@@ -140,7 +168,8 @@ public struct WorkspaceSettings: Codable, Sendable, Equatable {
             excludeGlobs: container.decodeIfPresent([String].self, forKey: .excludeGlobs) ?? [],
             maxFileBytes: container.decodeIfPresent(Int.self, forKey: .maxFileBytes)
                 ?? WorkspaceSettings.defaultMaxFileBytes,
-            enrichOnSave: container.decodeIfPresent(Bool.self, forKey: .enrichOnSave) ?? false
+            enrichOnSave: container.decodeIfPresent(Bool.self, forKey: .enrichOnSave) ?? false,
+            enrichSchedule: container.decodeIfPresent(EnrichSchedule.self, forKey: .enrichSchedule) ?? .off
         )
     }
 

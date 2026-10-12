@@ -54,6 +54,10 @@ struct WorkspaceSettingsView: View {
                     }
                     Toggle("Enrich on save", isOn: $draft.enrichOnSave)
                         .disabled(draft.aiDataAccess == .none || draft.approvalMode == .off)
+                    Picker("Enrich on a schedule", selection: $draft.enrichSchedule) {
+                        ForEach(EnrichSchedule.allCases, id: \.self) { Text($0.title).tag($0) }
+                    }
+                    .disabled(draft.aiDataAccess == .none || draft.approvalMode == .off)
                     Picker("Agent access (MCP)", selection: $draft.mcpAccess) {
                         ForEach(MCPAccess.allCases, id: \.self) { Text($0.title).tag($0) }
                     }
@@ -68,6 +72,10 @@ struct WorkspaceSettingsView: View {
                         "None keeps this workspace's content away from every model. "
                             + "Agent access is off while AI data access is None. "
                             + "Enrich on save adds cited facts under your short bullets after you save a note. "
+                            + "A schedule does the same for files that changed since its last run, "
+                            + "while Fen is open. It handles up to 20 files per run. "
+                            + "A schedule does the same for files that changed since its last run, "
+                            + "while Fen is open, up to \(EnrichOnSave.defaultMaxFilesPerRun) files per run. "
                             + "The approval mode decides if it asks first. "
                             + "In a git repository, each agent commits to its own fen/ branch. "
                             + "Your files stay as they are. "

@@ -1,5 +1,19 @@
 import Foundation
 
+/// Where scheduled enrichment stopped in one workspace (issue #6). It lives beside the settings, not in
+/// them, so saving the settings form never overwrites it.
+public struct ScheduledEnrichState: Codable, Sendable, Equatable {
+    /// When the last run started. The next one is due one interval later.
+    public var lastRun: Date
+    /// Files changed after this time are still waiting. It moves up to the last file a capped run reached.
+    public var cursor: Date
+
+    public init(lastRun: Date, cursor: Date) {
+        self.lastRun = lastRun
+        self.cursor = cursor
+    }
+}
+
 /// A folder you granted to Fen (issue #5). Any number of them can exist, and none is "main".
 public struct Workspace: Codable, Identifiable, Sendable, Equatable {
     public let id: UUID
@@ -10,6 +24,8 @@ public struct Workspace: Codable, Identifiable, Sendable, Equatable {
     public let addedAt: Date
     /// Security-scoped bookmark: keeps the grant across launches in a sandbox and on iOS.
     var bookmark: Data?
+    /// `nil` until the first scheduled enrichment starts counting.
+    public var scheduledEnrich: ScheduledEnrichState?
 
     public init(
         id: UUID = UUID(),
@@ -17,7 +33,8 @@ public struct Workspace: Codable, Identifiable, Sendable, Equatable {
         path: String,
         settings: WorkspaceSettings = WorkspaceSettings(),
         addedAt: Date = Date(),
-        bookmark: Data? = nil
+        bookmark: Data? = nil,
+        scheduledEnrich: ScheduledEnrichState? = nil
     ) {
         self.id = id
         self.name = name
@@ -25,6 +42,7 @@ public struct Workspace: Codable, Identifiable, Sendable, Equatable {
         self.settings = settings
         self.addedAt = addedAt
         self.bookmark = bookmark
+        self.scheduledEnrich = scheduledEnrich
     }
 }
 
