@@ -12,9 +12,11 @@ public struct Passage: Sendable, Equatable, Identifiable {
     /// 1-based line in the file where the passage starts.
     public let startLine: Int
     public let text: String
+    /// The chunk in the workspace index. Two chunks that start on one line share `startLine`, not this.
+    var chunkID: Int64 = 0
 
     public var id: String {
-        "\(workspaceID.uuidString)/\(relativePath):\(startLine)"
+        "\(workspaceID.uuidString)/\(relativePath):\(startLine):\(chunkID)"
     }
 
     public var endLine: Int {
@@ -37,7 +39,7 @@ extension WorkspaceSearch {
         var found: [Passage] = []
         for result in results {
             guard let index = indexes[result.workspaceID],
-                  let text = try? await index.chunkText(path: result.relativePath, startLine: result.startLine)
+                  let text = try? await index.chunkText(path: result.relativePath, chunkID: result.chunkID)
             else { continue }
             found.append(Passage(
                 workspaceID: result.workspaceID,
@@ -45,7 +47,8 @@ extension WorkspaceSearch {
                 relativePath: result.relativePath,
                 heading: result.heading,
                 startLine: result.startLine,
-                text: text
+                text: text,
+                chunkID: result.chunkID
             ))
         }
         return found

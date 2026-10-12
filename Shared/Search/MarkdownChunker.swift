@@ -71,21 +71,25 @@ enum MarkdownChunker {
         var fence: (marker: Character, count: Int)?
 
         func flush() {
-            let lines = section
-            let body = lines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+            let joined = section.joined(separator: "\n")
             section = []
-            guard !body.isEmpty else { return }
+            guard chunks.count < maxChunks,
+                  let first = joined.firstIndex(where: { !$0.isWhitespace }),
+                  let last = joined.lastIndex(where: { !$0.isWhitespace }) else { return }
+            // Leading blank lines are not part of any chunk, so a citation must not point at them.
+            let blankLines = joined[..<first].reduce(0) { $1 == "\n" ? $0 + 1 : $0 }
             let trail = stack.map(\.text).joined(separator: " > ")
-            var cursor = 0
-            for piece in split(body, limit: maxChunkCharacters) where chunks.count < maxChunks {
-                cursor = lineIndex(of: piece, in: lines, from: cursor)
+            let body = joined[first ... last]
+            for piece in located(body, limit: maxChunkCharacters, maxPieces: maxChunks - chunks.count) {
                 chunks.append(DocumentChunk(
-                    heading: trail, startLine: sectionStart + cursor, text: piece, embeddable: true
+                    heading: trail, startLine: sectionStart + blankLines + piece.line, text: piece.text,
+                    embeddable: true
                 ))
             }
         }
 
-        for (offset, line) in lines.enumerated() {
+        for (offset, rawLine) in lines.enumerated() {
+            let line = shortenDataURIs(rawLine)
             let lineNumber = bodyStart + offset + 1
             if let open = fence {
                 section.append(line)
@@ -110,6 +114,7 @@ enum MarkdownChunker {
                 stack.append(heading)
                 firstHeading = firstHeading ?? (heading.level == 1 ? heading.text : nil)
                 sectionStart = lineNumber
+                links += extractLinks(from: line, documentPath: path)
                 continue
             }
             if section.isEmpty {
@@ -227,59 +232,132 @@ enum MarkdownChunker {
 
     // MARK: - Splitting
 
-    /// The index in `lines`, at or after `start`, of the line a chunk's text begins on. Leading blank
-    /// lines of a section are not part of its chunks, so a citation must not point at them.
-    private static func lineIndex(of piece: String, in lines: [String], from start: Int) -> Int {
-        let first = piece.prefix { $0 != "\n" }.trimmingCharacters(in: .whitespaces)
-        for index in start ..< lines.count where lines[index].contains(first) && !first.isEmpty {
-            return index
+    /// A data URI payload is image bytes, not text. A multi-megabyte one would flood the index.
+    private static let minDataPayloadCharacters = 256
+    /// A paragraph this long, with no space and only base64-like characters, is not text.
+    private static let opaqueRunCharacters = 20 * maxChunkCharacters
+
+    /// Replaces the payload of each long `data:` URI with `…`.
+    private static func shortenDataURIs(_ line: String) -> String {
+        guard line.utf8.count > minDataPayloadCharacters else { return line }
+        var out = ""
+        var rest = line[...]
+        while let marker = rest.range(of: "data:") {
+            let afterMarker = rest[marker.upperBound...]
+            let payloadStart = afterMarker.firstIndex(of: ",").map { afterMarker.index(after: $0) }
+            guard let payloadStart,
+                  afterMarker.distance(from: afterMarker.startIndex, to: payloadStart) <= 100 else {
+                out += rest[..<marker.upperBound]
+                rest = afterMarker
+                continue
+            }
+            let payloadEnd = afterMarker[payloadStart...].firstIndex { $0.isWhitespace || ")\"'>".contains($0) }
+                ?? afterMarker.endIndex
+            if afterMarker.distance(from: payloadStart, to: payloadEnd) >= minDataPayloadCharacters {
+                out += rest[..<payloadStart]
+                out += "…"
+            } else {
+                out += rest[..<payloadEnd]
+            }
+            rest = afterMarker[payloadEnd...]
         }
-        return start
+        return out + rest
+    }
+
+    private static func isOpaque(_ text: Substring) -> Bool {
+        text.count > opaqueRunCharacters
+            && text.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || "+/=_-".contains($0)) }
     }
 
     /// Breaks `text` at blank lines, then at spaces, so no piece is longer than `limit`.
     static func split(_ text: String, limit: Int) -> [String] {
-        guard text.count > limit else { return [text] }
-        var pieces: [String] = []
+        located(Substring(text), limit: limit, maxPieces: .max).map(\.text)
+    }
+
+    /// The pieces of `text` and, for each, how many lines below the start of `text` it begins.
+    /// Stops after `maxPieces`.
+    private static func located(_ text: Substring, limit: Int, maxPieces: Int) -> [(text: String, line: Int)] {
+        guard !fits(text, within: limit) else { return [(String(text), 0)] }
+        var pieces: [(text: String, line: Int)] = []
         var current = ""
-        func add(_ part: String) {
+        var currentLine = 0
+        var counted = (index: text.startIndex, lines: 0)
+        func line(at index: String.Index) -> Int {
+            while counted.index < index {
+                if text[counted.index] == "\n" {
+                    counted.lines += 1
+                }
+                counted.index = text.index(after: counted.index)
+            }
+            return counted.lines
+        }
+        func add(_ part: String, line: Int) {
             if current.isEmpty {
                 current = part
+                currentLine = line
             } else if current.count + 2 + part.count <= limit {
                 current += "\n\n" + part
             } else {
-                pieces.append(current)
+                pieces.append((current, currentLine))
                 current = part
+                currentLine = line
             }
         }
-        for paragraph in text.components(separatedBy: "\n\n") {
-            let part = paragraph.trimmingCharacters(in: .whitespacesAndNewlines)
-            if part.isEmpty {
-                continue
+        func addParagraph(_ paragraph: Substring) {
+            guard let start = paragraph.firstIndex(where: { !$0.isWhitespace }),
+                  let end = paragraph.lastIndex(where: { !$0.isWhitespace }) else { return }
+            let part = paragraph[start ... end]
+            guard !isOpaque(part) else { return }
+            for fragment in hardSplit(part, limit: limit, maxFragments: maxPieces - pieces.count + 1) {
+                add(fragment.text, line: line(at: fragment.start))
             }
-            for fragment in hardSplit(part, limit: limit) {
-                add(fragment)
+        }
+        var paragraphStart = text.startIndex
+        var index = text.startIndex
+        while index < text.endIndex, pieces.count < maxPieces {
+            let next = text.index(after: index)
+            if text[index] == "\n", next < text.endIndex, text[next] == "\n" {
+                addParagraph(text[paragraphStart ..< index])
+                index = text.index(after: next)
+                paragraphStart = index
+            } else {
+                index = next
             }
+        }
+        if pieces.count < maxPieces {
+            addParagraph(text[paragraphStart...])
         }
         if !current.isEmpty {
-            pieces.append(current)
+            pieces.append((current, currentLine))
         }
-        return pieces
+        return Array(pieces.prefix(maxPieces))
     }
 
-    private static func hardSplit(_ text: String, limit: Int) -> [String] {
-        var rest = Substring(text)
-        var out: [String] = []
-        while rest.count > limit {
+    /// `true` when `text` has at most `limit` characters. Looks at no more than `limit + 1` of them.
+    private static func fits(_ text: Substring, within limit: Int) -> Bool {
+        text.index(text.startIndex, offsetBy: limit, limitedBy: text.endIndex).map { $0 == text.endIndex } ?? true
+    }
+
+    private static func hardSplit(
+        _ text: Substring,
+        limit: Int,
+        maxFragments: Int
+    ) -> [(text: String, start: String.Index)] {
+        var rest = text
+        var out: [(text: String, start: String.Index)] = []
+        while out.count < maxFragments, !fits(rest, within: limit) {
             let window = rest.prefix(limit)
             let cut = window.lastIndex(where: { $0 == " " || $0 == "\n" }) ?? window.endIndex
             let end = cut == window.startIndex ? window.endIndex : cut
-            out.append(String(rest[..<end]).trimmingCharacters(in: .whitespacesAndNewlines))
+            let piece = rest[..<end].trimmingCharacters(in: .whitespacesAndNewlines)
+            if !piece.isEmpty {
+                out.append((piece, rest.startIndex))
+            }
             rest = rest[end...].drop(while: { $0 == " " || $0 == "\n" })
         }
-        if !rest.isEmpty {
-            out.append(String(rest))
+        if out.count < maxFragments, !rest.isEmpty {
+            out.append((String(rest), rest.startIndex))
         }
-        return out.filter { !$0.isEmpty }
+        return out
     }
 }

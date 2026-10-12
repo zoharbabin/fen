@@ -40,6 +40,7 @@ public final class WorkspaceSearch {
     @ObservationIgnored private var epoch: [UUID: Int] = [:]
     @ObservationIgnored private var running: Set<UUID> = []
     @ObservationIgnored private var jobs: [UUID: UUID] = [:]
+    @ObservationIgnored private var cancelRequested: Set<UUID> = []
     @ObservationIgnored private var latest: [UUID: (source: any WorkspaceSource, files: [WorkspaceFile])] = [:]
     @ObservationIgnored private var recheck: [UUID: Set<String>] = [:]
 
@@ -67,8 +68,12 @@ public final class WorkspaceSearch {
     /// Stops the run for one workspace. What it indexed so far stays. `reindex` resumes it.
     func cancelIndexing(id: UUID) {
         latest[id] = nil
-        guard let job = jobs[id] else { return }
-        Task { await scheduler.cancel(jobID: job) }
+        if let job = jobs[id] {
+            Task { await scheduler.cancel(jobID: job) }
+        } else if running.contains(id) {
+            // The run is starting and has no job yet. `start` stops it when it gets there.
+            cancelRequested.insert(id)
+        }
     }
 
     /// Drops everything held for a workspace that was removed.
@@ -77,7 +82,10 @@ public final class WorkspaceSearch {
         latest[id] = nil
         recheck[id] = nil
         running.remove(id)
-        jobs[id] = nil
+        cancelRequested.remove(id)
+        if let job = jobs.removeValue(forKey: id) {
+            Task { await scheduler.cancel(jobID: job) }
+        }
         statuses[id] = nil
         if let index = indexes.removeValue(forKey: id) {
             index.markClosed()
@@ -103,6 +111,12 @@ public final class WorkspaceSearch {
             let identity = await resolveIdentity()
             let index = existingOrNewIndex(id, identity: identity)
             guard mine == epoch[id, default: 0] else { return }
+            if cancelRequested.remove(id) != nil {
+                running.remove(id)
+                statuses[id, default: IndexStatus()].phase = .canceled
+                revision += 1
+                return
+            }
             let usable = identity == nil ? nil : embedder
             let job = await scheduler.submit(
                 workspaceID: id,
@@ -126,6 +140,12 @@ public final class WorkspaceSearch {
             )
             if mine == epoch[id, default: 0], running.contains(id) {
                 jobs[id] = job
+                if cancelRequested.remove(id) != nil {
+                    await scheduler.cancel(jobID: job)
+                }
+            } else {
+                // The workspace was removed while the job was being submitted.
+                await scheduler.cancel(jobID: job)
             }
         }
     }
@@ -138,6 +158,7 @@ public final class WorkspaceSearch {
     private func finished(_ id: UUID, _ mine: Int, _ index: SearchIndex, _ outcome: JobOutcome) async {
         guard mine == epoch[id, default: 0] else { return }
         running.remove(id)
+        cancelRequested.remove(id)
         jobs[id] = nil
         var status = statuses[id] ?? IndexStatus()
         switch outcome {

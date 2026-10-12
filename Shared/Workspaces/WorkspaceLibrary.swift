@@ -45,6 +45,8 @@ public final class WorkspaceLibrary {
     @ObservationIgnored private var watchers: [UUID: WorkspaceChangeWatcher] = [:]
     @ObservationIgnored private var generation: [UUID: Int] = [:]
     @ObservationIgnored private var pendingChanges: [UUID: Set<String>] = [:]
+    /// Workspaces whose indexing you stopped. File changes and rescans leave them stopped.
+    @ObservationIgnored private var indexingStopped: Set<UUID> = []
     @ObservationIgnored private var updating: Set<UUID> = []
     @ObservationIgnored private var powerObserver: (any NSObjectProtocol)?
 
@@ -116,6 +118,7 @@ public final class WorkspaceLibrary {
     /// Removes the grant and Fen's state for it. The folder itself is not touched.
     public func remove(id: UUID) throws {
         search.forget(id: id)
+        indexingStopped.remove(id)
         try registry.remove(id: id)
         watchers.removeValue(forKey: id)?.stop()
         sources[id] = nil
@@ -145,11 +148,15 @@ public final class WorkspaceLibrary {
     @discardableResult
     public func clearCaches() throws -> Int {
         search.closeAll()
-        let removed = try registry.clearCaches()
-        for workspace in registry.workspaces {
-            requestIndex(workspace.id)
+        // Clearing caches is a request to rebuild, so it also lifts a stop. A failure still rebuilds:
+        // the indexes are already closed.
+        indexingStopped = []
+        defer {
+            for workspace in registry.workspaces {
+                requestIndex(workspace.id)
+            }
         }
-        return removed
+        return try registry.clearCaches()
     }
 
     public func setCurrent(_ id: UUID?) {
@@ -179,12 +186,15 @@ public final class WorkspaceLibrary {
         search.status(for: id)
     }
 
-    /// Stops indexing a workspace. What was indexed stays, and `resumeIndexing` carries on.
+    /// Stops indexing a workspace. What was indexed stays. It stays stopped, through file changes
+    /// and rescans, until `resumeIndexing` or the next launch.
     public func cancelIndexing(id: UUID) {
+        indexingStopped.insert(id)
         search.cancelIndexing(id: id)
     }
 
     public func resumeIndexing(id: UUID) {
+        indexingStopped.remove(id)
         requestIndex(id)
     }
 
@@ -229,7 +239,8 @@ public final class WorkspaceLibrary {
     }
 
     private func requestIndex(_ id: UUID, recheck: Set<String> = []) {
-        guard indexing, let source = source(for: id), state(for: id).hasScanned else { return }
+        guard indexing, !indexingStopped.contains(id), let source = source(for: id),
+              state(for: id).hasScanned else { return }
         search.reindex(id: id, source: source, files: state(for: id).snapshot.documents, recheck: recheck)
     }
 

@@ -314,6 +314,103 @@ struct WorkspaceSearchTests {
         #expect(await harness.found("word40").first?.relativePath == "n40.md")
     }
 
+    @Test("a stop before the run has a job still stops it")
+    func cancelBeforeJobExists() async throws {
+        let home = try TempHome()
+        let folder = try TempFolder("search-early-cancel")
+        defer { home.cleanUp()
+            folder.cleanUp()
+        }
+        try folder.write("a.md", "# A\nalpha\n")
+        let library = WorkspaceLibrary(home: home.home, watching: false, indexing: false, embedder: FakeEmbedder())
+        let workspace = try library.add(folder: folder.root)
+        #expect(try await pollUntilTrue { library.state(for: workspace.id).hasScanned })
+        let source = try #require(library.source(for: workspace.id))
+
+        // Both calls run on the main actor before the run can create its job.
+        let files = library.state(for: workspace.id).snapshot.documents
+        library.search.reindex(id: workspace.id, source: source, files: files)
+        library.search.cancelIndexing(id: workspace.id)
+        #expect(try await pollUntilTrue(timeout: .seconds(5)) {
+            library.indexStatus(for: workspace.id).phase == .canceled
+        })
+        #expect(library.indexStatus(for: workspace.id).documents == 0)
+    }
+
+    @Test("a stopped workspace stays stopped when a file changes, until you resume")
+    func stopIsSticky() async throws {
+        let gated = GatedEmbedder()
+        let harness = try Harness(gated: gated)
+        let folder = try TempFolder("search-sticky")
+        defer { harness.cleanUp()
+            folder.cleanUp()
+        }
+        for number in 0 ..< 20 {
+            try folder.write("n\(number).md", "# N\(number)\nword\(number) filler text\n")
+        }
+        let workspace = try harness.library.add(folder: folder.root)
+        #expect(try await pollUntilTrue {
+            if case .indexing = harness.library.indexStatus(for: workspace.id).phase {
+                return true
+            }
+            return false
+        })
+        harness.library.cancelIndexing(id: workspace.id)
+        #expect(try await pollUntilTrue { harness.library.indexStatus(for: workspace.id).phase == .canceled })
+
+        try folder.write("late.md", "# Late\nlate arrival\n")
+        harness.library.changesArrived(workspace.id, paths: ["late.md"])
+        // The new file shows in the list in the same step that would restart indexing.
+        #expect(try await pollUntilTrue {
+            harness.library.state(for: workspace.id).snapshot.documents.contains { $0.relativePath == "late.md" }
+        })
+        #expect(harness.library.indexStatus(for: workspace.id).phase == .canceled)
+
+        gated.open()
+        harness.library.resumeIndexing(id: workspace.id)
+        #expect(try await harness.indexed(workspace.id, documents: 21))
+    }
+
+    @Test("removing a workspace stops its running job")
+    func forgetStopsJob() async throws {
+        let gated = GatedEmbedder()
+        let harness = try Harness(gated: gated)
+        let folder = try TempFolder("search-forget")
+        defer { harness.cleanUp()
+            folder.cleanUp()
+        }
+        try folder.write("a.md", "# A\nalpha\n")
+        let workspace = try harness.library.add(folder: folder.root)
+        let scheduler = harness.library.scheduler
+        #expect(try await pollUntilTrue { await scheduler.runningCount == 1 })
+        harness.library.search.forget(id: workspace.id)
+        // The embedder is still closed, so only a cancel can end the job.
+        #expect(try await pollUntilTrue(timeout: .seconds(5)) { await scheduler.runningCount == 0 })
+    }
+
+    @Test("clear caches that fails to delete still builds the indexes again")
+    func clearCachesFailureRebuilds() async throws {
+        let harness = try Harness()
+        let folder = try TempFolder("search-clear-fail")
+        defer { harness.cleanUp()
+            folder.cleanUp()
+        }
+        try folder.write("a.md", "# A\nalpha topic\n")
+        let workspace = try harness.library.add(folder: folder.root)
+        #expect(try await harness.indexed(workspace.id, documents: 1))
+
+        // A read-only folder makes the delete of `index` fail.
+        let directory = harness.home.home.workspaceDirectory(id: workspace.id)
+        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: directory.path)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: directory.path) }
+        #expect(throws: (any Error).self) { try harness.library.clearCaches() }
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: directory.path)
+
+        // The index was closed, so the status stays empty unless a new run reads the files again.
+        #expect(try await harness.indexed(workspace.id, documents: 1))
+        #expect(try await harness.eventually("alpha", topIs: "a.md"))
+    }
+
     @Test("indexing off turns the whole feature off and writes nothing")
     func indexingOff() async throws {
         let home = try TempHome()

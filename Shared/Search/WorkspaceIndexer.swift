@@ -37,6 +37,7 @@ enum WorkspaceIndexer {
             guard let old = known[file.relativePath] else { return true }
             return recheck.contains(file.relativePath) || old.size != file.size
                 || old.modified != file.modified.timeIntervalSince1970
+                || (embedder != nil && old.hasMissingVectors)
         }
         result.unchanged = files.count - todo.count
 
@@ -86,15 +87,23 @@ enum WorkspaceIndexer {
         }
         let document = MarkdownChunker.parse(String(decoding: data, as: UTF8.self), path: file.relativePath)
         var vectors: [Data?] = []
+        var embedderFailed = false
         for (number, chunk) in document.chunks.enumerated() {
             if number > 0, number % chunksPerCheckpoint == 0 {
                 try await context?.checkpoint()
             }
-            try await vectors.append(vector(for: chunk, title: document.title, embedder: embedder))
+            do {
+                try await vectors.append(vector(for: chunk, title: document.title, embedder: embedder))
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                embedderFailed = true
+                vectors.append(nil)
+            }
         }
         try await index.replace(
             path: file.relativePath,
-            hash: hash,
+            hash: embedderFailed ? hash + KnownDocument.missingVectorsMarker : hash,
             size: data.count,
             modified: modified,
             document: document,
@@ -114,7 +123,8 @@ enum WorkspaceIndexer {
             return try await VectorCodec.encode(embedder.embed(String(text.prefix(2000))))
         } catch is CancellationError {
             throw CancellationError()
-        } catch {
+        } catch is EmbeddingTextError {
+            // This text has no vector and never will: another language, or no usable content.
             return nil
         }
     }

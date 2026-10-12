@@ -16,6 +16,8 @@ public struct SearchResult: Sendable, Equatable, Identifiable {
     /// The heading trail of the best chunk. Empty before the first heading.
     public let heading: String
     public let startLine: Int
+    /// The id of the best chunk in its workspace index. Unlike `startLine`, it is unique.
+    let chunkID: Int64
     public let snippet: String
     public let match: Match
     public let score: Double
@@ -77,6 +79,7 @@ enum HybridRanker {
             var title: String
             var heading: String
             var startLine: Int
+            var chunkID: Int64
             var snippet: String
             var inbound: Int
             var score = 0.0
@@ -91,8 +94,8 @@ enum HybridRanker {
             let key = Key(workspace: input.workspaceID, chunk: hit.chunkID)
             var entry = entries[key] ?? Entry(
                 workspaceID: input.workspaceID, workspaceName: input.workspaceName, path: hit.path,
-                title: hit.title, heading: hit.heading, startLine: hit.startLine, snippet: hit.snippet,
-                inbound: hit.inbound
+                title: hit.title, heading: hit.heading, startLine: hit.startLine, chunkID: hit.chunkID,
+                snippet: hit.snippet, inbound: hit.inbound
             )
             entry.score += 1 / (rankOffset + Double(rank + 1))
             entry.byWords = true
@@ -109,8 +112,8 @@ enum HybridRanker {
             let key = Key(workspace: input.workspaceID, chunk: hit.chunkID)
             var entry = entries[key] ?? Entry(
                 workspaceID: input.workspaceID, workspaceName: input.workspaceName, path: hit.path,
-                title: hit.title, heading: hit.heading, startLine: hit.startLine, snippet: hit.snippet,
-                inbound: hit.inbound
+                title: hit.title, heading: hit.heading, startLine: hit.startLine, chunkID: hit.chunkID,
+                snippet: hit.snippet, inbound: hit.inbound
             )
             entry.score += 1 / (rankOffset + Double(rank + 1))
             entry.byMeaning = true
@@ -132,6 +135,7 @@ enum HybridRanker {
                 title: entry.title,
                 heading: entry.heading,
                 startLine: entry.startLine,
+                chunkID: entry.chunkID,
                 snippet: entry.snippet,
                 match: entry.byWords && entry.byMeaning ? .both : (entry.byWords ? .words : .meaning),
                 score: score

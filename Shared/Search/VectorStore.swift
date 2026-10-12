@@ -56,6 +56,22 @@ struct VectorMatrix {
         values.append(contentsOf: encoded.dropFirst(4).map { Int8(bitPattern: $0) })
     }
 
+    /// Drops the rows with these chunk ids.
+    mutating func remove(ids removed: Set<Int64>) {
+        guard !removed.isEmpty, ids.contains(where: removed.contains) else { return }
+        var keptIDs: [Int64] = []
+        var keptScales: [Float] = []
+        var keptValues: [Int8] = []
+        for (row, id) in ids.enumerated() where !removed.contains(id) {
+            keptIDs.append(id)
+            keptScales.append(scales[row])
+            keptValues.append(contentsOf: values[row * dimension ..< (row + 1) * dimension])
+        }
+        ids = keptIDs
+        scales = keptScales
+        values = keptValues
+    }
+
     /// The `limit` best matches for a unit-length `query`, best first. Scores are cosines.
     func top(_ limit: Int, for query: [Float]) -> [(id: Int64, score: Float)] {
         guard query.count == dimension, limit > 0, !ids.isEmpty else { return [] }

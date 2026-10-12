@@ -128,6 +128,67 @@ struct WorkspaceIndexerTests {
         #expect(try await index.textCandidates(matching: "5678", limit: 5).count == 1)
     }
 
+    @Test("re-indexing, with or without a change, does not make the next search read all vectors again")
+    func matrixKept() async throws {
+        let (index, folder) = try makeIndex(identity)
+        defer { folder.cleanUp() }
+        let embedder = FakeEmbedder()
+        var source = MemorySource(contents: ["a.md": "# A\nalpha\n", "b.md": "# B\nbeta [a](a.md)\n"])
+        _ = try await WorkspaceIndexer.run(index: index, source: source, files: source.files(), embedder: embedder)
+        let query = try await embedder.embed("alpha")
+        #expect(try await index.vectorCandidates(for: query, limit: 5).count == 2)
+        #expect(await index.matrixLoads == 1)
+
+        let same = try await WorkspaceIndexer.run(
+            index: index,
+            source: source,
+            files: source.files(),
+            embedder: embedder
+        )
+        #expect(same.indexed == 0)
+        source.contents["a.md"] = "# A\nalpha gamma\n"
+        let edited = source.files(modified: Date(timeIntervalSince1970: 2000))
+        let run = try await WorkspaceIndexer.run(index: index, source: source, files: edited, embedder: embedder)
+        #expect(run.indexed == 1)
+        #expect(try await index.vectorCandidates(for: query, limit: 5).count == 2)
+        #expect(await index.matrixLoads == 1)
+    }
+
+    @Test("a file whose embedding failed is searchable by words and is embedded again on the next run")
+    func embedderFailureIsRetried() async throws {
+        let (index, folder) = try makeIndex(identity)
+        defer { folder.cleanUp() }
+        let embedder = FlakyEmbedder()
+        let source = MemorySource(contents: ["a.md": "# A\nalpha\n", "b.md": "# B\nbeta\n"])
+        embedder.isFailing = true
+        let first = try await WorkspaceIndexer.run(
+            index: index,
+            source: source,
+            files: source.files(),
+            embedder: embedder
+        )
+        #expect(first.indexed == 2)
+        #expect(try await index.summary() == IndexSummary(documents: 2, chunks: 2, embeddedChunks: 0))
+        #expect(try await index.textCandidates(matching: "alpha", limit: 5).count == 1)
+
+        // Same bytes, same size, same time stamp. The embedder works now.
+        embedder.isFailing = false
+        let second = try await WorkspaceIndexer.run(
+            index: index, source: source, files: source.files(), embedder: embedder
+        )
+        #expect(second.indexed == 2)
+        #expect(try await index.summary() == IndexSummary(documents: 2, chunks: 2, embeddedChunks: 2))
+
+        let third = try await WorkspaceIndexer.run(
+            index: index,
+            source: source,
+            files: source.files(),
+            embedder: embedder
+        )
+        #expect(third.indexed == 0)
+        #expect(third.unchanged == 2)
+    }
+
     @Test("a canceled run keeps what it finished, and the next run does only the rest")
     func resume() async throws {
         let (index, folder) = try makeIndex(identity)
@@ -193,5 +254,29 @@ final class CancelAfter: EmbeddingProvider, @unchecked Sendable {
             task?.cancel()
         }
         return vector
+    }
+}
+
+/// An embedder that fails with an error that is not about the text, such as a model that cannot load.
+final class FlakyEmbedder: EmbeddingProvider, @unchecked Sendable {
+    struct Unavailable: Error {}
+
+    private let inner = FakeEmbedder()
+    private let lock = NSLock()
+    private var failing = false
+    let id = "fake.concepts"
+    let dimension = 64
+    let runsOnDevice = true
+
+    var isFailing: Bool {
+        get { lock.withLock { failing } }
+        set { lock.withLock { failing = newValue } }
+    }
+
+    func embed(_ text: String) async throws -> [Float] {
+        if isFailing {
+            throw Unavailable()
+        }
+        return try await inner.embed(text)
     }
 }

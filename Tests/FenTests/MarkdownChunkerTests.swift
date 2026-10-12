@@ -92,6 +92,54 @@ struct MarkdownChunkerTests {
         #expect(MarkdownChunker.parse(text, path: "big.md").chunks.count == MarkdownChunker.maxChunks)
     }
 
+    @Test("a multi-megabyte data URI line is cut short and does not flood the index")
+    func dataURILine() {
+        let payload = String(repeating: "QUJD", count: 1_250_000)
+        let text = "# Doc\nIntro.\n![pic](data:image/png;base64,\(payload))\nAfter.\n"
+        let clock = ContinuousClock()
+        var doc = ParsedDocument(title: "", chunks: [], links: [])
+        let elapsed = clock.measure { doc = MarkdownChunker.parse(text, path: "doc.md") }
+        #expect(doc.chunks.count == 1)
+        #expect(doc.chunks.allSatisfy { $0.text.count <= MarkdownChunker.maxChunkCharacters })
+        #expect(elapsed < .seconds(10))
+    }
+
+    @Test("a raw multi-megabyte run with no spaces is skipped")
+    func opaqueRun() {
+        let text = "# Doc\n" + String(repeating: "QUJD", count: 1_250_000) + "\n"
+        let clock = ContinuousClock()
+        var doc = ParsedDocument(title: "", chunks: [], links: [])
+        let elapsed = clock.measure { doc = MarkdownChunker.parse(text, path: "doc.md") }
+        #expect(doc.chunks.isEmpty)
+        #expect(elapsed < .seconds(10))
+    }
+
+    @Test("one multi-megabyte line of words stops at the chunk cap")
+    func longLineOfWords() {
+        let text = "# Doc\n" + String(repeating: "word ", count: 1_000_000) + "\n"
+        let clock = ContinuousClock()
+        var doc = ParsedDocument(title: "", chunks: [], links: [])
+        let elapsed = clock.measure { doc = MarkdownChunker.parse(text, path: "doc.md") }
+        #expect(doc.chunks.count == MarkdownChunker.maxChunks)
+        #expect(elapsed < .seconds(10))
+    }
+
+    @Test("a piece whose first line also appears earlier in the section still gets its own line")
+    func repeatedFirstLine() {
+        let first = String(repeating: "alpha ", count: 190).trimmingCharacters(in: .whitespaces)
+        let second = String(repeating: "alpha ", count: 60).trimmingCharacters(in: .whitespaces)
+        let text = "# T\n" + first + "\n\n" + second + "\n"
+        let doc = MarkdownChunker.parse(text, path: "t.md")
+        #expect(doc.chunks.map(\.startLine) == [2, 4])
+    }
+
+    @Test("links in headings are extracted")
+    func headingLinks() {
+        let doc = MarkdownChunker.parse("# See [Other](other.md) and [[Wiki Page]]\nBody.\n", path: "a.md")
+        #expect(doc.links.contains(DocumentLink(kind: .path, target: "other.md")))
+        #expect(doc.links.contains(DocumentLink(kind: .wiki, target: "wiki page")))
+    }
+
     @Test("links resolve relative to the document and never leave the workspace")
     func linkResolution() {
         #expect(MarkdownChunker.resolve("b.md", from: "docs/a.md") == "docs/b.md")

@@ -178,6 +178,89 @@ struct SearchIndexTests {
         #expect(try await index.textCandidates(matching: "alpha", limit: 5).count == 1)
     }
 
+    @Test("stale -wal and -shm files next to a damaged index do not break the rebuild")
+    func corruptionClearsSidecars() async throws {
+        let folder = try TempFolder("index-corrupt-wal")
+        defer { folder.cleanUp() }
+        let directory = folder.root.appendingPathComponent("index")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let file = directory.appendingPathComponent(SearchIndex.fileName)
+        try Data(repeating: 0x41, count: 4096).write(to: file)
+        for suffix in ["-wal", "-shm"] {
+            try Data(repeating: 0x42, count: 8192).write(to: URL(fileURLWithPath: file.path + suffix))
+        }
+        let index = SearchIndex(directory: directory, embedder: nil)
+        try await add(index, "a.md", "# A\nalpha\n")
+        #expect(try await index.textCandidates(matching: "alpha", limit: 5).count == 1)
+    }
+
+    @Test("pieces of one long line get their own ids, and each id returns its own text")
+    func chunkLookupIsUnique() async throws {
+        let (index, folder) = try makeIndex()
+        defer { folder.cleanUp() }
+        let line = (0 ..< 600).map { "token\($0)x" }.joined(separator: " ")
+        try await add(index, "long.md", "# Long\n" + line + "\n")
+        let first = try #require(try await index.textCandidates(matching: "token0x", limit: 5).first)
+        let last = try #require(try await index.textCandidates(matching: "token599x", limit: 5).first)
+        #expect(first.startLine == last.startLine)
+        #expect(first.chunkID != last.chunkID)
+        #expect(try await index.chunkText(path: "long.md", chunkID: first.chunkID)?.contains("token0x") == true)
+        #expect(try await index.chunkText(path: "long.md", chunkID: last.chunkID)?.contains("token599x") == true)
+        #expect(try await index.chunkText(path: "other.md", chunkID: last.chunkID) == nil)
+    }
+
+    @Test("saving a file keeps the vectors in memory, and the next search does not read them back")
+    func matrixSurvivesWrites() async throws {
+        let identity = EmbedderIdentity(id: "t", dimension: 4)
+        let (index, folder) = try makeIndex(embedder: identity)
+        defer { folder.cleanUp() }
+        try await add(index, "x.md", "# X\nfirst\n", vectors: [VectorCodec.encode([1, 0, 0, 0])])
+        try await add(index, "y.md", "# Y\nsecond\n", vectors: [VectorCodec.encode([0, 1, 0, 0])])
+        #expect(try await index.vectorCandidates(for: [1, 0, 0, 0], limit: 5).map(\.path) == ["x.md", "y.md"])
+        #expect(await index.matrixLoads == 1)
+
+        // The same content again, a text-only edit, and an edit with a new vector.
+        try await add(index, "x.md", "# X\nfirst\n", vectors: [VectorCodec.encode([1, 0, 0, 0])])
+        try await add(index, "y.md", "# Y\nsecond edited\n", vectors: [VectorCodec.encode([0, 1, 0, 0])])
+        try await add(index, "x.md", "# X\nfirst moved\n", vectors: [VectorCodec.encode([0, 0, 1, 0])])
+        try await add(index, "z.md", "# Z\nno vector\n")
+        #expect(try await index.vectorCandidates(for: [0, 0, 1, 0], limit: 1).map(\.path) == ["x.md"])
+        #expect(try await index.vectorCandidates(for: [1, 0, 0, 0], limit: 5).count == 2)
+        try await index.remove(paths: ["x.md"])
+        #expect(try await index.vectorCandidates(for: [1, 0, 0, 0], limit: 5).map(\.path) == ["y.md"])
+        #expect(await index.matrixLoads == 1)
+    }
+
+    @Test("a save that leaves the links alone keeps inbound counts, and a changed link updates them")
+    func inboundOnlyRefreshesForLinkChanges() async throws {
+        let (index, folder) = try makeIndex()
+        defer { folder.cleanUp() }
+        try await add(index, "target.md", "# Target\nneedle\n")
+        try await add(index, "one.md", "# One\nSee [t](target.md).\n")
+        try await index.refreshInbound()
+        func inbound() async throws -> Int? {
+            try await index.textCandidates(matching: "needle", limit: 5).first?.inbound
+        }
+        #expect(try await inbound() == 1)
+
+        try await add(index, "target.md", "# Target\nneedle again\n")
+        try await add(index, "one.md", "# One\nSee [t](target.md) twice.\n")
+        try await index.refreshInbound()
+        #expect(try await inbound() == 1)
+
+        try await add(index, "one.md", "# One\nNo link now.\n")
+        try await index.refreshInbound()
+        #expect(try await inbound() == 0)
+
+        try await add(index, "new.md", "# New\nSee [[Target]].\n")
+        try await index.refreshInbound()
+        #expect(try await inbound() == 1)
+
+        try await index.remove(paths: ["new.md"])
+        try await index.refreshInbound()
+        #expect(try await inbound() == 0)
+    }
+
     @Test("after markClosed nothing runs and nothing is created on disk")
     func closed() async throws {
         let folder = try TempFolder("index-closed")

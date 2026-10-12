@@ -6,6 +6,14 @@ struct KnownDocument: Equatable, Sendable {
     let hash: String
     let size: Int
     let modified: Double
+
+    /// Added to the hash of a file that was stored while the embedder failed on some of its text.
+    /// The hash then matches no content, so the next run reads and embeds the file again.
+    static let missingVectorsMarker = "!missing-vectors"
+
+    var hasMissingVectors: Bool {
+        hash.hasSuffix(Self.missingVectorsMarker)
+    }
 }
 
 struct IndexSummary: Equatable, Sendable {
@@ -73,6 +81,11 @@ actor SearchIndex {
     private let closedFlag = Mutex(false)
     private var database: SQLiteDatabase?
     private var matrix: VectorMatrix?
+    /// `true` when the stored inbound counts may be out of date. Starts `true`, so the first run
+    /// after a launch repairs counts a crash left behind.
+    private var inboundStale = true
+    /// How many times the vectors were read back from disk. For tests.
+    private(set) var matrixLoads = 0
 
     init(directory: URL, embedder: EmbedderIdentity?) {
         url = directory.appendingPathComponent(Self.fileName)
@@ -110,6 +123,7 @@ actor SearchIndex {
     func remove(paths: [String]) throws {
         guard !paths.isEmpty else { return }
         let database = try open()
+        let removedVectors = try matrix == nil ? [] : vectorIDs(ofPaths: paths)
         try database.transaction {
             for path in paths {
                 try database.deleteContent(ofPath: path)
@@ -118,7 +132,8 @@ actor SearchIndex {
                 try statement.step()
             }
         }
-        matrix = nil
+        matrix?.remove(ids: Set(removedVectors))
+        inboundStale = true
     }
 
     /// The file's bytes are unchanged, only its time stamp moved.
@@ -139,11 +154,19 @@ actor SearchIndex {
         vectors: [Data?]
     ) throws {
         let database = try open()
+        let replacedVectors = try matrix == nil ? [] : vectorIDs(ofPaths: [path])
+        let newLinks = Set(document.links.map { $0.kind.rawValue + "\u{0}" + $0.target })
+        var added: [(id: Int64, vector: Data)] = []
+        var linksChanged = false
         try database.transaction {
+            let known = try database.prepare("SELECT 1 FROM docs WHERE path = ?1")
+            known.bind(1, path)
+            let existed = try known.step()
+            linksChanged = try !existed || storedLinks(of: path, in: database) != newLinks
             try database.deleteContent(ofPath: path)
             let doc = try database.prepare(
                 "INSERT OR REPLACE INTO docs (path, hash, size, mtime, title, stem, pathkey, inbound) "
-                    + "VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 0)"
+                    + "VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, COALESCE((SELECT inbound FROM docs WHERE path = ?1), 0))"
             )
             doc.bind(1, path)
             doc.bind(2, hash)
@@ -164,11 +187,15 @@ actor SearchIndex {
                 chunk.bind(3, piece.heading)
                 chunk.bind(4, piece.startLine)
                 chunk.bind(5, piece.text)
-                chunk.bind(6, order < vectors.count ? vectors[order] : nil)
+                let vector = order < vectors.count ? vectors[order] : nil
+                chunk.bind(6, vector)
                 try chunk.step()
+                if let vector {
+                    added.append((database.lastInsertRowID, vector))
+                }
             }
             let link = try database.prepare("INSERT INTO links (source, kind, target) VALUES (?1, ?2, ?3)")
-            for target in Set(document.links.map { $0.kind.rawValue + "\u{0}" + $0.target }) {
+            for target in newLinks {
                 let parts = target.split(separator: "\u{0}", maxSplits: 1).map(String.init)
                 link.reset()
                 link.bind(1, path)
@@ -177,20 +204,30 @@ actor SearchIndex {
                 try link.step()
             }
         }
-        matrix = nil
+        if linksChanged {
+            inboundStale = true
+        }
+        // Patch the vectors in memory. Reading them all back from disk would slow the next search.
+        matrix?.remove(ids: Set(replacedVectors))
+        for item in added {
+            matrix?.append(id: item.id, encoded: item.vector)
+        }
     }
 
-    /// Counts the documents that link to each document. Run after a batch of changes.
+    /// Counts the documents that link to each document. Run after a batch of changes. Does nothing
+    /// when no link was added, removed or retargeted since the last run, and writes only the rows
+    /// whose count moved.
     func refreshInbound() throws {
-        try open().execute("""
-        UPDATE docs SET inbound = (
-            SELECT COUNT(DISTINCT l.source) FROM links l
-            WHERE l.source != docs.path AND (
-                (l.kind = 'path' AND l.target = docs.path)
-                OR (l.kind = 'wiki' AND (l.target = docs.stem OR l.target = docs.pathkey))
-            )
+        guard inboundStale else { return }
+        let count = """
+        SELECT COUNT(DISTINCT l.source) FROM links l
+        WHERE l.source != docs.path AND (
+            (l.kind = 'path' AND l.target = docs.path)
+            OR (l.kind = 'wiki' AND (l.target = docs.stem OR l.target = docs.pathkey))
         )
-        """)
+        """
+        try open().execute("UPDATE docs SET inbound = (\(count)) WHERE inbound IS NOT (\(count))")
+        inboundStale = false
     }
 
     // MARK: - Reading
@@ -317,20 +354,45 @@ actor SearchIndex {
         return found
     }
 
-    /// The full text of the chunk that starts at `startLine` in `path`, or `nil` when there is none.
-    func chunkText(path: String, startLine: Int) throws -> String? {
-        let statement = try open().prepare("SELECT text FROM chunks WHERE path = ?1 AND start_line = ?2 LIMIT 1")
-        statement.bind(1, path)
-        statement.bind(2, startLine)
+    /// The full text of chunk `chunkID` in `path`, or `nil` when there is none. A chunk id is unique,
+    /// unlike a start line: a long line can split into several chunks.
+    func chunkText(path: String, chunkID: Int64) throws -> String? {
+        let statement = try open().prepare("SELECT text FROM chunks WHERE id = ?1 AND path = ?2")
+        statement.bind(1, Int(chunkID))
+        statement.bind(2, path)
         return try statement.step() ? statement.string(0) : nil
     }
 
     // MARK: - Private
 
+    private func vectorIDs(ofPaths paths: [String]) throws -> [Int64] {
+        let statement = try open().prepare("SELECT id FROM chunks WHERE path = ?1 AND vector IS NOT NULL")
+        var found: [Int64] = []
+        for path in paths {
+            statement.reset()
+            statement.bind(1, path)
+            while try statement.step() {
+                found.append(Int64(statement.int(0)))
+            }
+        }
+        return found
+    }
+
+    private func storedLinks(of path: String, in database: SQLiteDatabase) throws -> Set<String> {
+        let statement = try database.prepare("SELECT kind, target FROM links WHERE source = ?1")
+        statement.bind(1, path)
+        var found: Set<String> = []
+        while try statement.step() {
+            found.insert(statement.string(0) + "\u{0}" + statement.string(1))
+        }
+        return found
+    }
+
     private func loadedMatrix(dimension: Int) throws -> VectorMatrix {
         if let matrix {
             return matrix
         }
+        matrixLoads += 1
         let statement = try open().prepare("SELECT id, vector FROM chunks WHERE vector IS NOT NULL")
         var loaded = VectorMatrix(dimension: dimension)
         while try statement.step() {
@@ -355,7 +417,10 @@ actor SearchIndex {
             return opened
         } catch let error as SQLiteError where error.code == 26 || error.code == 11 {
             // Not a database, or damaged. It is a cache, so start over.
-            try? FileManager.default.removeItem(at: url)
+            // The -wal and -shm files belong to the old file. Left behind, they can break the new one.
+            for suffix in ["", "-wal", "-shm"] {
+                try? FileManager.default.removeItem(at: URL(fileURLWithPath: url.path + suffix))
+            }
             let opened = try openAndMigrate()
             database = opened
             return opened
