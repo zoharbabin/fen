@@ -107,13 +107,20 @@ private struct WorkspacesButton: View {
 
 private struct WorkspacesSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.horizontalSizeClass) private var sizeClass
 
+    /// On a phone the list needs its own navigation bar, which a `NavigationStack` around it would hide,
+    /// with the Add button. On iPad the stack carries the Done button.
     var body: some View {
-        NavigationStack {
-            WorkspacesView()
-                .toolbar {
-                    ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } }
-                }
+        if sizeClass == .compact {
+            WorkspacesView { dismiss() }
+        } else {
+            NavigationStack {
+                WorkspacesView()
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } }
+                    }
+            }
         }
     }
 
