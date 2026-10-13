@@ -166,6 +166,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.zoharbabin.fen-ios.UITests
         CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: CG9APRC4WT
         GENERATE_INFOPLIST_FILE: true
         TEST_TARGET_NAME: FeniOSApp
     dependencies:
