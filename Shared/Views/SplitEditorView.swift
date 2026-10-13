@@ -316,10 +316,10 @@ public struct SplitEditorView: View {
             caret: editorCaret
         )
         .accessibilityIdentifier("EditorTextView")
-        .accessibilityValue(scrollFractionLabel(scrollSync.editorScrollFraction))
         .relatedSuggestions(related)
         .requestedLineJumps(fileURL: document.fileURL, lineCount: sourceLineCount, jump: jumpToLine(_:))
-        #if os(macOS)
+        #if os(macOS) // iOS skips the value: it would hide the text from VoiceOver
+            .accessibilityValue(scrollFractionLabel(scrollSync.editorScrollFraction))
             .frame(minWidth: 200)
         #endif
     }
@@ -385,9 +385,8 @@ public struct SplitEditorView: View {
         #endif
     }
 
-    /// Exposes the current scroll position as an accessibility value so
-    /// assistive tech (and UI tests) can read sync state without relying on
-    /// pixel geometry.
+    /// Exposes the scroll position as an accessibility value, so assistive tech and UI tests
+    /// can read sync state without pixel geometry.
     private func scrollFractionLabel(_ fraction: CGFloat) -> String {
         "\(Int((fraction * 100).rounded()))%"
     }
