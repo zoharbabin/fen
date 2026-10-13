@@ -81,7 +81,7 @@ git tag v0.1.0
 git push origin v0.1.0
 ```
 
-The **Release** workflow runs automatically: it tests, builds, signs, notarizes, staples, zips, signs the zip for Sparkle, and creates a GitHub Release with `Fen.app.zip` and `appcast.xml` attached.
+The **Release** workflow runs automatically: it tests, builds, signs, notarizes, staples (retrying if Apple's ticket service drops the connection), zips, signs the zip for Sparkle, and creates a GitHub Release with `Fen.app.zip` and `appcast.xml` attached.
 
 > Skip the secrets and the workflow still runs, but it produces an **unsigned** build — fine for testing, though people will see a Gatekeeper warning.
 

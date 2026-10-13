@@ -204,7 +204,13 @@ if [ -n "${NOTARY_PROFILE:-}" ]; then
         ditto -c -k --keepParent "$APP" "$ZIP"
         xcrun notarytool submit "$ZIP" --keychain-profile "$NOTARY_PROFILE" --wait
         echo "==> Stapling ticket…"
-        xcrun stapler staple "$APP"
+        # Apple's ticket service can drop the connection right after it accepts the app, so retry.
+        for attempt in 1 2 3 4 5; do
+            xcrun stapler staple "$APP" && break
+            [ "$attempt" -lt 5 ] || { echo "Stapling failed after $attempt tries." >&2; exit 1; }
+            echo "Stapling failed. Trying again in $((attempt * 20)) seconds…"
+            sleep $((attempt * 20))
+        done
         rm -f "$ZIP"
     fi
 fi
