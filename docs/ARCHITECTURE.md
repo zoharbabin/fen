@@ -575,11 +575,19 @@ A refused folder shows an orange warning with the reason, and no git command for
 
 **Token.** A fine-grained token for one repository (or a GitHub App token) is the only kind Fen accepts. A classic `ghp_` token is refused, because it reaches every repository you have. The token lives in the Keychain (`KeychainSecretStore`, service `app.fen.github`, one item per repository, this device only), and is saved only after a clone or a token check worked. It reaches git as an HTTP header in the process environment, for `https://github.com/` only. It is never in a command line, in `.git/config` or in a URL, and stored git logins are switched off. Errors are cleaned of the token, and of its base64 header form, before you see them.
 
-**Network.** This is the one place besides AI providers where Fen talks to a server for your files, and only for a workspace whose `origin` is on GitHub and that passes the check above. Git talks to the one remote you cloned from. The only `URLSession` call is `GitHubREST` (`Shared/Sync/GitHubAPI.swift`), used by "Review with pull requests" below. It talks to `api.github.com` and nowhere else, follows no redirect, and sends the token in the `Authorization` header of those requests only.
+**Network.** This is the one place besides AI providers where Fen talks to a server for your files, and only for a workspace whose `origin` is on GitHub and that passes the check above. Git talks to the one remote you cloned from. The only `URLSession` call is `GitHubREST` (`Shared/Sync/GitHubAPI.swift`), used by "Review with pull requests" below and by the iOS copy below. It talks to `api.github.com` and nowhere else, follows no redirect, and sends the token in the `Authorization` header of those requests only.
 
-**macOS only for now.** iOS can't run the `git` program, so the Clone menu and the sync controls don't appear there. A cloned folder you open on iOS (through iCloud or Files) is a plain folder. Syncing on iOS needs a git library, which is a separate decision.
+**On iOS, a copy through the API.** iOS can't run the `git` program, so "Clone from GitHub…" on the Workspaces screen makes a plain copy of the default branch instead (issue #60, `Shared/Sync/GitHubMirror.swift`). It saves into a folder named after the repository in Fen's Documents folder and adds it as a workspace. The folder holds only the repository's files: no `.git`, and no state file. What the last sync saw lives in `FenHome` (`FenHome.mirrorFile(id:)`, outside the folder).
 
-Tests use a local bare repository in place of GitHub (`GitSyncTests`, `GitHubSyncModelTests`, `GitSyncTrustTests`): clone, fast-forward pulls, diverged and blocked pulls, one-file commits with a one-line diff, the secret filter, no force push, a refused push with its reason, the token header going to github.com only, a folder whose settings run a program never seeing the token, a folder inside a repository, and that Fen writes nothing into the folder. The real GitHub round trip, with a token, is not covered by CI.
+| Step | What runs |
+|---|---|
+| Clone | Reads the default branch's file tree and each file (`GitHubREST+Git.swift`: `git/trees`, `git/blobs`). It skips `.git`, files that look like secrets, symlinks, submodules and files over 2 MB. The token is saved only after the copy worked. |
+| Pull | A three-way compare of each note: what the last sync saw, what is on this device, what is on GitHub. A note you didn't change takes GitHub's version. A note you changed is never overwritten. If GitHub changed it too, it becomes a conflict and nothing happens to it until you choose Keep Mine or Use GitHub's. |
+| Back Up | Pulls first, stops while any conflict is open, then sends every changed note as one commit on top of the newest GitHub commit (`git/blobs`, `git/trees`, `git/commits`, then a ref update with `force: false`). If the branch moved meanwhile, it pulls and tries once more. A deleted note is deleted in the commit. |
+
+Nothing syncs by itself, because iOS may suspend the app at any time: opening a workspace pulls, and the Back Up button backs up. The AI-change hold-back works as on the Mac. The limits: direct-commit only (no pull request mode), no executable bit kept, files over 2 MB stay on GitHub and are never sent or deleted, and a repository too big for one tree listing is refused. Every path from GitHub goes through `PathGate`, and a path that leaves the folder stops the clone (`MirrorError.unsafePath`).
+
+iOS tests use an in-memory GitHub (`FakeRepository` in `GitHubMirrorTests`) and a `URLProtocol` stub for the REST calls (`GitHubRESTGitTests`). Real GitHub is not covered by CI. Tests for the Mac side use a local bare repository in place of GitHub (`GitSyncTests`, `GitHubSyncModelTests`, `GitSyncTrustTests`): clone, fast-forward pulls, diverged and blocked pulls, one-file commits with a one-line diff, the secret filter, no force push, a refused push with its reason, the token header going to github.com only, a folder whose settings run a program never seeing the token, a folder inside a repository, and that Fen writes nothing into the folder. The real GitHub round trip, with a token, is not covered by CI.
 
 ### Sync modes: back up, or review with pull requests
 
@@ -609,7 +617,7 @@ The direct-commit steps: fast-forward when you can. If GitHub and this Mac both 
 
 A file that can't hold markers (an image) keeps your version, and GitHub's version is saved next to it as `name (GitHub copy).ext`. If one side deleted a note the other edited, the note stays. A held-back AI note that GitHub also changed stops the merge before Fen touches it.
 
-Tests: `ConflictSyncTests` (two clones of one remote standing in for two devices, the `mergeable` states in `GitHubRESTTests`). Fen's sync controls are macOS only, so conflict handling is not verified on iOS.
+Tests: `ConflictSyncTests` (two clones of one remote standing in for two devices, the `mergeable` states in `GitHubRESTTests`). On iOS, conflicts are never marked inside a note: the note stays as it is and the Conflicts sheet asks which version to keep (`GitHubMirrorTests`, `GitHubMirrorModelTests`).
 
 Tests: `SyncModeTests`, `PushAsPRTests` and `GitHubRESTTests` (a `URLProtocol` stub, including a redirect that must not be followed). Real GitHub is not covered by CI.
 

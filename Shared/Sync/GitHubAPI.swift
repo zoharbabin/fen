@@ -122,19 +122,29 @@ struct GitHubREST: GitHubAPI {
     }
 
     private func baseComponents(_ repo: GitHubRepo) -> URLComponents {
+        components(repo, "pulls")
+    }
+
+    /// `https://api.github.com/repos/<owner>/<name>/<path>`.
+    func components(_ repo: GitHubRepo, _ path: String) -> URLComponents {
         var components = URLComponents()
         components.scheme = "https"
         components.host = Self.host
-        components.path = "/repos/\(repo.owner)/\(repo.name)/pulls"
+        components.path = "/repos/\(repo.owner)/\(repo.name)" + (path.isEmpty ? "" : "/" + path)
         return components
     }
 
-    private func request(_ components: URLComponents, method: String, token: String?, body: Data?) throws
-        -> URLRequest {
+    func request(
+        _ components: URLComponents,
+        method: String,
+        token: String?,
+        body: Data?,
+        accept: String = "application/vnd.github+json"
+    ) throws -> URLRequest {
         guard let url = components.url else { throw GitSync.SyncError.failed("Fen can't build the GitHub address.") }
         var request = URLRequest(url: url, timeoutInterval: 30)
         request.httpMethod = method
-        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        request.setValue(accept, forHTTPHeaderField: "Accept")
         request.setValue("2022-11-28", forHTTPHeaderField: "X-GitHub-Api-Version")
         request.setValue("Fen", forHTTPHeaderField: "User-Agent")
         if let token {
@@ -147,7 +157,7 @@ struct GitHubREST: GitHubAPI {
         return request
     }
 
-    private func send(_ request: URLRequest, repo: GitHubRepo) async throws -> Data {
+    func send(_ request: URLRequest, repo: GitHubRepo) async throws -> Data {
         let (data, response) = try await session.data(for: request, delegate: NoRedirect())
         guard let http = response as? HTTPURLResponse else {
             throw GitSync.SyncError.failed("GitHub didn't answer.")
@@ -155,18 +165,20 @@ struct GitHubREST: GitHubAPI {
         switch http.statusCode {
         case 200 ..< 300:
             return data
+        case 403 where http.value(forHTTPHeaderField: "X-RateLimit-Remaining") == "0":
+            throw GitSync.SyncError.failed("GitHub says Fen has made too many requests. Try again in a few minutes.")
         case 401, 403, 404:
             // GitHub answers 404 for a private repository the token can't see.
             throw GitSync.SyncError.authFailed(repo.title)
         default:
             let reason = (try? JSONDecoder().decode(ErrorBody.self, from: data))?.message
             throw GitSync.SyncError.failed(
-                "GitHub refused the pull request (\(http.statusCode))" + (reason.map { ": \($0.prefix(160))" } ?? ".")
+                "GitHub refused the request (\(http.statusCode))" + (reason.map { ": \($0.prefix(160))" } ?? ".")
             )
         }
     }
 
-    private final class NoRedirect: NSObject, URLSessionTaskDelegate {
+    final class NoRedirect: NSObject, URLSessionTaskDelegate {
         func urlSession(
             _: URLSession,
             task _: URLSessionTask,

@@ -53,6 +53,9 @@ public struct WorkspacesView: View {
                 } actions: {
                     if library.workspaces.isEmpty {
                         addButton
+                        #if os(iOS)
+                            GitHubCloneButton(isPresented: $showingClone, disabled: library.loadError != nil)
+                        #endif
                     }
                 }
             }
@@ -127,7 +130,7 @@ public struct WorkspacesView: View {
             WorkspaceSettingsView(library: library, workspace: workspace)
         }
         .sheet(isPresented: $showingClone) {
-            GitHubCloneView(library: library) { selection = $0.id }
+            GitHubCloneSheet(library: library) { selection = $0.id }
         }
         #if os(macOS)
         .frame(minWidth: 640, minHeight: 420)
@@ -202,6 +205,9 @@ public struct WorkspacesView: View {
                     .help("Ask a question and get an answer from your workspaces, with sources")
             }
             ToolbarItem { addButton }
+            #if os(iOS)
+                ToolbarItem { GitHubCloneButton(isPresented: $showingClone, disabled: library.loadError != nil) }
+            #endif
             ToolbarItem {
                 Menu("More", systemImage: "ellipsis.circle") {
                     Toggle("Pause Auto-Approve", isOn: Binding(get: { gate.isPaused }, set: { setPaused($0) }))
@@ -451,7 +457,7 @@ private struct WorkspaceDetailView: View {
                 }
             }
             Spacer()
-            GitHubSyncControls(library: library, gate: gate, workspaceID: workspace.id).id(workspace.id)
+            GitHubWorkspaceControls(library: library, gate: gate, workspaceID: workspace.id).id(workspace.id)
             indexControls(library.indexStatus(for: workspace.id))
             classifyControls
             Button("Conflicts", systemImage: "exclamationmark.arrow.triangle.2.circlepath") { showingConflicts = true }

@@ -69,6 +69,12 @@ public struct FenHome: Sendable, Equatable {
         workspaceDirectory(id: id).appendingPathComponent("conflicts.json")
     }
 
+    /// What a GitHub workspace on iOS last synced with GitHub (issue #60). Stays on this device, never in the
+    /// workspace.
+    public func mirrorFile(id: UUID) -> URL {
+        workspaceDirectory(id: id).appendingPathComponent("github-mirror.json")
+    }
+
     public func indexDirectory(id: UUID) -> URL {
         workspaceDirectory(id: id).appendingPathComponent("index", isDirectory: true)
     }

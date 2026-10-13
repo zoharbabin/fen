@@ -10,7 +10,7 @@ Part of [#40](https://github.com/zoharbabin/fen/issues/40). The store build is a
 | Entitlements | `macOS/Fen.entitlements`: `allow-jit` | `macOS/FenAppStore.entitlements`: sandbox, user-selected read-write files, app-scope bookmarks, network client |
 | `Info.plist` | `macOS/Info.plist` | `macOS/Info-AppStore.plist`: no Sparkle keys, adds the category and the encryption answer |
 | Updates | Sparkle, and the release-page fallback | None. The `APPSTORE` flag removes `AppUpdater` and the **Check for Updates…** command. The target doesn't link Sparkle. |
-| Git (GitHub sync, agent branches, conflict checks) | Uses the system `git` | Off. `GitTool.locate()` returns `nil` when `APP_SANDBOX_CONTAINER_ID` is set, so the UI hides clone and sync, as on iOS. |
+| Git (GitHub sync, agent branches, conflict checks) | Uses the system `git` | Off. `GitTool.locate()` returns `nil` when `APP_SANDBOX_CONTAINER_ID` is set, so the UI hides clone and sync. iOS has its own GitHub copy that uses the API ([ARCHITECTURE.md](ARCHITECTURE.md#github-sync-clone-pull-and-push-with-the-git-you-have-a-scoped-token-in-the-keychain)). |
 | Fen home | `~/.fen` | `~/Library/Containers/com.zoharbabin.fen/Data/.fen` |
 | MCP server | Works | Off. The sandbox has no `network.server` entitlement and we don't add it, so Settings has no Agents tab (`AppSandbox.isActive()`). |
 
