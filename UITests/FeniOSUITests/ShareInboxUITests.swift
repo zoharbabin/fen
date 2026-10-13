@@ -29,23 +29,12 @@ final class ShareInboxUITests: XCTestCase {
         let app = XCUIApplication()
         app.launch()
 
-        // The launch scene keeps a hidden copy of each action and folds the extra ones into "More…".
-        let waiting = app.buttons.matching(NSPredicate(format: "label == 'New from Shared (1)'"))
-        let visible = { waiting.allElementsBoundByIndex.first { $0.isHittable } }
-        XCTAssertTrue(app.buttons["More…"].firstMatch.waitForExistence(timeout: 20))
-        if visible() == nil {
-            app.buttons["More…"].firstMatch.tap()
-        }
-        expectation(for: NSPredicate { _, _ in visible() != nil }, evaluatedWith: nil)
-        waitForExpectations(timeout: 15)
-        visible()?.tap()
+        // Fen saves the shared text as a note when it starts, so the document list shows it.
+        let note = app.cells.matching(NSPredicate(format: "label BEGINSWITH 'Shared from Safari'")).firstMatch
+        XCTAssertTrue(note.waitForExistence(timeout: 20), app.debugDescription)
+        note.tap()
 
         let editor = app.textViews.firstMatch
-        if !editor.waitForExistence(timeout: 12), app.alerts.firstMatch.exists {
-            // The simulator sometimes reports "Unable to Import Document" for a file it did create.
-            app.alerts.buttons["OK"].tap()
-            app.collectionViews.cells.firstMatch.tap()
-        }
         XCTAssertTrue(editor.waitForExistence(timeout: 20), app.debugDescription)
         expectation(for: NSPredicate(format: "value CONTAINS 'A quote worth keeping.'"), evaluatedWith: editor)
         waitForExpectations(timeout: 10)

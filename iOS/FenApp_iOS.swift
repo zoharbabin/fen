@@ -9,6 +9,12 @@ struct FenApp: App {
     init() {
         ShareTemporaryFiles.removeStale()
         SharedTextInbox.standard?.purge()
+        #if os(iOS)
+            SharedNotes.importWaiting()
+            NotificationCenter.default.addObserver(
+                forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main
+            ) { _ in MainActor.assumeIsolated { SharedNotes.importWaiting() } }
+        #endif
         ScheduledEnrichment.launch()
     }
 
@@ -38,10 +44,7 @@ struct FenApp: App {
                 NewDocumentButton("New Document")
                 // Text from another app (a Safari selection, Notes) cannot open as a file, so copy
                 // it and make a document from the clipboard (issue #43).
-                NewDocumentButton("New from Clipboard", for: MarkdownDocument.self) {
-                    try await MainActor.run { try SharedTextImport.document(from: UIPasteboard.general.string) }
-                }
-                SharedInboxButton()
+                ClipboardNoteButton()
                 WorkspacesButton()
             }
         #endif
@@ -50,29 +53,44 @@ struct FenApp: App {
 
 #if os(iOS)
     /// Text shared to Fen from another app's share sheet waits in the App Group inbox (issue #43).
-    /// This button turns the oldest item into a document. It shows only while something waits.
-    private struct SharedInboxButton: View {
-        @State private var waiting = SharedTextInbox.standard?.pending().count ?? 0
+    /// Fen turns each item into a `.md` note in its Documents folder, so it shows in the document list
+    /// like any other note. The launch screen's "New Document" button can't do this: on iOS 27 it ignores
+    /// the closure it is given and creates a blank note.
+    @MainActor private enum SharedNotes {
+        static func importWaiting() {
+            guard let inbox = SharedTextInbox.standard,
+                  let folder = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
+            else { return }
+            inbox.importAll(into: folder)
+        }
+    }
+#endif
+
+#if os(iOS)
+    /// Saves the copied text as a note in Fen's Documents folder, where the document list shows it.
+    private struct ClipboardNoteButton: View {
+        @State private var message: String?
 
         var body: some View {
-            Group {
-                if waiting > 0 {
-                    NewDocumentButton("New from Shared (\(waiting))", for: MarkdownDocument.self) {
-                        try await MainActor.run {
-                            defer { waiting = SharedTextInbox.standard?.pending().count ?? 0 }
-                            guard let inbox = SharedTextInbox.standard else { return nil }
-                            for url in inbox.pending() {
-                                if let text = inbox.consume(url) {
-                                    return MarkdownDocument(text: text)
-                                }
-                            }
-                            return nil
-                        }
-                    }
+            Button("New from Clipboard", systemImage: "doc.on.clipboard") {
+                do {
+                    let folder = try FileManager.default.url(
+                        for: .documentDirectory,
+                        in: .userDomainMask,
+                        appropriateFor: nil,
+                        create: true
+                    )
+                    let saved = try SharedTextImport.saveNote(from: UIPasteboard.general.string, into: folder)
+                    message = saved.map { "Saved \($0.lastPathComponent) to your notes." }
+                        ?? "The clipboard has no text."
+                } catch {
+                    message = error.localizedDescription
                 }
             }
-            .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
-                waiting = SharedTextInbox.standard?.pending().count ?? 0
+            .alert("New from Clipboard", isPresented: Binding(get: { message != nil }, set: { _ in message = nil })) {
+                Button("OK") {}
+            } message: {
+                Text(message ?? "")
             }
         }
     }

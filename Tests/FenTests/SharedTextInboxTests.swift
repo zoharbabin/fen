@@ -16,6 +16,13 @@ struct SharedTextInboxTests {
         #expect(SharedTextInbox.fileName(for: "\n\n  \n") == "Shared text")
     }
 
+    @Test("a shared page, written as a Markdown link, is named after its title")
+    func linkNames() {
+        #expect(SharedTextInbox.fileName(for: "[Example Domain](https://example.com/)\n") == "Example Domain")
+        // Only a line that is nothing but a link is renamed.
+        #expect(SharedTextInbox.fileName(for: "See [a](b) here") == "See [a](b) here")
+    }
+
     @Test("a name has no slash, colon, backslash, control character, or leading dot, and is cut to 80")
     func cleanNames() {
         #expect(SharedTextInbox.fileName(for: "# a/b:c\\d\u{7}e") == "abcde")
@@ -101,5 +108,32 @@ struct SharedTextInboxTests {
         try age(usedURL, days: 1.5)
         inbox.purge(now: now)
         #expect(!FileManager.default.fileExists(atPath: usedURL.path))
+    }
+
+    @Test("importing moves every waiting item into the folder as a note, and marks each one used")
+    func importsIntoAFolder() throws {
+        let (inbox, folder) = try inbox()
+        defer { folder.cleanUp() }
+        try inbox.add("# One\nfirst")
+        try inbox.add("# Two\nsecond")
+        let notes = folder.root.appendingPathComponent("Notes")
+        let made = inbox.importAll(into: notes)
+        #expect(Set(made.map(\.lastPathComponent)) == ["One.md", "Two.md"])
+        #expect(try String(contentsOf: notes.appendingPathComponent("One.md"), encoding: .utf8) == "# One\nfirst\n")
+        #expect(inbox.pending().isEmpty)
+        #expect(inbox.importAll(into: notes).isEmpty)
+    }
+
+    @Test("importing never overwrites a note that is already in the folder")
+    func importKeepsExistingNotes() throws {
+        let (inbox, folder) = try inbox()
+        defer { folder.cleanUp() }
+        let notes = folder.root.appendingPathComponent("Notes")
+        try FileManager.default.createDirectory(at: notes, withIntermediateDirectories: true)
+        try "mine".write(to: notes.appendingPathComponent("Note.md"), atomically: true, encoding: .utf8)
+        try inbox.add("# Note\nshared")
+        let made = inbox.importAll(into: notes)
+        #expect(made.map(\.lastPathComponent) == ["Note 2.md"])
+        #expect(try String(contentsOf: notes.appendingPathComponent("Note.md"), encoding: .utf8) == "mine")
     }
 }

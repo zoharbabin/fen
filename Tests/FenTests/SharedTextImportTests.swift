@@ -7,7 +7,23 @@ struct SharedTextImportTests {
     @Test
     func plainTextBecomesADocumentThatEndsWithOneNewline() throws {
         #expect(try SharedTextImport.text(from: "Hello\n\n\n") == "Hello\n")
-        #expect(try SharedTextImport.document(from: "# Title\n\nBody")?.text == "# Title\n\nBody\n")
+    }
+
+    @Test
+    func savingANoteNamesItFromTheTextAndNeverOverwrites() throws {
+        let folder = try TempFolder("save-note")
+        defer { folder.cleanUp() }
+        let first = try #require(try SharedTextImport.saveNote(from: "# Title\n\nBody", into: folder.root))
+        let second = try #require(try SharedTextImport.saveNote(from: "# Title\n\nOther", into: folder.root))
+        #expect([first, second].map(\.lastPathComponent) == ["Title.md", "Title 2.md"])
+        #expect(try String(contentsOf: first, encoding: .utf8) == "# Title\n\nBody\n")
+        #expect(try SharedTextImport.saveNote(from: "  \n", into: folder.root) == nil)
+        let tooBig = String(repeating: "a", count: SharedTextImport.maxBytes)
+        #expect(throws: SharedTextImport.Failure.tooLarge) { try SharedTextImport.saveNote(
+            from: tooBig,
+            into: folder.root
+        ) }
+        #expect(try FileManager.default.contentsOfDirectory(atPath: folder.root.path).count == 2)
     }
 
     @Test
@@ -16,7 +32,6 @@ struct SharedTextImportTests {
         #expect(try SharedTextImport.text(from: "") == nil)
         #expect(try SharedTextImport.text(from: " \n\t \r\n\u{00A0}\u{2028}") == nil)
         #expect(try SharedTextImport.text(from: "\u{0}\u{7}\u{FEFF}") == nil)
-        #expect(try SharedTextImport.document(from: "  \n") == nil)
     }
 
     @Test
@@ -66,7 +81,6 @@ struct SharedTextImportTests {
         #expect(try SharedTextImport.text(from: fits) == fits + "\n")
         let tooBig = String(repeating: "a", count: SharedTextImport.maxBytes)
         #expect(throws: SharedTextImport.Failure.tooLarge) { try SharedTextImport.text(from: tooBig) }
-        #expect(throws: SharedTextImport.Failure.tooLarge) { try SharedTextImport.document(from: tooBig) }
     }
 
     @Test
