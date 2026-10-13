@@ -23,10 +23,14 @@ public struct WorkspacesView: View {
     @State private var scopeSelection = SearchScopeSelection()
     @State private var showingScopeChooser = false
     private let gate: WriteGate
+    /// Set when a sheet shows this view, so the list gets a Done button. A `NavigationStack` around the
+    /// view would hide the list's own toolbar, with the Add button.
+    private let onDone: (() -> Void)?
 
-    public init(library: WorkspaceLibrary = .shared, gate: WriteGate = .shared) {
+    public init(library: WorkspaceLibrary = .shared, gate: WriteGate = .shared, onDone: (() -> Void)? = nil) {
         self.library = library
         self.gate = gate
+        self.onDone = onDone
     }
 
     public var body: some View {
@@ -125,7 +129,9 @@ public struct WorkspacesView: View {
         .sheet(isPresented: $showingClone) {
             GitHubCloneView(library: library) { selection = $0.id }
         }
+        #if os(macOS)
         .frame(minWidth: 640, minHeight: 420)
+        #endif
     }
 
     private var isSearching: Bool {
@@ -188,6 +194,9 @@ public struct WorkspacesView: View {
             }
         }
         .toolbar {
+            if let onDone {
+                ToolbarItem(placement: .cancellationAction) { Button("Done", action: onDone) }
+            }
             ToolbarItem {
                 Toggle("Ask", systemImage: "text.bubble", isOn: $showingAsk)
                     .help("Ask a question and get an answer from your workspaces, with sources")

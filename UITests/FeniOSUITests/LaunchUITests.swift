@@ -32,7 +32,16 @@ final class LaunchUITests: XCTestCase {
         app.buttons["More…"].firstMatch.tap()
         XCTAssertTrue(app.buttons["Workspaces"].firstMatch.waitForExistence(timeout: 10))
         app.buttons["Workspaces"].firstMatch.tap()
+        // With a workspace already granted, a phone opens inside it. Back shows the list.
+        let back = app.navigationBars.buttons["Back"].firstMatch
+        if back.waitForExistence(timeout: 5) {
+            back.tap()
+        }
         XCTAssertTrue(app.navigationBars.buttons["Done"].waitForExistence(timeout: 10), app.debugDescription)
+        // A sheet inside a NavigationStack, or wider than the screen, once hid the Add button (issue #5).
+        let add = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Add Folder'")).firstMatch
+        XCTAssertTrue(add.waitForExistence(timeout: 10), app.debugDescription)
+        XCTAssertTrue(add.isHittable, app.debugDescription)
         app.navigationBars.buttons["Done"].tap()
         XCTAssertTrue(app.buttons["New Document"].firstMatch.waitForExistence(timeout: 10))
     }
