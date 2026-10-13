@@ -39,6 +39,21 @@ struct DefaultEditorTests {
         #expect(elapsed < 0.05)
     }
 
+    /// The App Store refuses an iOS app whose extension version differs from the app's. A missing key
+    /// reads as null in Xcode, so every Info.plist must take both from the project settings.
+    @Test func everyAppAndExtensionInfoPlistTakesItsVersionFromTheProjectSettings() throws {
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent() // DefaultEditorTests.swift
+            .deletingLastPathComponent() // FenTests
+            .deletingLastPathComponent() // Tests
+        for path in ["macOS/Info.plist", "iOS/Info.plist", "FenShare/Info.plist", "FenQuickLook/Info.plist"] {
+            let data = try Data(contentsOf: repoRoot.appendingPathComponent(path))
+            let plist = try PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any]
+            #expect(plist?["CFBundleShortVersionString"] as? String == "$(MARKETING_VERSION)", "\(path)")
+            #expect(plist?["CFBundleVersion"] as? String == "$(CURRENT_PROJECT_VERSION)", "\(path)")
+        }
+    }
+
     // MARK: - Rule 5.1 / 7.1: macOS/iOS Info.plist declare the same Markdown UTI
 
     @Test func macOSAndIOSInfoPlistsDeclareTheSameMarkdownDocumentType() throws {
