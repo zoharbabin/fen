@@ -35,20 +35,7 @@ public struct SharedTextInbox: Sendable {
     @discardableResult
     public func add(_ raw: String?) throws -> URL? {
         guard let text = try SharedTextImport.text(from: raw) else { return nil }
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        let base = Self.fileName(for: text)
-        var number = 1
-        while true {
-            let name = number == 1 ? "\(base).md" : "\(base) \(number).md"
-            let url = directory.appendingPathComponent(name)
-            do {
-                // Creating the file fails when the name is taken, so two shares never overwrite.
-                try Data(text.utf8).write(to: url, options: .withoutOverwriting)
-                return url
-            } catch let error as CocoaError where error.code == .fileWriteFileExists {
-                number += 1
-            }
-        }
+        return try Self.write(text, as: Self.fileName(for: text), in: directory)
     }
 
     /// A file name from the first heading, or else the first line. It has no control characters,
@@ -59,6 +46,10 @@ public struct SharedTextInbox: Sendable {
             .filter { !$0.isEmpty }
         let heading = lines.first { $0.hasPrefix("#") }.map { $0.drop { $0 == "#" } }
         var title = String(heading ?? Substring(lines.first ?? ""))
+        // A shared page arrives as `[title](address)`. The file takes the page title.
+        if heading == nil, let link = title.wholeMatch(of: /\[([^\]]+)\]\([^)]*\)/) {
+            title = String(link.1)
+        }
         title = title.unicodeScalars
             .filter { $0.properties.generalCategory != .control && !"/:\\".unicodeScalars.contains($0) }
             .reduce(into: "") { $0.unicodeScalars.append($1) }
@@ -94,6 +85,37 @@ public struct SharedTextInbox: Sendable {
             return nil
         }
         return text
+    }
+
+    /// Moves every waiting item into `directory` as a `.md` note and returns the new files. A taken
+    /// name gets a number, so a note that is already there is never overwritten. An item that can't
+    /// be moved stays in the inbox for the next try.
+    @discardableResult
+    public func importAll(into directory: URL) -> [URL] {
+        var made: [URL] = []
+        for item in pending() {
+            guard let text = try? String(contentsOf: item, encoding: .utf8),
+                  let note = try? Self.write(text, as: item.deletingPathExtension().lastPathComponent, in: directory),
+                  consume(item) != nil else { continue }
+            made.append(note)
+        }
+        return made
+    }
+
+    /// Writes `text` to a new `base.md` in `directory`, or `base 2.md` and up when the name is taken.
+    static func write(_ text: String, as base: String, in directory: URL) throws -> URL {
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        var number = 1
+        while true {
+            let name = number == 1 ? "\(base).md" : "\(base) \(number).md"
+            let url = directory.appendingPathComponent(name)
+            do {
+                try Data(text.utf8).write(to: url, options: .withoutOverwriting)
+                return url
+            } catch let error as CocoaError where error.code == .fileWriteFileExists {
+                number += 1
+            }
+        }
     }
 
     /// Removes used files older than a day and unread files older than thirty.
