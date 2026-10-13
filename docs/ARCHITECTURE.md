@@ -245,7 +245,7 @@ flowchart LR
 
 ## Storage and git rules: zero footprint in folders, state in `~/.fen`
 
-Fen's own state lives in one folder, `~/.fen` (`FenHome`). In a sandboxed macOS build and on iOS, `~` is the app container, so the layout is the same at a different absolute path. Nothing is created until something writes.
+Fen's own state lives in one folder, `~/.fen` (`FenHome`). In a sandboxed macOS build, `~` is the app container, so the layout is the same at a different absolute path. On iOS the top of the container is read-only, so the folder is `Library/.fen` there (`FenHome.root(inContainer:onPhone:)`). Nothing is created until something writes.
 
 ```
 ~/.fen/
