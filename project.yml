@@ -67,16 +67,45 @@ targets:
     platform: iOS
     sources:
       - path: iOS
+        excludes:
+          - "*.entitlements"
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.zoharbabin.fen-ios
         PRODUCT_NAME: Fen
         INFOPLIST_FILE: iOS/Info.plist
+        CODE_SIGN_ENTITLEMENTS: iOS/Fen.entitlements
         GENERATE_INFOPLIST_FILE: false
         CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: CG9APRC4WT
     dependencies:
       - package: Fen
         product: FenCore
+      - target: FenShare
+        embed: true
+
+  # The share-sheet extension (issue #43). It compiles the two inbox files itself instead of
+  # linking FenCore, so the extension stays small and has no resources, parsers or network code.
+  FenShare:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: FenShare
+        excludes:
+          - "*.entitlements"
+      - path: Shared/Models/SharedTextInbox.swift
+      - path: Shared/Models/SharedTextImport.swift
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.zoharbabin.fen-ios.share
+        PRODUCT_NAME: FenShare
+        INFOPLIST_FILE: FenShare/Info.plist
+        CODE_SIGN_ENTITLEMENTS: FenShare/FenShare.entitlements
+        GENERATE_INFOPLIST_FILE: false
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: CG9APRC4WT
+        SKIP_INSTALL: true
+        APPLICATION_EXTENSION_API_ONLY: true
 
   FenMacOSUITests:
     type: bundle.ui-testing

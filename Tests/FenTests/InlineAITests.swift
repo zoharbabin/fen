@@ -164,6 +164,13 @@ struct EnrichmentTests {
         #expect(facts[0].text == "Invoices go out monthly")
     }
 
+    @Test("a citation before the full stop leaves no space before the stop")
+    func citationAfterFullStop() {
+        let reply = "B1:\n- Idle connections close after sixty seconds [1].\n- Invoices go out monthly [2], yes"
+        let facts = Enrichment.facts(in: reply, bulletCount: 1, passages: passages)
+        #expect(facts.map(\.text) == ["Idle connections close after sixty seconds.", "Invoices go out monthly, yes"])
+    }
+
     @Test("a bullet number the prompt never had is ignored")
     func unknownBullet() {
         let facts = Enrichment.facts(in: "B9:\n- Invoices go out monthly [2]", bulletCount: 2, passages: passages)

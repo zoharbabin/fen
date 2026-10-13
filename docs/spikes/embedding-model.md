@@ -1,6 +1,6 @@
 # Spike: which embedding model for search (issue #35)
 
-Fen needs a model that turns text into vectors, so search can match meaning and not only words. It must run on your device, need no download and add no dependency. This spike compares the two models the OS gives us and records what we did not measure.
+Fen needs a model that turns text into vectors, so search can match meaning and not only words. It must run on your device, need no download and add no dependency. This spike compares the two models the OS gives us, then EmbeddingGemma through Ollama as an opt-in choice.
 
 ## Result
 
@@ -75,6 +75,18 @@ What this means:
 - Indexing with the real model ran at about 21 ms per chunk, end to end (600 chunks in 12.5 s). A workspace of 100,000 chunks takes about 35 minutes in the background. Indexing waits in Low Power Mode and while background work is paused.
 - One vector takes 516 bytes (512 bytes plus a 4-byte scale). 100,000 chunks take about 50 MB on disk and in memory.
 
-## Not measured: EmbeddingGemma
+## EmbeddingGemma through Ollama
 
-The roadmap named EmbeddingGemma as a candidate. We did not run it. Fen has no Swift runtime for it (no LiteRT or Core ML conversion in the dependencies), and we keep dependencies minimal. Its memory was not measured either. The `EmbeddingProvider` protocol and the index signature are ready for it: a provider with a new `id` rebuilds the index. Measuring it needs a runtime decision first, and that belongs in its own issue.
+You can pick EmbeddingGemma in Settings > AI > Search. It is the better model, and it runs on your Mac through [Ollama](https://ollama.com) (`ollama pull embeddinggemma`). Apple's model stays the default because it needs no setup. Ollama is the runtime: Fen has no Swift runtime for the model, and we add no dependency. The address must be loopback (`AIEndpoint.isLoopback`), so the text never leaves your Mac. Fen picks the model at launch, so a change needs a restart. Then the index rebuilds, because the provider id is part of the index signature. If Ollama isn't running, search uses words only.
+
+Same 12 notes and 16 queries, same Mac. Run `FEN_LIVE_OLLAMA=1 swift test --no-parallel --filter OllamaEmbeddingProviderTests` to print them again.
+
+| | EmbeddingGemma (Ollama) |
+|---|---|
+| Dimensions | 768 |
+| Meaning-only MRR | 1.0 |
+| Similarity floor | 0.35 |
+| Time per note | about 41 ms |
+| Memory | Held by Ollama, about 620 MB on disk. Not measured in RAM. |
+
+We did not test the task prefixes the model card suggests, or text longer than the model's input limit. Search quality on a real workspace is not measured. The set is small, so treat 1.0 as "no miss on this set", not as a benchmark.

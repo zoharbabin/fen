@@ -55,7 +55,7 @@ public final class WorkspaceLibrary {
         scheduler: WorkspaceJobScheduler = WorkspaceJobScheduler(),
         watching: Bool = WorkspaceChangeWatcher.isLive,
         indexing: Bool = true,
-        embedder: (any EmbeddingProvider)? = AppleSentenceEmbeddingProvider()
+        embedder: (any EmbeddingProvider)? = EmbedderChoice.current().makeProvider()
     ) {
         registry = WorkspaceRegistry(home: home)
         search = WorkspaceSearch(home: home, scheduler: scheduler, embedder: embedder)

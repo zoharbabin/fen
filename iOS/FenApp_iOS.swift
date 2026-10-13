@@ -8,6 +8,7 @@ import SwiftUI
 struct FenApp: App {
     init() {
         ShareTemporaryFiles.removeStale()
+        SharedTextInbox.standard?.purge()
         ScheduledEnrichment.launch()
     }
 
@@ -40,11 +41,42 @@ struct FenApp: App {
                 NewDocumentButton("New from Clipboard", for: MarkdownDocument.self) {
                     try await MainActor.run { try SharedTextImport.document(from: UIPasteboard.general.string) }
                 }
+                SharedInboxButton()
                 WorkspacesButton()
             }
         #endif
     }
 }
+
+#if os(iOS)
+    /// Text shared to Fen from another app's share sheet waits in the App Group inbox (issue #43).
+    /// This button turns the oldest item into a document. It shows only while something waits.
+    private struct SharedInboxButton: View {
+        @State private var waiting = SharedTextInbox.standard?.pending().count ?? 0
+
+        var body: some View {
+            Group {
+                if waiting > 0 {
+                    NewDocumentButton("New from Shared (\(waiting))", for: MarkdownDocument.self) {
+                        try await MainActor.run {
+                            defer { waiting = SharedTextInbox.standard?.pending().count ?? 0 }
+                            guard let inbox = SharedTextInbox.standard else { return nil }
+                            for url in inbox.pending() {
+                                if let text = inbox.consume(url) {
+                                    return MarkdownDocument(text: text)
+                                }
+                            }
+                            return nil
+                        }
+                    }
+                }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
+                waiting = SharedTextInbox.standard?.pending().count ?? 0
+            }
+        }
+    }
+#endif
 
 /// Opens the workspaces list as a sheet, from the launch screen or inside a document. UIKit
 /// presents it, because on iPad the launch screen puts this button in a menu and a SwiftUI sheet
