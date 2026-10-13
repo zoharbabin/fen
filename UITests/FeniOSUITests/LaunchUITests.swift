@@ -63,10 +63,13 @@ final class LaunchUITests: XCTestCase {
         _ = typed.waitForExistence(timeout: 5)
         expectation(for: hasText, evaluatedWith: typed)
         waitForExpectations(timeout: 10)
-        // A phone shows one pane at a time, so only a wide window has the preview beside the editor.
-        if app.windows.firstMatch.frame.width > 600 {
-            let heading = app.webViews.staticTexts["Hello from iOS"]
-            XCTAssertTrue(heading.waitForExistence(timeout: 20), "the preview did not update:\n\(app.debugDescription)")
+        // A phone shows one pane at a time, so switch to the preview first.
+        if app.windows.firstMatch.frame.width <= 600 {
+            let preview = app.segmentedControls["ViewModePicker"].buttons["Preview"]
+            XCTAssertTrue(preview.waitForExistence(timeout: 10), "no Preview segment:\n\(app.debugDescription)")
+            preview.tap()
         }
+        let heading = app.webViews.staticTexts["Hello from iOS"]
+        XCTAssertTrue(heading.waitForExistence(timeout: 20), "the preview did not update:\n\(app.debugDescription)")
     }
 }

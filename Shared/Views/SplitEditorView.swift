@@ -240,6 +240,7 @@ public struct SplitEditorView: View {
                 previewView
             }
         }
+        .safeAreaInset(edge: .bottom, spacing: 0) { compactPaneBar }
     }
 
     // MARK: - Split View
@@ -463,13 +464,7 @@ public struct SplitEditorView: View {
 
             inlineAIButton
 
-            Picker("View", selection: shownViewMode) {
-                ForEach(ViewMode.available(compactWidth: isCompactWidth), id: \.self) { mode in
-                    Text(mode.rawValue).tag(mode)
-                }
-            }
-            .pickerStyle(.segmented)
-            .accessibilityIdentifier("ViewModePicker")
+            viewModePicker
 
             Button {
                 editorOnRight.toggle()

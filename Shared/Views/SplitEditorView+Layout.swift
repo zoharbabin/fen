@@ -59,6 +59,38 @@ extension SplitEditorView {
         viewMode.showsEditor(compactWidth: isCompactWidth)
     }
 
+    /// The Editor/Preview/Split picker. A narrow screen has `compactPaneBar` instead.
+    @ViewBuilder
+    var viewModePicker: some View {
+        if !isCompactWidth {
+            Picker("View", selection: shownViewMode) {
+                ForEach(ViewMode.available(compactWidth: false), id: \.self) { mode in
+                    Text(mode.rawValue).tag(mode)
+                }
+            }
+            .pickerStyle(.segmented)
+            .accessibilityIdentifier("ViewModePicker")
+        }
+    }
+
+    /// Switches a narrow screen between the editor and the preview. It sits at the bottom, in the open,
+    /// because the toolbar folds whatever doesn't fit into a "More" menu where nobody finds it.
+    @ViewBuilder
+    var compactPaneBar: some View {
+        if isCompactWidth {
+            Picker("View", selection: shownViewMode) {
+                ForEach(ViewMode.available(compactWidth: true), id: \.self) { mode in
+                    Text(mode.rawValue).tag(mode)
+                }
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal)
+            .padding(.vertical, 8)
+            .background(.bar)
+            .accessibilityIdentifier("ViewModePicker")
+        }
+    }
+
     /// The picker shows what is on screen, and writes the chosen mode through.
     var shownViewMode: Binding<ViewMode> {
         Binding(
