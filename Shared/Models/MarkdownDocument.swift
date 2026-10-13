@@ -19,9 +19,11 @@ public final class MarkdownDocument: ReferenceFileDocument, @unchecked Sendable 
     /// The file URL this document was loaded from (set externally by the document group).
     public var fileURL: URL?
 
-    /// The text of the last save Fen made. A save lands while you keep typing, so the file can lag
-    /// the buffer. `ExternalChangeController` uses this to tell Fen's own save from an outside one.
-    @ObservationIgnored let lastWrittenText = OSAllocatedUnfairLock<String?>(initialState: nil)
+    /// The text the document started with, then the last few saves Fen made. A save lands while you keep typing, so the
+    /// file can lag
+    /// the buffer, and on a slow disk it can lag by more than one save. `ExternalChangeController` uses
+    /// this to tell Fen's own save from an outside one.
+    @ObservationIgnored let recentSavedTexts = OSAllocatedUnfairLock<[String]>(initialState: [])
 
     public static var readableContentTypes: [UTType] {
         [.markdown, .plainText]
@@ -33,6 +35,7 @@ public final class MarkdownDocument: ReferenceFileDocument, @unchecked Sendable 
 
     public init(text: String = "") {
         self.text = text
+        recordSave(text)
     }
 
     /// The document a fresh `DocumentGroup(newDocument:)` should create -- the bundled welcome
@@ -48,6 +51,7 @@ public final class MarkdownDocument: ReferenceFileDocument, @unchecked Sendable 
             throw CocoaError(.fileReadCorruptFile)
         }
         text = String(data: data, encoding: .utf8) ?? ""
+        recordSave(text)
     }
 
     public func snapshot(contentType _: UTType) throws -> String {
@@ -59,7 +63,12 @@ public final class MarkdownDocument: ReferenceFileDocument, @unchecked Sendable 
     }
 
     func recordSave(_ snapshot: String) {
-        lastWrittenText.withLock { $0 = snapshot }
+        recentSavedTexts.withLock {
+            $0.append(snapshot)
+            if $0.count > 8 {
+                $0.removeFirst()
+            }
+        }
     }
 
     public func fileWrapper(snapshot: String, configuration _: WriteConfiguration) throws -> FileWrapper {

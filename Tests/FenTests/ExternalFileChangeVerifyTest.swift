@@ -199,4 +199,76 @@ struct ExternalFileChangeVerifyTest {
         }
         #expect(!firedUnexpectedly, "an autosave that trails the buffer is not an external change")
     }
+
+    @Test("Two of Fen's own saves in a row: the file landing with the older one is not an external change")
+    @MainActor
+    func olderOwnSaveIsNotAnExternalChange() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ExternalFileChangeVerifyTest-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let fileURL = directory.appendingPathComponent("notes.md")
+        try "original".write(to: fileURL, atomically: true, encoding: .utf8)
+
+        let document = MarkdownDocument(text: "original")
+        document.fileURL = fileURL
+        let controller = ExternalChangeController()
+        defer { controller.stop() }
+
+        var promptCount = 0
+        controller.presentReloadAlert = { _, _ in promptCount += 1 }
+        controller.start(for: document)
+
+        document.text = "first save"
+        let first = try document.snapshot(contentType: .markdown)
+        document.recordSave(first)
+        document.text = "first save, second save"
+        try document.recordSave(document.snapshot(contentType: .markdown))
+        document.text = "first save, second save, and more typing"
+        // The slow disk delivers the first save only now.
+        let coordinator = NSFileCoordinator()
+        var coordinationError: NSError?
+        coordinator.coordinate(writingItemAt: fileURL, options: [], error: &coordinationError) { url in
+            try? first.data(using: .utf8)?.write(to: url)
+        }
+        #expect(coordinationError == nil)
+
+        let firedUnexpectedly = try await pollUntilTrue(timeout: .seconds(2)) {
+            promptCount > 0
+        }
+        #expect(!firedUnexpectedly, "an older save of Fen's own is not an external change")
+    }
+
+    @Test("A touch that leaves the file as it was loaded is not an external change, even after you typed")
+    @MainActor
+    func untouchedContentIsNotAnExternalChange() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ExternalFileChangeVerifyTest-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let fileURL = directory.appendingPathComponent("notes.md")
+        try "\n".write(to: fileURL, atomically: true, encoding: .utf8)
+
+        let document = MarkdownDocument(text: "")
+        document.fileURL = fileURL
+        let controller = ExternalChangeController()
+        defer { controller.stop() }
+
+        var promptCount = 0
+        controller.presentReloadAlert = { _, _ in promptCount += 1 }
+        controller.start(for: document)
+
+        document.text = "typed before any save"
+        let coordinator = NSFileCoordinator()
+        var coordinationError: NSError?
+        coordinator.coordinate(writingItemAt: fileURL, options: [], error: &coordinationError) { url in
+            try? "\n".data(using: .utf8)?.write(to: url)
+        }
+        #expect(coordinationError == nil)
+
+        let firedUnexpectedly = try await pollUntilTrue(timeout: .seconds(2)) {
+            promptCount > 0
+        }
+        #expect(!firedUnexpectedly, "a write that leaves the loaded content in place is not an external change")
+    }
 }
