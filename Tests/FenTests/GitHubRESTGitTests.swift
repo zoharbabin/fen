@@ -28,6 +28,19 @@ struct GitHubRESTGitTests {
         })
     }
 
+    @Test func everyRequestSkipsTheLocalCacheSoTheNewestCommitIsAlwaysSeen() async throws {
+        let session = StubGitHubProtocol.install { request in
+            switch request.url?.path {
+            case "/repos/octo/notes": (200, [:], Data(#"{"default_branch": "main"}"#.utf8))
+            case "/repos/octo/notes/git/ref/heads/main": (200, [:], Data(#"{"object": {"sha": "c1"}}"#.utf8))
+            default: (200, [:], Data(#"{"tree": {"sha": "t1"}}"#.utf8))
+            }
+        }
+        _ = try await GitHubREST(session: session).head(of: repo, token: "github_pat_fake")
+        #expect(!StubGitHubProtocol.requests.isEmpty)
+        #expect(StubGitHubProtocol.requests.allSatisfy { $0.cachePolicy == .reloadIgnoringLocalCacheData })
+    }
+
     @Test func theFileListKeepsFilesAndLeavesOutFoldersSymlinksAndSubmodules() async throws {
         let body = """
         {"truncated": false, "tree": [

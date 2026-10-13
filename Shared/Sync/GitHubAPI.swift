@@ -143,6 +143,9 @@ struct GitHubREST: GitHubAPI {
     ) throws -> URLRequest {
         guard let url = components.url else { throw GitSync.SyncError.failed("Fen can't build the GitHub address.") }
         var request = URLRequest(url: url, timeoutInterval: 30)
+        // GitHub marks the branch lookup cacheable for a minute. A cached answer made a backup build on a
+        // commit that was no longer the newest, and a fresh copy miss a note sent seconds before.
+        request.cachePolicy = .reloadIgnoringLocalCacheData
         request.httpMethod = method
         request.setValue(accept, forHTTPHeaderField: "Accept")
         request.setValue("2022-11-28", forHTTPHeaderField: "X-GitHub-Api-Version")
