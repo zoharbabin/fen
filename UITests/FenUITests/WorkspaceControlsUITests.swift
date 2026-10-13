@@ -210,6 +210,38 @@ final class WorkspaceControlsUITests: XCTestCase {
         XCTAssertFalse(fix.waitForExistence(timeout: 2), "the hint stays after the fix")
     }
 
+    /// The Document Types sheet opens from workspace settings, and Save creates `.fen/schema.yaml` (issue #7).
+    /// The Add Starter Pack menu is not in the accessibility tree, so it isn't driven here.
+    func testDocumentTypesSheetCreatesTheSchemaFile() throws {
+        launch()
+        let window = addWorkspace()
+        window.outlineRows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).rightClick()
+        window.outlines.firstMatch.menus.menuItems["Settings…"].click()
+        let settings = app.sheets.firstMatch
+        XCTAssertTrue(settings.waitForExistence(timeout: 5))
+        settings.buttons["Edit Document Types…"].click()
+        app.activate()
+        let intro = app.staticTexts.matching(NSPredicate(format: "value BEGINSWITH %@", "This workspace uses"))
+            .firstMatch
+        XCTAssertTrue(intro.waitForExistence(timeout: 10), "no Document Types sheet:\n\(app.debugDescription)")
+        // The Document Types sheet is the second one, opened over the settings sheet.
+        let save = app.sheets.element(boundBy: 1).buttons["Save"].firstMatch
+        XCTAssertTrue(save.waitForExistence(timeout: 5), app.debugDescription)
+        let enabled = NSPredicate(format: "isEnabled == true")
+        expectation(for: enabled, evaluatedWith: save)
+        waitForExpectations(timeout: 5)
+        save.click()
+        let create = app.sheets.buttons["Create .fen/schema.yaml"].firstMatch
+        XCTAssertTrue(create.waitForExistence(timeout: 5), app.debugDescription)
+        create.click()
+        let schemaFile = root.appendingPathComponent("ws/.fen/schema.yaml")
+        let created = NSPredicate { _, _ in FileManager.default.fileExists(atPath: schemaFile.path) }
+        expectation(for: created, evaluatedWith: nil)
+        waitForExpectations(timeout: 10)
+        let text = try String(contentsOf: schemaFile, encoding: .utf8)
+        XCTAssertTrue(text.contains("types"), text)
+    }
+
     /// The Activity sheet opens from the workspace header and closes with Done (issue #140).
     func testActivitySheetOpensAndCloses() {
         launch()
