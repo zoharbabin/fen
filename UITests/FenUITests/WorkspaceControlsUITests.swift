@@ -256,4 +256,62 @@ final class WorkspaceControlsUITests: XCTestCase {
         sheet.buttons["Done"].firstMatch.click()
         XCTAssertTrue(sheet.waitForNonExistence(timeout: 5))
     }
+
+    /// An applied change and the kept-rate line show in the Activity sheet (issues #140, #11). The app
+    /// can't be made to run an AI change here, so the test writes the workspace's history files (the
+    /// format the gate writes) before the sheet first reads them. XCUITest cannot see inside the
+    /// expanded row, so the diff, sources and Undo button are covered by `WriteGateUndoTests` only.
+    func testActivitySheetListsAnAppliedChangeAndTheKeptRate() throws {
+        // The registry is written first so the open panel is not needed.
+        let home = root.appendingPathComponent("home/.fen")
+        let id = UUID().uuidString
+        let registry = """
+        {"version":1,"workspaces":[{"addedAt":"2026-10-13T12:00:00Z","id":"\(id)","name":"ws",\
+        "path":"\(root.appendingPathComponent("ws").path)","settings":{"agentBranches":"perAgent",\
+        "aiDataAccess":"localProvidersOnly","approvalMode":"ask","clonedByFen":false,"enrichOnSave":false,\
+        "enrichSchedule":"off","excludeGlobs":[],"includeGlobs":["**/*.md"],"maxFileBytes":2000000,\
+        "mcpAccess":"disabled","pushesAIChanges":false,"writePolicy":{"autoApproveConfirmed":false,\
+        "autoApproveMinConfidence":0.8,"autoApproveReplacing":[],"maxChangedFraction":0.5,"maxFilesPerRun":20,\
+        "overrides":[]}}}]}
+        """
+        try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
+        try registry.write(to: home.appendingPathComponent("workspaces.json"), atomically: true, encoding: .utf8)
+        let directory = home.appendingPathComponent("workspaces/\(id)")
+        let history = directory.appendingPathComponent("history")
+        try FileManager.default.createDirectory(at: history, withIntermediateDirectories: true)
+        let entry = """
+        {"applied":{"_0":{"id":"\(UUID().uuidString)","runID":"\(UUID().uuidString)","workspaceID":"\(id)",\
+        "date":"2026-10-13T12:00:00Z","operation":"enrich","edit":"Enrich bullets","tier":"additive",\
+        "path":"plan.md","provenance":{"provider":"Ollama","model":"gemma4","sources":["roadmap.md"]},\
+        "approvedBy":"auto","diff":{"lines":[{"kind":"context","text":"- pricing is twelve dollars"},\
+        {"kind":"added","text":"  - See [[roadmap]]"}],"added":1,"removed":0,"oldLineCount":2}}}}
+
+        """
+        try entry.write(to: history.appendingPathComponent("activity.jsonl"), atomically: true, encoding: .utf8)
+        let stats = #"{"operations":{"enrich":{"auto":2,"accepted":1,"dismissed":1}}}"#
+        try stats.write(to: directory.appendingPathComponent("proposal-stats.json"), atomically: true, encoding: .utf8)
+
+        launch()
+        app.menuBars.menuBarItems["File"].click()
+        app.menuBars.menuItems["Workspaces…"].click()
+        let window = app.windows.matching(NSPredicate(format: "title == 'Workspaces' OR identifier == 'workspaces'"))
+            .firstMatch
+        XCTAssertTrue(window.waitForExistence(timeout: 5))
+        XCTAssertTrue(window.staticTexts["ws"].waitForExistence(timeout: 10), window.debugDescription)
+        window.outlineRows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).click()
+        let activity = window.buttons["Activity"].firstMatch
+        XCTAssertTrue(activity.waitForExistence(timeout: 10), "no Activity button:\n\(window.debugDescription)")
+        activity.click()
+        let sheet = app.sheets.firstMatch
+        XCTAssertTrue(sheet.waitForExistence(timeout: 5))
+        XCTAssertFalse(sheet.staticTexts["No AI changes yet."].exists, sheet.debugDescription)
+        let row = sheet.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS 'plan.md'"))
+            .firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 5), sheet.debugDescription)
+        let rate = sheet.descendants(matching: .any)
+            .matching(NSPredicate(format: "value BEGINSWITH 'enrich: kept 75%'")).firstMatch
+        XCTAssertTrue(rate.exists, sheet.debugDescription)
+        sheet.buttons["Done"].firstMatch.click()
+        XCTAssertTrue(sheet.waitForNonExistence(timeout: 5))
+    }
 }
