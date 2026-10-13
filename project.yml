@@ -28,6 +28,8 @@ targets:
         excludes:
           - "AppIcon.iconset"
           - "DocumentIcon.iconset"
+          - "Info-AppStore.plist"
+          - "FenAppStore.entitlements"
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.zoharbabin.fen
@@ -41,6 +43,35 @@ targets:
       - package: Fen
         product: FenCore
       - package: Sparkle
+      - target: FenQuickLook
+        embed: true
+
+  # The Mac App Store build (issue #40, docs/APP-STORE.md). Same sources, but sandboxed, no Sparkle and
+  # no Check for Updates command (the APPSTORE flag). Git is off at run time: see GitTool.locate().
+  FenMacOSAppStore:
+    type: application
+    platform: macOS
+    sources:
+      - path: macOS
+        excludes:
+          - "AppIcon.iconset"
+          - "DocumentIcon.iconset"
+          - "*.entitlements"
+          - "Info.plist"
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.zoharbabin.fen
+        PRODUCT_NAME: Fen
+        INFOPLIST_FILE: macOS/Info-AppStore.plist
+        CODE_SIGN_ENTITLEMENTS: macOS/FenAppStore.entitlements
+        GENERATE_INFOPLIST_FILE: false
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) APPSTORE"
+        ENABLE_HARDENED_RUNTIME: false
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: CG9APRC4WT
+    dependencies:
+      - package: Fen
+        product: FenCore
       - target: FenQuickLook
         embed: true
 

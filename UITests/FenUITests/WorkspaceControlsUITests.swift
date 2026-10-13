@@ -65,7 +65,9 @@ final class WorkspaceControlsUITests: XCTestCase {
         let predicate = NSPredicate(format: "title == 'Workspaces' OR identifier == 'workspaces'")
         let window = app.windows.matching(predicate).firstMatch
         XCTAssertTrue(window.waitForExistence(timeout: 5))
-        window.buttons["Add"].firstMatch.click()
+        let add = window.toolbars.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Add'")).firstMatch
+        XCTAssertTrue(add.waitForExistence(timeout: 10), "no Add button:\n\(window.debugDescription)")
+        add.click()
         let panel = app.sheets.firstMatch
         XCTAssertTrue(panel.waitForExistence(timeout: 20))
         app.typeKey("g", modifierFlags: [.command, .shift])
@@ -121,6 +123,38 @@ final class WorkspaceControlsUITests: XCTestCase {
         popover.checkBoxes["ws"].click()
         app.typeKey(.escape, modifierFlags: [])
         XCTAssertTrue(result.waitForExistence(timeout: 20), "chosen workspace did not bring the result back")
+    }
+
+    /// A workspace still reads and searches after a relaunch. In the sandboxed App Store build this only
+    /// works if the saved folder bookmark resumes (issue #40).
+    func testWorkspaceKeepsWorkingAfterRelaunch() {
+        launch()
+        addWorkspace().typeKey("w", modifierFlags: .command)
+        app.terminate()
+        launch()
+        app.menuBars.menuBarItems["File"].click()
+        app.menuBars.menuItems["Workspaces…"].click()
+        let window = app.windows.matching(NSPredicate(format: "title == 'Workspaces' OR identifier == 'workspaces'"))
+            .firstMatch
+        XCTAssertTrue(window.waitForExistence(timeout: 5))
+        XCTAssertTrue(window.staticTexts["ws"].waitForExistence(timeout: 10), "the workspace was forgotten")
+        let field = window.toolbars.searchFields.firstMatch
+        field.click()
+        field.typeText("pricing")
+        let result = window.staticTexts.matching(NSPredicate(format: "value BEGINSWITH %@", "plan.md")).firstMatch
+        XCTAssertTrue(result.waitForExistence(timeout: 30), "the workspace is gone after a relaunch")
+    }
+
+    /// The sandboxed App Store build has no listening socket, so Settings has no Agents tab (issue #40).
+    /// Only `scripts/test-appstore-sandbox.sh` sets `FEN_SANDBOXED`.
+    func testSettingsHasNoAgentsTabInTheSandbox() throws {
+        try XCTSkipUnless(ProcessInfo.processInfo.environment["FEN_SANDBOXED"] != nil, "needs the sandboxed build")
+        launch()
+        app.typeKey(",", modifierFlags: .command)
+        let settings = app.windows.matching(NSPredicate(format: "title == 'Settings' OR title == 'General'")).firstMatch
+        XCTAssertTrue(settings.waitForExistence(timeout: 10), app.debugDescription)
+        XCTAssertTrue(settings.toolbars.buttons["AI"].waitForExistence(timeout: 5), settings.debugDescription)
+        XCTAssertFalse(settings.toolbars.buttons["Agents"].exists, "the Agents tab is shown")
     }
 
     /// A file that is not open and links here with `[[plan]]` shows up under "Linked from" (issue #36).

@@ -1,48 +1,70 @@
-# Mac App Store: scope and plan
+# Mac App Store build
 
-Scoping for [#40](https://github.com/zoharbabin/fen/issues/40). This page says what a sandboxed Mac App Store build needs and what we'd cut. No store build exists yet. Nothing here changes the current build.
+Part of [#40](https://github.com/zoharbabin/fen/issues/40). The store build is a second Xcode target, `FenMacOSAppStore` in `project.yml`. It shares all sources with the direct-download app. The notarized build and `release.yml` don't change.
 
-## Where we start
+## What differs
 
-| Part | Today (notarized, direct download) |
-|---|---|
-| App sandbox | Off for `Fen.app`. On for the QuickLook extension (`FenQuickLook/FenQuickLook.entitlements`: sandbox, read-only user-selected files, network client). |
-| Entitlements | `macOS/Fen.entitlements` grants only `com.apple.security.cs.allow-jit`. |
-| Folder grants | Workspaces keep a security-scoped bookmark next to the path (`Workspace.bookmark`, `FolderBookmark`). The code already starts and stops scoped access. |
-| Fen home | `FenHome` is `NSHomeDirectory()/.fen`. In a sandbox that is the app container, so the layout is the same. |
-| Network | `URLSession` only in `Shared/AI/`, GeoJSON maps, `GitHubAPI`, and the update check. |
-| Git | `GitTool` starts the `git` program with `Process()`. It returns `nil` on iOS. |
-| MCP | `MCPServer` listens on `127.0.0.1` with `NWListener`. |
-| Updates | The **Check for Updates…** command ([#39](https://github.com/zoharbabin/fen/issues/39)) runs Sparkle, which is embedded in `Contents/Frameworks`. |
-
-## What a sandboxed build changes
-
-| Area | Impact | Plan |
+| | Direct download (`FenMacOSApp`) | Store build (`FenMacOSAppStore`) |
 |---|---|---|
-| Folder access | The sandbox only allows folders you pick. Workspaces already work this way on iOS. | Add `com.apple.security.files.user-selected.read-write` and `com.apple.security.files.bookmarks.app-scope`. Check that `WorkspaceRegistry` resumes scoped access at launch and that indexing and the FSEvents watcher still see changes. |
-| Fen home | `~/.fen` moves to `~/Library/Containers/<bundle id>/Data/.fen`. | No code change expected. Add a test that runs the library against a home in a temp container. Decide how a user finds the folder, since Finder hides it. |
-| Git and GitHub sync | The sandbox is expected to block the `git` program. Test it before trusting this. | Ship the store flavor without git: `GitTool.locate()` returns `nil`, as on iOS. Hide the sync, version and agent-branch features. Doing git without a program (libgit2) is a separate, large project. |
-| MCP server | A listener needs `com.apple.security.network.server`. | Add the entitlement only if we keep MCP in the store flavor. It is off by default. Review it with the same care as the other entitlements. |
-| Network client | Needed for AI providers, model download and maps. | Add `com.apple.security.network.client`. |
-| Local models | A model download is large and starts only when you ask. Models live in `~/.fen/models`, inside the container. | Check App Review rules on downloaded executable content. Weights are data, not code, but confirm before submission. Keep the download user-started and show its size. |
-| JIT | `allow-jit` is in the current build. | Find out why it is there. Build the store flavor without it and test the preview, Mermaid and MathJax. Drop it if nothing breaks. |
-| Update check | The store updates the app, and it rejects an app that replaces itself. | Compile **Check for Updates…** and Sparkle out of the store flavor. |
-| Keychain | Provider keys use the Keychain. | Works in a sandbox. Check the access group. |
+| Sandbox | Off | On |
+| Entitlements | `macOS/Fen.entitlements`: `allow-jit` | `macOS/FenAppStore.entitlements`: sandbox, user-selected read-write files, app-scope bookmarks, network client |
+| `Info.plist` | `macOS/Info.plist` | `macOS/Info-AppStore.plist`: no Sparkle keys, adds the category and the encryption answer |
+| Updates | Sparkle, and the release-page fallback | None. The `APPSTORE` flag removes `AppUpdater` and the **Check for Updates…** command. The target doesn't link Sparkle. |
+| Git (GitHub sync, agent branches, conflict checks) | Uses the system `git` | Off. `GitTool.locate()` returns `nil` when `APP_SANDBOX_CONTAINER_ID` is set, so the UI hides clone and sync, as on iOS. |
+| Fen home | `~/.fen` | `~/Library/Containers/com.zoharbabin.fen/Data/.fen` |
+| MCP server | Works | Off. The sandbox has no `network.server` entitlement and we don't add it, so Settings has no Agents tab (`AppSandbox.isActive()`). |
 
-## Build flow
+## What we ran
 
-1. Add a second app target (or build setting) with its own entitlements file, bundle identifier and a compile flag, for example `APPSTORE`.
-2. Under that flag: no `GitTool`, no update command, no Sparkle, no sync UI.
-3. Sign with an App Store distribution certificate and a provisioning profile. Upload with `xcrun altool` or Transporter from a separate workflow. Never reuse the notarization secrets.
-4. Keep the direct-download build as it is. `release.yml` doesn't change.
+All on one Mac, with an ad hoc signed build (no Apple account needed).
 
-## What we can't confirm from here
+| Question | Answer | How we know |
+|---|---|---|
+| Does `git` run in the sandbox? | `/usr/bin/git` fails (`xcrun: error: cannot be used within an App Sandbox`). The Xcode copy runs, but only on a Mac with Xcode. We turn git off. | A small sandboxed probe that starts each `git` |
+| Is `allow-jit` needed? | No. The store target has no JIT entitlement and no hardened runtime. | `scripts/test-appstore-sandbox.sh`: the editor, the preview and the workspace flows all work. We didn't test every Mermaid and MathJax diagram. |
+| Do folder grants, indexing, search and backlinks work? | Yes. | The `WorkspaceControlsUITests` pass against the sandboxed build |
+| Does a workspace survive a relaunch? | Yes. The saved bookmark resumes. | `testWorkspaceKeepsWorkingAfterRelaunch` |
+| Is the sandbox set up for the data folder? | Yes. `.fen` is inside the container. | Listed the container after a run |
 
-- App Review's view on a user-started model download and on the local MCP server.
-- Whether the sandbox lets `git` run for a granted folder.
-- Whether `allow-jit` is needed.
-- The App Store Connect account, certificates and review. Those need the owner.
+Run it yourself: `scripts/test-appstore-sandbox.sh`. It sets your container's `.fen` aside and puts it back.
 
-## Next step
+## Before you submit
 
-Do the first row of the table in a branch: turn the sandbox on for a debug build, grant a folder, and see what breaks. That answers most of the open questions with a real run.
+These need the owner's Apple Developer account. Everything else is in the repo.
+
+| Step | Where |
+|---|---|
+| Register the App ID `com.zoharbabin.fen` with App Sandbox, and `com.zoharbabin.fen.quicklook`. The team is `CG9APRC4WT` in `project.yml`. | Apple Developer portal, Identifiers |
+| Create an "Apple Distribution" certificate and a Mac App Store provisioning profile for each ID. | Portal, or Xcode > Settings > Accounts |
+| Create the app record in App Store Connect with that bundle ID. | App Store Connect |
+| Archive: `xcodebuild archive -scheme FenMacOSAppStore -project FenUITesting.xcodeproj -destination 'platform=macOS' -archivePath build/Fen.xcarchive`. Set `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION` first. Each upload needs a higher build number. | Your Mac |
+| Upload with Xcode Organizer or Transporter. | Your Mac |
+| Never reuse the notarization secrets. Keep store credentials out of the repo. | |
+
+## Store listing
+
+| Field | Value |
+|---|---|
+| Name | Fen |
+| Category | Productivity (set in `Info-AppStore.plist`) |
+| Privacy policy URL | `https://fen.md/privacy.html` (`site/privacy.html`) |
+| Support URL | `https://github.com/zoharbabin/fen/issues` |
+| Marketing URL | `https://fen.md` |
+| Price | Free |
+| Age rating | Answer the questionnaire in App Store Connect. Fen has no built-in content and no web browsing. |
+| App privacy ("nutrition label") | Data not collected. The app has no analytics and no server. See the policy page for the connections you start yourself. |
+| Export compliance | `ITSAppUsesNonExemptEncryption` is `false`. Fen only uses the encryption built into the system (HTTPS, Keychain). |
+| Privacy manifest | `macOS/PrivacyInfo.xcprivacy`: no tracking, no collected data, the `UserDefaults` and file timestamp reasons |
+| Screenshots | A Mac set is required: 1280x800, 1440x900, 2560x1600 or 2880x1800. Take them from the running app with a sample workspace. We don't generate them. |
+
+Suggested review note: "Fen is a local-first Markdown editor. It reads and writes only files and folders you grant. The only network use is an AI provider address you enter yourself and, if you enable it, map tiles. No account is needed."
+
+## Open questions only App Review can answer
+
+- Whether the user-added AI provider setting, including a local Ollama address, passes review as is.
+
+## Not done
+
+- No archive or upload has been made. That needs the account steps above.
+- We didn't test the store build on an iPhone or iPad. The iOS app is a separate target. Its App Store path needs the same account steps, plus the App Group for the share extension ([IOS-SHARE-EXTENSION.md](IOS-SHARE-EXTENSION.md)).
+- Sandbox denials in the system log weren't reviewed beyond the passing tests.

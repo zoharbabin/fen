@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Fen privacy policy</title>
+  <meta name="description" content="Fen collects no data. It has no accounts, no analytics and no server. This page lists the few network connections you can start.">
+  <link rel="canonical" href="https://fen.md/privacy.html">
+  <link rel="icon" href="img/favicon-32.png">
+  <style>
+    body { font: 16px/1.6 -apple-system, system-ui, sans-serif; max-width: 42rem; margin: 3rem auto; padding: 0 1.25rem; color: #1d1d1f; background: #fff; }
+    @media (prefers-color-scheme: dark) { body { color: #f5f5f7; background: #1d1d1f; } a { color: #6cb6ff; } }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { text-align: left; vertical-align: top; padding: .4rem .6rem; border-bottom: 1px solid #8884; }
+  </style>
+</head>
+<body>
+  <h1>Fen privacy policy</h1>
+  <p><strong>Fen collects no data about you.</strong> It has no accounts, no analytics, no ads and no tracking. We run no server that receives anything from the app.</p>
+
+  <h2>Where your files live</h2>
+  <p>Fen reads and writes only the documents you open and the folders you add as workspaces. Its own data (search index, settings, activity log) stays on your device in the <code>.fen</code> folder of your home directory, or in the app container for the Mac App Store build. If a file sits in iCloud Drive, Apple syncs it under your Apple Account. Fen does not see that traffic.</p>
+
+  <h2>Connections you can start</h2>
+  <p>Fen connects to the network only for these features. Each one is off until you use it.</p>
+  <table>
+    <tr><th>Feature</th><th>Where it connects</th><th>What it sends</th></tr>
+    <tr><td>AI providers you add yourself</td><td>The address you enter. An Ollama server on your own Mac never leaves it.</td><td>The question and the passages you choose to include, plus the API key you saved.</td></tr>
+    <tr><td>GitHub sync</td><td><code>api.github.com</code> and the repository you cloned</td><td>Your repository's content and the token you saved.</td></tr>
+    <tr><td>Check for Updates (direct download only)</td><td><code>github.com/zoharbabin/fen/releases</code></td><td>A request for the newest release.</td></tr>
+    <tr><td>Interactive maps (setting is off by default)</td><td>OpenStreetMap tile servers</td><td>The map tiles your view needs, so the server sees your IP address and the area you view.</td></tr>
+    <tr><td>MCP server (setting is off by default)</td><td>Listens on <code>127.0.0.1</code> only</td><td>Nothing leaves your Mac.</td></tr>
+  </table>
+  <p>API keys and tokens are stored in the system Keychain, not in your documents.</p>
+
+  <h2>Share extension</h2>
+  <p>The iOS share extension saves the text you share into a folder shared with the Fen app on your device. It makes no network connection.</p>
+
+  <h2>Children</h2>
+  <p>Fen collects nothing from anyone, including children.</p>
+
+  <h2>Changes and contact</h2>
+  <p>Fen is open source. This page changes only with the code, and the history is in the <a href="https://github.com/zoharbabin/fen/commits/master/site/privacy.html">repository</a>. Ask questions or report a privacy concern in the <a href="https://github.com/zoharbabin/fen/issues">issue tracker</a>.</p>
+  <p><a href="index.html">Back to fen.md</a></p>
+</body>
+</html>

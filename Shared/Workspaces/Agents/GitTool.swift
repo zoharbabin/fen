@@ -41,9 +41,12 @@ struct GitTool: Sendable {
 
     let executable: URL
 
-    static func locate() -> GitTool? {
+    /// In the sandboxed Mac App Store build git is off: the system `git` is a shim that the sandbox stops,
+    /// and a child process would carry the app's folder access into a program we don't ship (issue #40).
+    static func locate(environment: [String: String] = ProcessInfo.processInfo.environment) -> GitTool? {
         #if os(macOS)
-            (candidates + [selectedDeveloperGit()].compactMap(\.self))
+            guard !AppSandbox.isActive(environment: environment) else { return nil }
+            return (candidates + [selectedDeveloperGit()].compactMap(\.self))
                 .first { FileManager.default.isExecutableFile(atPath: $0) }
                 .map { GitTool(executable: URL(fileURLWithPath: $0)) }
         #else

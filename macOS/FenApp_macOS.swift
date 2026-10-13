@@ -45,9 +45,12 @@ struct FenApp: App {
             Button("About Fen") {
                 openWindow(id: "about")
             }
-            Button("Check for Updates…") {
-                Task { await AppUpdater.checkForUpdates() }
-            }
+            // The App Store updates the app, and it rejects an app that replaces itself (issue #40).
+            #if !APPSTORE
+                Button("Check for Updates…") {
+                    Task { await AppUpdater.checkForUpdates() }
+                }
+            #endif
         }
 
         CommandGroup(replacing: .help) {

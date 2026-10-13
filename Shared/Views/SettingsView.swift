@@ -21,8 +21,11 @@ public struct SettingsView: View {
                 Tab("AI", systemImage: "sparkles") {
                     AISettingsTab()
                 }
-                Tab("Agents", systemImage: "point.3.connected.trianglepath.dotted") {
-                    MCPSettingsTab()
+                // The MCP server needs a listening socket, which the sandboxed App Store build doesn't have.
+                if !AppSandbox.isActive() {
+                    Tab("Agents", systemImage: "point.3.connected.trianglepath.dotted") {
+                        MCPSettingsTab()
+                    }
                 }
             }
             .frame(width: 500)
