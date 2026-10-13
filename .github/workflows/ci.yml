@@ -74,6 +74,37 @@ jobs:
           xcodebuild -project FenUITesting.xcodeproj -scheme FeniOSApp \
             -destination 'generic/platform=iOS Simulator' build CODE_SIGNING_ALLOWED=NO
 
+  build-appstore:
+    name: build Mac App Store target
+    runs-on: macos-15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select latest Xcode
+        run: |
+          LATEST=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -1)
+          [ -n "$LATEST" ] && sudo xcode-select -s "$LATEST"
+
+      # The store build must be sandboxed, carry no Sparkle, and ship its privacy manifest (issue #40).
+      # Ad hoc signing is enough to embed the entitlements. The UI tests that run against it are local:
+      # scripts/test-appstore-sandbox.sh.
+      - name: Build and check
+        run: |
+          brew install xcodegen >/dev/null
+          xcodegen generate
+          xcodebuild -project FenUITesting.xcodeproj -scheme FenMacOSAppStore -destination 'platform=macOS' \
+            -derivedDataPath build build CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM=
+          APP=build/Build/Products/Debug/Fen.app
+          fail() { echo "::error::$1"; exit 1; }
+          codesign -d --entitlements - "$APP" 2>&1 | grep -q com.apple.security.app-sandbox \
+            || fail "The store build is not sandboxed."
+          [ ! -e "$APP/Contents/Frameworks/Sparkle.framework" ] || fail "The store build contains Sparkle."
+          ! otool -L "$APP/Contents/MacOS/Fen" | grep -qi sparkle || fail "The store build links Sparkle."
+          [ -f "$APP/Contents/Resources/PrivacyInfo.xcprivacy" ] || fail "PrivacyInfo.xcprivacy is missing."
+          ! /usr/libexec/PlistBuddy -c "Print :SUFeedURL" "$APP/Contents/Info.plist" >/dev/null 2>&1 \
+            || fail "The store Info.plist has a Sparkle feed."
+
   docs-links:
     name: check doc & site links
     runs-on: ubuntu-latest
