@@ -65,7 +65,7 @@ final class WorkspaceControlsUITests: XCTestCase {
         let predicate = NSPredicate(format: "title == 'Workspaces' OR identifier == 'workspaces'")
         let window = app.windows.matching(predicate).firstMatch
         XCTAssertTrue(window.waitForExistence(timeout: 5))
-        let add = window.toolbars.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Add'")).firstMatch
+        let add = window.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Add'")).firstMatch
         XCTAssertTrue(add.waitForExistence(timeout: 10), "no Add button:\n\(window.debugDescription)")
         add.click()
         let panel = app.sheets.firstMatch
