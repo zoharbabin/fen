@@ -14,7 +14,22 @@ public struct FenHome: Sendable, Equatable {
 
     /// The real `~/.fen`. Only the app entry points should use this.
     public static var standard: FenHome {
-        FenHome(root: URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true).appendingPathComponent(".fen"))
+        #if os(iOS)
+            let onPhone = true
+        #else
+            let onPhone = false
+        #endif
+        return FenHome(root: root(
+            inContainer: URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true),
+            onPhone: onPhone
+        ))
+    }
+
+    /// The top of an iOS app container is read-only, so on iOS the folder goes in `Library`, which the app
+    /// can write. The simulator doesn't enforce this, so only a device shows the difference.
+    static func root(inContainer home: URL, onPhone: Bool) -> URL {
+        let base = onPhone ? home.appendingPathComponent("Library", isDirectory: true) : home
+        return base.appendingPathComponent(".fen", isDirectory: true)
     }
 
     public var workspacesFile: URL {
