@@ -25,25 +25,65 @@ final class LaunchUITests: XCTestCase {
         )
     }
 
-    func testLaunchScreenOffersNewDocumentAndWorkspaces() {
+    private func openWorkspacesList() {
         XCTAssertTrue(app.buttons["New Document"].firstMatch.waitForExistence(timeout: 20), app.debugDescription)
         XCTAssertTrue(app.buttons["Workspaces"].firstMatch.exists)
 
-        app.buttons["More…"].firstMatch.tap()
-        XCTAssertTrue(app.buttons["Workspaces"].firstMatch.waitForExistence(timeout: 10))
-        app.buttons["Workspaces"].firstMatch.tap()
+        // The launch screen keeps a hidden copy of each action. Tap the one you can see. An iPad puts
+        // Workspaces behind More….
+        let visibleWorkspaces = {
+            self.app.buttons.matching(identifier: "Workspaces").allElementsBoundByIndex.first { $0.isHittable }
+        }
+        let more = app.buttons["More…"].firstMatch
+        expectation(for: NSPredicate { _, _ in visibleWorkspaces() != nil || more.isHittable }, evaluatedWith: nil)
+        waitForExpectations(timeout: 20)
+        if visibleWorkspaces() == nil {
+            more.tap()
+        }
+        expectation(for: NSPredicate { _, _ in visibleWorkspaces() != nil }, evaluatedWith: nil)
+        waitForExpectations(timeout: 20)
+        visibleWorkspaces()?.tap()
         // With a workspace already granted, a phone opens inside it. Back shows the list.
         let back = app.navigationBars.buttons["Back"].firstMatch
         if back.waitForExistence(timeout: 5) {
             back.tap()
         }
         XCTAssertTrue(app.navigationBars.buttons["Done"].waitForExistence(timeout: 10), app.debugDescription)
+    }
+
+    func testLaunchScreenOffersNewDocumentAndWorkspaces() {
+        openWorkspacesList()
         // A sheet inside a NavigationStack, or wider than the screen, once hid the Add button (issue #5).
         let add = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Add Folder'")).firstMatch
         XCTAssertTrue(add.waitForExistence(timeout: 10), app.debugDescription)
         XCTAssertTrue(add.isHittable, app.debugDescription)
         app.navigationBars.buttons["Done"].tap()
         XCTAssertTrue(app.buttons["New Document"].firstMatch.waitForExistence(timeout: 10))
+    }
+
+    /// iOS can't run git, so the Workspaces list offers a GitHub copy that uses the API (issue #60).
+    /// Nothing here reaches the network: the form only opens, and Clone waits for an address.
+    func testCloneFromGitHubFormOpensAndWaitsForAnAddress() {
+        openWorkspacesList()
+        var clone = app.buttons["Clone from GitHub…"].firstMatch
+        if !clone.waitForExistence(timeout: 5) {
+            // A wide toolbar folds the extra buttons into More.
+            app.navigationBars.buttons["More"].firstMatch.tap()
+            clone = app.buttons["Clone from GitHub…"].firstMatch
+        }
+        XCTAssertTrue(clone.waitForExistence(timeout: 10), app.debugDescription)
+        XCTAssertTrue(clone.isHittable, app.debugDescription)
+        clone.tap()
+        let submit = app.navigationBars["Clone from GitHub"].buttons["Clone"]
+        XCTAssertTrue(submit.waitForExistence(timeout: 10), app.debugDescription)
+        XCTAssertFalse(submit.isEnabled, "Clone must wait for an address")
+        let address = app.textFields["CloneAddress"]
+        XCTAssertTrue(address.waitForExistence(timeout: 5), app.debugDescription)
+        address.tap()
+        address.typeText("zoharbabin/fen")
+        XCTAssertTrue(submit.isEnabled, "Clone should enable for owner/name")
+        app.navigationBars["Clone from GitHub"].buttons["Cancel"].tap()
+        XCTAssertTrue(app.navigationBars.buttons["Done"].waitForExistence(timeout: 10), app.debugDescription)
     }
 
     func testNewDocumentTakesTypingAndShowsAPreview() {

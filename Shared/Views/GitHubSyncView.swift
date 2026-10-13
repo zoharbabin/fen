@@ -1,6 +1,35 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
+/// The GitHub controls in a workspace header: git on the Mac, a copy through GitHub's API on iOS.
+struct GitHubWorkspaceControls: View {
+    let library: WorkspaceLibrary
+    let gate: WriteGate
+    let workspaceID: UUID
+
+    var body: some View {
+        #if os(iOS)
+            GitHubMirrorControls(library: library, gate: gate, workspaceID: workspaceID)
+        #else
+            GitHubSyncControls(library: library, gate: gate, workspaceID: workspaceID)
+        #endif
+    }
+}
+
+/// Clones a repository: with git on the Mac, through GitHub's API on iOS.
+struct GitHubCloneSheet: View {
+    let library: WorkspaceLibrary
+    let cloned: (Workspace) -> Void
+
+    var body: some View {
+        #if os(iOS)
+            GitHubMirrorCloneView(library: library, cloned: cloned)
+        #else
+            GitHubCloneView(library: library, cloned: cloned)
+        #endif
+    }
+}
+
 /// Sync status and buttons for a workspace whose `origin` is on GitHub (issue #60). It shows nothing for
 /// any other workspace, and only a warning with the reason for one Fen won't sync.
 struct GitHubSyncControls: View {
@@ -152,7 +181,8 @@ struct GitHubTokenView: View {
                 Text("Token for \(repo?.title ?? "GitHub")")
             } footer: {
                 Text(
-                    "Create a fine-grained token for this one repository, with Contents set to Read and write. Fen keeps it in your keychain, on this Mac only."
+                    "Create a fine-grained token for this one repository, with Contents set to Read and write. "
+                        + "Fen keeps it in your keychain, on this device only."
                 )
             }
             HStack {
