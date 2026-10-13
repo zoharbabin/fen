@@ -1,33 +1,36 @@
-# iOS Share Extension: scope and plan
+# iOS Share Extension
 
-Follow-up to [#43](https://github.com/zoharbabin/fen/issues/43). Today you copy text in another app and tap **New from Clipboard** in Fen ([how it works](ARCHITECTURE.md#share-sheet-files-in-place-a-md-file-out)). A Share Extension would add Fen to the share sheet, so the text arrives without a copy step. Nothing here is built yet.
+Part of [#43](https://github.com/zoharbabin/fen/issues/43). Fen is in the iOS share sheet for text and web addresses. The extension leaves a `.md` file in an App Group folder. Fen turns it into a document the next time it opens. The older route still works: copy text, tap **New from Clipboard** ([how it works](ARCHITECTURE.md#share-sheet-files-in-place-a-md-file-out)).
 
-## Why it isn't built
+## How it works
 
-An extension is a second process. It can't write into Fen's documents or container, so it needs an App Group shared with the app. `project.yml` has no team, no iOS entitlements file, and no iOS distribution workflow, so a signed build with an App Group can't exist until the owner sets that up.
+| Piece | Path | Job |
+|---|---|---|
+| Extension | `FenShare/ShareViewController.swift` | Reads shared text, or a web address as a Markdown link. Writes one file into the inbox. Makes no network call and never opens Fen's documents. |
+| Inbox | `Shared/Models/SharedTextInbox.swift` | Names files from the first heading or line, never overwrites, renames used files to `.consumed`, and purges old ones. The extension compiles this file alone, so it uses no other Fen type. |
+| Text cleanup | `Shared/Models/SharedTextImport.swift` | Line endings, control characters, 2 MB cap. Shared with **New from Clipboard**. |
+| Launch button | `SharedInboxButton` in `iOS/FenApp_iOS.swift` | **New from Shared (n)** shows only while files wait. Each tap makes one document. |
 
-## What the owner must provision
+The group is `group.com.zoharbabin.fen`. Both entitlements files (`iOS/Fen.entitlements`, `FenShare/FenShare.entitlements`) grant that and nothing else.
 
-| Step | Where |
+A crash between "make the document" and "mark the file used" loses nothing. Used files go after a day, unread files after thirty.
+
+## Checks
+
+| Check | Status |
 |---|---|
-| Pick the Apple Developer team and set `DEVELOPMENT_TEAM` on the iOS targets. | `project.yml` |
-| Register the App Group, for example `group.com.zoharbabin.fen`. | Apple Developer portal, Identifiers |
-| Register the extension's App ID, `com.zoharbabin.fen-ios.share`, and turn on App Groups for it and for `com.zoharbabin.fen-ios`. | Apple Developer portal, Identifiers |
-| Create provisioning profiles for both IDs. Automatic signing does this once the team is set. | Xcode or the portal |
-| Decide how the iOS app is distributed (TestFlight, App Store). Without that, no user gets the extension. | `docs/RELEASING.md`, a new workflow |
+| `SharedTextInboxTests` (names, collisions, consume, purge, size cap) | Runs in CI |
+| `build iOS app (simulator)` builds the extension and embeds it | Runs in CI |
+| `scripts/test-share-inbox.sh [udid]` signs ad hoc, installs, writes a file into the simulator's group folder, taps **New from Shared** and checks the text and the `.consumed` rename (`ShareInboxUITests`) | Local. Passed on the iPad simulator. |
+| A real share from Safari, Notes and Mail on a device | Not yet run. Needs Developer Mode and a signed build. |
 
-## What we add after that
+Before a release, also run `grep -r "URLSession" Shared macOS iOS FenShare`. It must show no new match.
 
-1. `iOS/Fen.entitlements` and `FenShare/FenShare.entitlements`, each with `com.apple.security.application-groups` set to the group. Nothing else.
-2. A `FenShare` target of type `app-extension` in `project.yml`, embedded in `FeniOSApp`. Its `Info.plist` activates for text and web URLs only: `NSExtensionActivationSupportsText` and `NSExtensionActivationSupportsWebURLWithMaxCount` set to 1. No file or image rule.
-3. The extension reads the shared text, runs it through `SharedTextImport.text(from:)` (already shipped, with a size cap), and writes a `.md` file into `<group container>/Inbox/`. It makes no network call and doesn't open the app's documents.
-4. A pure `SharedTextInbox` type in `Shared/` with tests. It owns the file name (from the first heading or first line, with control characters and `/ : \` removed, cut to 80 characters), a collision-safe name (`Title.md`, `Title 2.md`, ...), and an age limit on unread files.
-5. On launch and when the app becomes active, Fen lists the inbox, makes one new document per file, and deletes each file only after the document is saved. Do this one file at a time, so a crash leaves the rest in place.
+## Signing
 
-## Checks before it ships
+`project.yml` sets `DEVELOPMENT_TEAM` for `FeniOSApp` and `FenShare`. Before the first device or App Store build, register in the Apple Developer portal:
 
-- Run on a device with a signed build, not only in the simulator.
-- A shared selection from Safari, Notes and Mail each becomes one document.
-- Sharing twice with the same title gives two files.
-- An inbox file over the cap, or with no text, is dropped without a crash.
-- `grep -r "URLSession" Shared macOS iOS FenShare` shows no new match.
+- The App Group `group.com.zoharbabin.fen`.
+- App IDs `com.zoharbabin.fen-ios` and `com.zoharbabin.fen-ios.share`, both with App Groups on.
+
+Automatic signing then makes the profiles. The CI build uses `CODE_SIGNING_ALLOWED=NO`, so it needs none of this. Without the entitlement, `SharedTextInbox.standard` is `nil` and the share-sheet import is off. Nothing else changes.

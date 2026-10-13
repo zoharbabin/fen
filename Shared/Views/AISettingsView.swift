@@ -8,6 +8,7 @@ struct AISettingsTab: View {
     @State private var checks: [UUID: String] = [:]
     @State private var errorMessage: String?
     @Bindable private var preferences = Preferences.shared
+    @AppStorage(EmbedderChoice.defaultsKey) private var embedder = EmbedderChoice.apple.rawValue
 
     init(service: AIService = .shared) {
         self.service = service
@@ -43,6 +44,19 @@ struct AISettingsTab: View {
                 Text("Ask AI and Enrich")
             } footer: {
                 Text("Show the result and wait for your click before it changes the document. Undo works either way.")
+            }
+            Section {
+                Picker("Search model", selection: $embedder) {
+                    ForEach(EmbedderChoice.allCases) { Text($0.title).tag($0.rawValue) }
+                }
+            } header: {
+                Text("Search")
+            } footer: {
+                Text(
+                    "Matches by meaning. Both run on this Mac and send nothing out. "
+                        + "EmbeddingGemma needs Ollama running with `embeddinggemma`. Without it, search uses words only. "
+                        + "Applies after you restart Fen, and re-indexes your workspaces."
+                )
             }
             if let errorMessage {
                 Section { Text(errorMessage).foregroundStyle(.red) }

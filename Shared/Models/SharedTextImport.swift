@@ -2,6 +2,7 @@ import Foundation
 
 /// Turns text from outside Fen, such as the clipboard after a Safari selection or a Notes copy, into
 /// the text of a new document (issue #43). Pure, so the rules are testable without a pasteboard.
+/// The share extension compiles this file by itself, so it must not use other Fen types.
 public enum SharedTextImport {
     /// The largest import, in UTF-8 bytes. Text over this is almost certainly a mistaken copy, and
     /// it would make the editor slow to open.
@@ -33,11 +34,6 @@ public enum SharedTextImport {
         guard !cleaned.isEmpty else { return nil }
         guard cleaned.utf8.count < maxBytes else { throw Failure.tooLarge }
         return cleaned + "\n"
-    }
-
-    /// The new document for `raw`, or `nil` when there is nothing to import.
-    public static func document(from raw: String?) throws -> MarkdownDocument? {
-        try text(from: raw).map { MarkdownDocument(text: $0) }
     }
 
     private static func clean(_ raw: String) -> String {

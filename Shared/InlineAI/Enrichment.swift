@@ -204,6 +204,8 @@ enum Enrichment {
             text.removeSubrange(range)
         }
         text = text.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+        // "month. [1]" leaves "month ." once the citation is cut out.
+        text = text.replacingOccurrences(of: #" +([.,;:!?])"#, with: "$1", options: .regularExpression)
         text = text.trimmingCharacters(in: CharacterSet(charactersIn: " (-,"))
         guard text.count >= 3, text.count <= maxFactLength, !hasMarkup(text) else { return nil }
         let sources = cites.map(\.number).reduce(into: [Int]()) {
