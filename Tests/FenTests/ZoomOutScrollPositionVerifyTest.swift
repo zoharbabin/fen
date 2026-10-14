@@ -19,11 +19,11 @@ struct ZoomOutScrollPositionVerifyTest {
     // sourceLineCount: 0 leaves scroll-sync.js's anchor table empty, so
     // sourceFractionForRendered falls through to the rendered fraction unchanged --
     // isolating this test from the anchor interpolation's own noise, which is
-    // unrelated to the zoom-collapse bug this test targets. 25 lines leaves a solid overflow
-    // margin at the default font size, unlike the 15 this used, which landed at exactly 0pt of
-    // overflow -- font-metric differences between WebKit versions/runners could tip that
-    // negative, the actual CI failure mode.
-    private static let markdown = (1 ... 25).map { "Line \($0) of body text." }.joined(separator: "\n\n")
+    // unrelated to the zoom-collapse bug this test targets. 20 lines leaves a solid margin on both
+    // sides: well over the viewport at the default font size, and well under it at the smallest.
+    // 15 landed at exactly 0pt of overflow at the default size, and 25 still overflowed by 7pt at the
+    // smallest, so font-metric differences between WebKit versions/runners tipped each one.
+    private static let markdown = (1 ... 20).map { "Line \($0) of body text." }.joined(separator: "\n\n")
 
     /// Forwards `didFinish` to the real `Coordinator`, then counts it. The coordinator's `didFinish`
     /// kicks off an async scroll-restore (`savedScrollFraction`, 0 on the first load) that
