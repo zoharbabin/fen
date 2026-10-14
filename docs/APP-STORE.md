@@ -36,7 +36,7 @@ These need the owner's Apple Developer account. Everything else is in the repo.
 |---|---|
 | Register the App ID `com.zoharbabin.fen` with App Sandbox, and `com.zoharbabin.fen.quicklook`. The team is `CG9APRC4WT` in `project.yml`. | Done. Xcode did it when it archived with `-allowProvisioningUpdates` |
 | Create the store certificates and a Mac App Store provisioning profile for each ID. | Done. Xcode made them on export, and the profile is "Mac Team Store Provisioning Profile" |
-| Create the app record in App Store Connect with that bundle ID. | Done. The record is "Fen.md". Both 1.0 drafts hold the listing text and screenshots from [APP-STORE-LISTING.md](APP-STORE-LISTING.md). The app-level forms are done too: subtitle, categories, content rights, age rating, privacy answers, price and availability. Still empty: the review contact (name, phone, email) and the build. |
+| Create the app record in App Store Connect with that bundle ID. | Done. The record is "Fen.md". Both 1.0 drafts hold the listing text and screenshots from [APP-STORE-LISTING.md](APP-STORE-LISTING.md). The app-level forms are done too: subtitle, categories, content rights, age rating, privacy answers, price and availability. The Mac build 1.0 (1) is uploaded. Still empty: the review contact (name, phone, email). |
 | Archive: `xcodebuild archive -scheme FenMacOSAppStore -project FenUITesting.xcodeproj -destination 'platform=macOS' -archivePath build/Fen.xcarchive -allowProvisioningUpdates`. Then export a signed `.pkg` with `xcodebuild -exportArchive -exportOptionsPlist <plist> -allowProvisioningUpdates`, using `method` `app-store-connect`, `signingStyle` `automatic` and `destination` `export`. Set `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION` first. Each upload needs a higher build number. | Your Mac |
 | Upload with Xcode Organizer or Transporter. | Your Mac |
 | Never reuse the notarization secrets. Keep store credentials out of the repo. | |
@@ -65,7 +65,7 @@ Suggested review note: "Fen is a local-first Markdown editor. It reads and write
 
 ## Not done
 
-- The archive and the signed `.pkg` export work. No build is uploaded yet. The app record exists, so upload with Transporter or `destination` `upload`.
+- The Mac build 1.0 (1) is uploaded: archive with `MARKETING_VERSION=1.0 CURRENT_PROJECT_VERSION=1`, then `xcodebuild -exportArchive` with `destination` `upload`, which uses the Apple account signed in to Xcode. No iOS build is uploaded yet. Pick the Mac build on the macOS 1.0 draft once it finishes processing.
 - We didn't test the store build on an iPhone or iPad. The iOS app is a separate target. Its App Store path needs the same account steps, plus the App Group for the share extension ([IOS-SHARE-EXTENSION.md](IOS-SHARE-EXTENSION.md)).
 - Xcode builds of the Mac app don't bundle `DocumentIcon.icns`. Only `scripts/build-app.sh` makes it, so `.md` files show a generic icon in the store build.
 - Sandbox denials in the system log weren't reviewed beyond the passing tests.
