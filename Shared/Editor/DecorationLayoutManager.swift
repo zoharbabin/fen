@@ -13,6 +13,8 @@ public extension NSAttributedString.Key {
     static let fenBlockInk = NSAttributedString.Key("FenBlockInk")
     /// Set on a table's separator `|`. The pipe is hidden and the layout manager draws a column line in its place.
     static let fenTablePipe = NSAttributedString.Key("FenTablePipe")
+    /// The number drawn in place of an ordered list marker, with its delimiter: `3.`.
+    static let fenListOrdinal = NSAttributedString.Key("FenListOrdinal")
     /// The picture `DecorationLayoutManager` draws on a rendered block's first line, a `PlatformImage`.
     static let fenBlockImage = NSAttributedString.Key("FenBlockImage")
     /// A `ParagraphStash` holding the paragraph style a block styler replaced.
@@ -34,6 +36,8 @@ public enum BlockDecoration: String {
     case renderedImage
     /// An unordered list marker (`-`, `*`, `+`): the character is hidden and a round bullet is drawn in its place.
     case bullet
+    /// An ordered list marker whose number isn't the one typed: the marker is hidden and the right number is drawn.
+    case number
 }
 
 /// Draws the block decorations Live Preview sets as `fenBlockDecoration` attributes. The text view uses it
@@ -57,6 +61,8 @@ public final class DecorationLayoutManager: NSLayoutManager {
                 drawPicture(over: range, origin: origin, in: storage)
             case .bullet:
                 drawBullet(at: range.location, origin: origin, in: storage)
+            case .number:
+                drawNumber(over: range, origin: origin, in: storage)
             }
         }
         storage.enumerateAttribute(.fenTablePipe, in: characters) { value, range, _ in
@@ -116,12 +122,9 @@ public final class DecorationLayoutManager: NSLayoutManager {
               let container = textContainer(forGlyphAt: glyphs.location, effectiveRange: nil) else { return }
         let line = lineFragmentRect(forGlyphAt: glyphs.location, effectiveRange: nil)
         let column = column(container, origin: origin)
-        let target = CGRect(
-            x: column.x,
-            y: origin.y + line.minY + LivePreviewBlockStyle.pictureMargin,
-            width: min(image.size.width, column.width),
-            height: image.size.height
-        )
+        let size = LivePreviewBlockStyle.displaySize(of: image, column: column.width)
+        let top = origin.y + line.minY + LivePreviewBlockStyle.pictureMargin
+        let target = CGRect(x: column.x, y: top, width: size.width, height: size.height)
         #if canImport(AppKit)
             image.draw(in: target, from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
         #else
@@ -150,6 +153,24 @@ public final class DecorationLayoutManager: NSLayoutManager {
         #endif
     }
 
+    /// Draws the ordinal right-aligned to the hidden marker, on its baseline, as a browser does.
+    private func drawNumber(over characters: NSRange, origin: CGPoint, in storage: NSTextStorage) {
+        guard let label = storage.attribute(.fenListOrdinal, at: characters.location, effectiveRange: nil) as? String,
+              let font = storage.attribute(.font, at: characters.location, effectiveRange: nil) as? PlatformFont
+        else { return }
+        let glyphs = glyphRange(forCharacterRange: characters, actualCharacterRange: nil)
+        guard glyphs.length > 0,
+              let container = textContainer(forGlyphAt: glyphs.location, effectiveRange: nil) else { return }
+        let fragment = lineFragmentRect(forGlyphAt: glyphs.location, effectiveRange: nil)
+        let box = boundingRect(forGlyphRange: glyphs, in: container)
+        let baseline = fragment.minY + location(forGlyphAt: glyphs.location).y
+        let text = NSAttributedString(string: label, attributes: [
+            .font: font, .foregroundColor: ink(at: characters.location, in: storage, alpha: 1),
+        ])
+        let x = origin.x + box.maxX - text.size().width
+        text.draw(at: CGPoint(x: x, y: origin.y + baseline - font.ascender))
+    }
+
     private func drawTableLines(
         _ decoration: BlockDecoration, over characters: NSRange, origin: CGPoint, in storage: NSTextStorage
     ) {
@@ -173,7 +194,7 @@ public final class DecorationLayoutManager: NSLayoutManager {
                 if end >= text.length || text.character(at: end - 1) == 10 {
                     self.fill(CGRect(x: band.minX, y: band.maxY - 1, width: band.width, height: 1), line)
                 }
-            case .rule, .codeBlock, .renderedImage, .bullet:
+            case .rule, .codeBlock, .renderedImage, .bullet, .number:
                 break
             }
         }

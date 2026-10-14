@@ -25,6 +25,7 @@ enum LivePreviewBlockStyle {
         line: String,
         lineStart: Int,
         previousLine: String?,
+        ordinal: Int? = nil,
         storage: NSTextStorage,
         background: PlatformColor
     ) -> Bool {
@@ -37,7 +38,7 @@ enum LivePreviewBlockStyle {
             return true
         }
         if let item = LivePreviewEditing.listItem(line: line, lineStart: lineStart) {
-            styleList(item, lineRange: lineRange, storage: storage, background: background)
+            styleList(item, lineRange: lineRange, ordinal: ordinal, storage: storage, background: background)
         }
         for footnote in LivePreviewEditing.footnoteSpans(in: line, lineStart: lineStart) {
             styleFootnote(footnote, storage: storage, background: background)
@@ -47,7 +48,7 @@ enum LivePreviewBlockStyle {
 
     /// Block attributes. They go wherever they are found.
     private static let blockKeys: [NSAttributedString.Key] = [
-        .fenBlockDecoration, .fenBlockInk, .fenTablePipe, .fenBlockImage, .baselineOffset,
+        .fenBlockDecoration, .fenBlockInk, .fenListOrdinal, .fenTablePipe, .kern, .fenBlockImage, .baselineOffset,
         .livePreviewOriginalParagraphStyle,
     ]
     /// Marker styling. It goes only from runs marked `livePreviewTouched`, because Highlightr sets links and
@@ -96,7 +97,8 @@ enum LivePreviewBlockStyle {
     // MARK: - Lists
 
     private static func styleList(
-        _ item: LivePreviewEditing.ListItem, lineRange: NSRange, storage: NSTextStorage, background: PlatformColor
+        _ item: LivePreviewEditing.ListItem, lineRange: NSRange, ordinal: Int?, storage: NSTextStorage,
+        background: PlatformColor
     ) {
         let font = font(at: item.marker.location, in: storage)
         let attributes: [NSAttributedString.Key: Any] = [.font: font]
@@ -115,7 +117,17 @@ enum LivePreviewBlockStyle {
         }
         stashOriginal(item.marker, in: storage)
         storage.addAttribute(.foregroundColor, value: accentColor, range: item.marker)
-        guard !item.isOrdered, !isTask(item, in: text) else { return }
+        if item.isOrdered {
+            // A number that is already right stays as typed. Another number is drawn over the hidden one.
+            guard let ordinal else { return }
+            let delimiter = text.substring(with: NSRange(location: NSMaxRange(item.marker) - 1, length: 1))
+            storage.addAttribute(.foregroundColor, value: background, range: item.marker)
+            storage.addAttribute(.fenListOrdinal, value: "\(ordinal)\(delimiter)", range: item.marker)
+            decorate(item.marker, as: .number, background: background, in: storage)
+            storage.addAttribute(.fenBlockInk, value: accentColor, range: item.marker)
+            return
+        }
+        guard !isTask(item, in: text) else { return }
         // The dash stays in the text and keeps its width. A round bullet is drawn over it.
         storage.addAttribute(.foregroundColor, value: background, range: item.marker)
         decorate(item.marker, as: .bullet, background: background, in: storage)

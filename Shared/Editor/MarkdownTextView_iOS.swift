@@ -230,6 +230,10 @@
             var baseHorizontalInset: CGFloat = 15
             var verticalInset: CGFloat = 30
             var isWidthLimited = false
+            /// Live Preview sets these. `onLayout` runs after each layout pass, and `livePreviewPictureWidth` is
+            /// the picture width the document was last styled for.
+            var onLayout: (@MainActor () -> Void)?
+            var livePreviewPictureWidth = 0
             var maximumWidth: CGFloat = 800
             /// Reserves room on the left for `EditorGutterView` (issue #21) -- toggling this
             /// re-runs `applyWidthLimitedInset()` so the text container narrows/widens to make
@@ -261,6 +265,7 @@
                 if isWidthLimited {
                     applyWidthLimitedInset()
                 }
+                onLayout?()
             }
 
             /// The caret's bounding rect at `location`, in this text view's own coordinate
