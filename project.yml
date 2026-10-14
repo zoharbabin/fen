@@ -90,6 +90,7 @@ targets:
         CODE_SIGN_ENTITLEMENTS: FenQuickLook/FenQuickLook.entitlements
         GENERATE_INFOPLIST_FILE: false
         CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: CG9APRC4WT
         SKIP_INSTALL: true
     dependencies:
       - package: Fen
