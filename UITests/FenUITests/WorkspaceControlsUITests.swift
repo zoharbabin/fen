@@ -249,6 +249,36 @@ final class WorkspaceControlsUITests: XCTestCase {
         XCTAssertTrue(text.contains("types"), text)
     }
 
+    /// Adding a type in the Document Types sheet reaches `.fen/schema.yaml` (issue #7). The toggle that hides a
+    /// type sits inside a disclosure row that XCUITest cannot open, so hiding is covered by `SchemaTests`.
+    func testAddedTypeIsWrittenToTheSchemaFile() throws {
+        launch()
+        let window = addWorkspace()
+        window.outlineRows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).rightClick()
+        window.outlines.firstMatch.menus.menuItems["Settings…"].click()
+        let settings = app.sheets.firstMatch
+        XCTAssertTrue(settings.waitForExistence(timeout: 5))
+        settings.buttons["Edit Document Types…"].click()
+        app.activate()
+        let sheet = app.sheets.element(boundBy: 1)
+        let add = sheet.buttons["Add Type"].firstMatch
+        XCTAssertTrue(add.waitForExistence(timeout: 10), "no Document Types sheet:\n\(app.debugDescription)")
+        add.click()
+        let save = sheet.buttons["Save"].firstMatch
+        expectation(for: NSPredicate(format: "isEnabled == true"), evaluatedWith: save)
+        waitForExpectations(timeout: 5)
+        save.click()
+        let create = app.sheets.buttons["Create .fen/schema.yaml"].firstMatch
+        XCTAssertTrue(create.waitForExistence(timeout: 5), app.debugDescription)
+        create.click()
+        let schemaFile = root.appendingPathComponent("ws/.fen/schema.yaml")
+        let created = NSPredicate { _, _ in FileManager.default.fileExists(atPath: schemaFile.path) }
+        expectation(for: created, evaluatedWith: nil)
+        waitForExpectations(timeout: 10)
+        let text = try String(contentsOf: schemaFile, encoding: .utf8)
+        XCTAssertTrue(text.contains("NewType"), text)
+    }
+
     /// The Activity sheet opens from the workspace header and closes with Done (issue #140).
     func testActivitySheetOpensAndCloses() {
         launch()
