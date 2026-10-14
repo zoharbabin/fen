@@ -139,6 +139,24 @@ final class StoreScreenshotsUITests: XCTestCase {
         try save("search")
     }
 
+    /// #198: going back from Ask returns to the list, and the next workspace you pick shows its files.
+    func testBackFromAskReturnsToList() {
+        showWorkspaceList()
+        let ask = app.buttons["Ask"].firstMatch.exists ? app.buttons["Ask"].firstMatch : app.switches["Ask"].firstMatch
+        XCTAssertTrue(ask.waitForExistence(timeout: 15), "no Ask toggle")
+        ask.tap()
+        let question = app.textFields["What did we decide about…?"].firstMatch
+        XCTAssertTrue(question.waitForExistence(timeout: 15), "no question field")
+        let back = app.navigationBars.buttons.firstMatch
+        XCTAssertTrue(back.waitForExistence(timeout: 10), "no back button")
+        back.tap()
+        let workspace = app.staticTexts["Trailhead"].firstMatch
+        XCTAssertTrue(workspace.waitForExistence(timeout: 15), "the list did not come back")
+        XCTAssertFalse(question.exists, "Ask is still showing")
+        workspace.tap()
+        XCTAssertTrue(app.staticTexts["Launch plan"].firstMatch.waitForExistence(timeout: 30), "no files after back")
+    }
+
     func testAsk() throws {
         showWorkspaceList()
         let ask = app.buttons["Ask"].firstMatch.exists ? app.buttons["Ask"].firstMatch : app.switches["Ask"].firstMatch

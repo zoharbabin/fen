@@ -14,6 +14,8 @@ OUT=${1:-assets/store/screenshots}
 PLATFORMS=${PLATFORMS:-"mac phone pad"}
 PHONE_NAME=${PHONE_NAME:-"iPhone 17 Pro Max"}
 PAD_NAME=${PAD_NAME:-"iPad Pro 13-inch (M5)"}
+# Set TESTS to run one test, for example TESTS=FeniOSUITests/StoreScreenshotsUITests/testAsk.
+TESTS=${TESTS:-FeniOSUITests/StoreScreenshotsUITests}
 # Set RAW to a folder to keep earlier captures and add to them.
 RAW=${RAW:-$(mktemp -d /tmp/fen-store-raw.XXXXXX)}
 mkdir -p "$RAW"
@@ -80,7 +82,7 @@ json.dump({"version": 1, "providers": [provider], "selectedID": provider["id"]},
 P
     TEST_RUNNER_FEN_STORE_SHOTS_DIR=$RAW nice -n 10 xcodebuild test-without-building -scheme FeniOSApp \
         -project FenUITesting.xcodeproj -destination "id=$udid" -derivedDataPath "$DERIVED" \
-        -only-testing:FeniOSUITests/StoreScreenshotsUITests | tail -3
+        -only-testing:"$TESTS" | tail -3
     xcrun simctl status_bar "$udid" clear
     xcrun simctl shutdown "$udid"
 }
