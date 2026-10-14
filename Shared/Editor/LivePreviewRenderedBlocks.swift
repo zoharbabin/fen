@@ -1,12 +1,14 @@
 import Foundation
 
 /// A block Live Preview shows as a picture of its rendered result: a Mermaid diagram, a map, or `$$` math (issue
-/// #135, phase 3). `range` covers whole lines, line break included.
+/// #135, phase 3). `range` covers whole lines, line break included. `inlineMath` is the kind of picture only: a
+/// formula inside a line is found as a span, not as a block.
 struct RenderedBlock: Equatable {
     enum Kind: String, CaseIterable {
         case mermaid
         case math
         case map
+        case inlineMath
     }
 
     var kind: Kind

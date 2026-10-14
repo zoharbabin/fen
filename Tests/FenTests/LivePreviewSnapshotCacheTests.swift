@@ -118,7 +118,10 @@ func solidImage(_ color: NSColor, width: CGFloat, height: CGFloat) -> NSImage {
 
 extension LivePreviewSnapshots {
     /// A cache with a stub renderer, for tests that don't need WebKit.
-    convenience init(limit: Int = 32, shows kinds: Set<RenderedBlock.Kind> = [], stub: @escaping Render) {
+    convenience init(
+        limit: Int = 32, shows kinds: Set<RenderedBlock.Kind> = [],
+        stub: @escaping @MainActor (Key) async -> NSImage?
+    ) {
         self.init(limit: limit, kinds: { kinds }, render: stub)
     }
 }

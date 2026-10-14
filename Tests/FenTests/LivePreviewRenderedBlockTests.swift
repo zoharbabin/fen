@@ -83,7 +83,7 @@ struct LivePreviewRenderedBlockDetectionTests {
         #expect(LivePreviewSnapshots.enabledKinds(prefs) == [.mermaid])
         prefs.htmlMathJax = true
         prefs.htmlGeoJSONMaps = true
-        #expect(LivePreviewSnapshots.enabledKinds(prefs) == [.mermaid, .math, .map])
+        #expect(LivePreviewSnapshots.enabledKinds(prefs) == [.mermaid, .math, .inlineMath, .map])
     }
 }
 
@@ -277,7 +277,7 @@ struct LivePreviewWebSnapshotTests {
 
     private func render(_ kind: RenderedBlock.Kind, _ source: String, dark: Bool = false) async throws -> NSImage? {
         let prefs = try preferences()
-        return await LivePreviewWebSnapshot.render(key(kind, source, dark: dark), preferences: prefs)
+        return await LivePreviewWebSnapshot.render(key(kind, source, dark: dark), preferences: prefs)?.image
     }
 
     private func key(_ kind: RenderedBlock.Kind, _ source: String, dark: Bool = false) -> LivePreviewSnapshots.Key {
@@ -335,6 +335,58 @@ struct LivePreviewWebSnapshotTests {
             }
         }
         #expect(inkInLastRows > 0, "The last step is in the picture")
+    }
+
+    private func formula(_ source: String, dark: Bool = false) async throws -> LivePreviewSnapshots.Picture? {
+        let prefs = try preferences()
+        prefs.htmlMathJaxInlineDollar = true
+        let key = LivePreviewSnapshots.Key(
+            kind: .inlineMath, source: source, width: LivePreviewSnapshots.inlineWidth, dark: dark
+        )
+        return await LivePreviewWebSnapshot.render(key, preferences: prefs)
+    }
+
+    @Test
+    func aFormulaIsCroppedToItselfWithItsBaseline() async throws {
+        for source in ["$x^2$", #"\(\frac{a}{b}\)"#] {
+            let picture = try #require(try await formula(source), "\(source) renders")
+            #expect(picture.image.size.width > 5 && picture.image.size.width < 120, "\(source) is cropped")
+            #expect(picture.image.size.height > 5 && picture.image.size.height < 80)
+            #expect(picture.baseline > 0 && picture.baseline < picture.image.size.height, "\(source) has a baseline")
+            #expect(try inkShare(of: picture.image) > 0.03)
+        }
+        let power = try #require(try await formula("$x^2$"))
+        let fraction = try #require(try await formula(#"\(\frac{a}{b}\)"#))
+        #expect(
+            fraction.baseline / fraction.image.size.height < power.baseline / power.image.size.height,
+            "A fraction hangs below the baseline more than a power does"
+        )
+    }
+
+    @Test
+    func aMathBlockWithAnUnknownMacroStaysSource() async throws {
+        #expect(try await render(.math, "$$\n\\notamacro{x}\n$$") == nil)
+    }
+
+    @Test
+    func aFormulaThatMathJaxRejectsDoesNotRender() async throws {
+        #expect(try await formula(#"\(\notamacro{x}\)"#) == nil)
+    }
+
+    @Test
+    func aFormulaIsDrawnInLightInkOnADarkEditor() async throws {
+        let image = try #require(try await formula("$x^2$", dark: true)).image
+        let cgImage = try #require(image.cgImage(forProposedRect: nil, context: nil, hints: nil))
+        let bitmap = NSBitmapImageRep(cgImage: cgImage)
+        var brightest = 0.0
+        for y in 0 ..< bitmap.pixelsHigh {
+            for x in 0 ..< bitmap.pixelsWide {
+                if let color = bitmap.colorAt(x: x, y: y)?.usingColorSpace(.sRGB), color.alphaComponent > 0.9 {
+                    brightest = max(brightest, Double(color.redComponent))
+                }
+            }
+        }
+        #expect(brightest > 0.7, "The strokes are light, so they show on a dark background")
     }
 
     @Test

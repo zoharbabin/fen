@@ -88,7 +88,7 @@
                 snapshots.request(key, owner: self) { [weak self] in self?.livePreviewSnapshotReady() }
                 // The last picture of this block stands in while the new one renders.
                 guard let standIn = snapshots.standIn(for: key) else { return false }
-                image = standIn
+                image = standIn.image
             }
             LivePreviewBlockStyle.applyRendered(
                 image, block: block.range, storage: textView.textStorage, background: background, column: column
@@ -112,6 +112,22 @@
             let container = textView.textContainer
             return LivePreviewSnapshots
                 .pictureWidth(forColumn: container.size.width - 2 * container.lineFragmentPadding)
+        }
+
+        /// Shows a formula as its picture when one is ready. The source stays as it is until then, and for a
+        /// formula that fails to render.
+        @MainActor func styleInlineMath(
+            _ span: LivePreviewEditing.Span, source: String, textStorage: NSTextStorage, background: PlatformColor
+        ) {
+            guard let key = LivePreviewSnapshots.key(forFormula: source, background: background),
+                  let picture = LivePreviewSnapshots.shared.resolve(
+                      key, owner: self, onReady: { [weak self] in self?.livePreviewSnapshotReady() }
+                  ) else { return }
+            let range = NSRange(
+                location: span.markerRanges[0].location,
+                length: NSMaxRange(span.markerRanges[1]) - span.markerRanges[0].location
+            )
+            LivePreviewBlockStyle.applyInlineMath(picture, range: range, storage: textStorage, background: background)
         }
 
         @MainActor private func livePreviewSnapshotReady() {
@@ -167,7 +183,10 @@
             textView: MarkdownTextView.MarkdownUITextView,
             pendingOverlaySpans: inout [LivePreviewEditing.Span]
         ) {
-            for inlineSpan in LivePreviewEditing.inlineSpans(in: content, textStart: contentStart) {
+            for inlineSpan in LivePreviewEditing.inlineSpans(
+                in: content, textStart: contentStart,
+                math: LivePreviewSnapshots.mathDelimiters(LivePreviewSnapshots.shared.kinds())
+            ) {
                 applySpan(
                     inlineSpan,
                     textStorage: textStorage,
