@@ -27,6 +27,9 @@ struct OllamaProvider: AIProvider {
     private struct Body: Encodable {
         let model: String
         let stream = true
+        /// Thinking models (Gemma 4) reason for 5 to 30 seconds before the first word, which this
+        /// app never shows. An edit or a summary doesn't need it.
+        let think = false
         let messages: [Message]
     }
 

@@ -149,6 +149,8 @@ struct OllamaProviderTests {
         let body = try #require(JSONSerialization.jsonObject(with: request.body) as? [String: Any])
         #expect(body["model"] as? String == "llama3")
         #expect(body["stream"] as? Bool == true)
+        // Thinking models stall for seconds on a short edit unless thinking is off.
+        #expect(body["think"] as? Bool == false)
     }
 
     @Test("a missing model comes back as a readable error")
