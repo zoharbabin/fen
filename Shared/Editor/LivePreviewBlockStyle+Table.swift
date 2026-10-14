@@ -21,6 +21,8 @@ struct LivePreviewBlockContext {
     private let fenced: [NSRange]
     private let frontMatterEnd: Int
     private let tableRoles: [Int: LivePreviewBlockStyle.TableRole]
+    private let ordinals: [Int: Int]
+    private let tables: [LivePreviewEditing.TableBlock]
     /// Blocks shown as a picture of their rendered result, for the kinds passed to `init`.
     let rendered: [RenderedBlock]
     private let renderedRanges: [NSRange]
@@ -31,12 +33,31 @@ struct LivePreviewBlockContext {
         renderedRanges = rendered.map(\.range)
         frontMatterEnd = LivePreviewEditing.frontMatterRange(text: text).map { NSMaxRange($0) } ?? 0
         var roles: [Int: LivePreviewBlockStyle.TableRole] = [:]
-        for table in LivePreviewEditing.tables(in: text, excluding: fenced) {
+        tables = LivePreviewEditing.tables(in: text, excluding: fenced)
+        for table in tables {
             for (index, line) in table.lines.enumerated() {
                 roles[line.location] = index == 0 ? .header : (index == 1 ? .delimiter : .row)
             }
         }
         tableRoles = roles
+        ordinals = LivePreviewEditing.listOrdinals(in: text, excluding: fenced, frontMatterEnd: frontMatterEnd)
+    }
+
+    /// The tables that have a line in `range`.
+    func tables(touching range: NSRange) -> [LivePreviewEditing.TableBlock] {
+        tables.filter { table in
+            guard let first = table.lines.first, let last = table.lines.last else { return false }
+            return NSIntersectionRange(
+                NSRange(location: first.location, length: NSMaxRange(last) - first.location),
+                range
+            )
+            .length > 0
+        }
+    }
+
+    /// The number an ordered item on the line at `start` shows, when it isn't the number typed.
+    func ordinal(ofLineAt start: Int) -> Int? {
+        ordinals[start]
     }
 
     /// Keeps the last context, so moving the caret in an unchanged document doesn't scan it again.

@@ -12,6 +12,10 @@
     /// Custom NSTextView with scroll-past-end and editor features.
     class MarkdownNSTextView: NSTextView {
         var scrollsPastEnd = true
+        /// Live Preview sets these. `onWidthChange` runs after the view's width changes, and
+        /// `livePreviewPictureWidth` is the picture width the document was last styled for.
+        var onWidthChange: (@MainActor () -> Void)?
+        var livePreviewPictureWidth = 0
         weak var imagePasteCoordinator: ImagePasteCoordinating?
 
         /// Subviews added on top of the text (e.g. the slash-command menu popup, issue #1) that
@@ -235,6 +239,9 @@
             // exactly this check being skipped on resize.
             if widthChanged, isWidthLimited {
                 applyWidthLimitedInset()
+            }
+            if widthChanged {
+                onWidthChange?()
             }
         }
     }

@@ -9,6 +9,7 @@
         @MainActor func styleInactiveLine(
             _ kind: LivePreviewBlockContext.Kind,
             fullRange: NSRange,
+            ordinal: Int? = nil,
             in ns: NSString,
             textView: MarkdownTextView.MarkdownUITextView,
             pendingOverlaySpans: inout [LivePreviewEditing.Span]
@@ -47,6 +48,7 @@
                     line: line,
                     lineStart: contentRange.location,
                     previousLine: previous,
+                    ordinal: ordinal,
                     storage: textStorage,
                     background: background
                 )
@@ -63,8 +65,9 @@
         }
 
         /// Draws `block` as its rendered picture when one is ready, and returns `true`. Returns `false` when the
-        /// lines need ordinary styling: its source is being edited, or the picture is still rendering. A missing
-        /// picture is requested, and the document restyles when it arrives.
+        /// lines need ordinary styling: its source is being edited, or no picture of it exists yet. A missing
+        /// picture is requested, and the document restyles when it arrives. Until then an older picture of the
+        /// same block, from another width, stands in.
         @MainActor func styleRenderedBlock(
             _ block: RenderedBlock, activeRange: NSRange, in ns: NSString,
             textView: MarkdownTextView.MarkdownUITextView
@@ -78,14 +81,37 @@
             guard let key = LivePreviewSnapshots.key(for: block, columnWidth: column, background: background)
             else { return false }
             let snapshots = LivePreviewSnapshots.shared
-            guard let image = snapshots.image(for: key) else {
+            let image: PlatformImage
+            if let cached = snapshots.image(for: key) {
+                image = cached
+            } else {
                 snapshots.request(key, owner: self) { [weak self] in self?.livePreviewSnapshotReady() }
-                return false
+                // The last picture of this block stands in while the new one renders.
+                guard let standIn = snapshots.standIn(for: key) else { return false }
+                image = standIn
             }
             LivePreviewBlockStyle.applyRendered(
-                image, block: block.range, storage: textView.textStorage, background: background
+                image, block: block.range, storage: textView.textStorage, background: background, column: column
             )
             return true
+        }
+
+        /// Notes the picture width this styling was made for, and restyles when a resize changes it, so pictures
+        /// are drawn again at the new width.
+        @MainActor func watchLivePreviewWidth(of textView: MarkdownTextView.MarkdownUITextView) {
+            textView.livePreviewPictureWidth = Self.pictureWidth(of: textView)
+            guard textView.onLayout == nil else { return }
+            textView.onLayout = { [weak self, weak textView] in
+                guard let self, let textView, parent.isLivePreviewEnabled,
+                      textView.livePreviewPictureWidth != Self.pictureWidth(of: textView) else { return }
+                applyLivePreviewStylingIfNeeded(in: textView, fullDocument: true)
+            }
+        }
+
+        private static func pictureWidth(of textView: UITextView) -> Int {
+            let container = textView.textContainer
+            return LivePreviewSnapshots
+                .pictureWidth(forColumn: container.size.width - 2 * container.lineFragmentPadding)
         }
 
         @MainActor private func livePreviewSnapshotReady() {

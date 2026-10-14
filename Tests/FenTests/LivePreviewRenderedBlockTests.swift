@@ -96,45 +96,7 @@ struct LivePreviewRenderedBlockRenderTests {
     private static let blockStart = ("Intro\n\n" as NSString).length
 
     private func makeView(_ text: String) -> (MarkdownNSTextView, MarkdownTextView.Coordinator) {
-        let font = NSFont.monospacedSystemFont(ofSize: 14, weight: .regular)
-        let storage = CodeAttributedString()
-        storage.language = "markdown"
-        storage.highlightr.setTheme(to: "xcode")
-        let layoutManager = DecorationLayoutManager()
-        storage.addLayoutManager(layoutManager)
-        let container = NSTextContainer(size: NSSize(width: 400, height: CGFloat.greatestFiniteMagnitude))
-        layoutManager.addTextContainer(container)
-        let textView = MarkdownNSTextView(frame: NSRect(x: 0, y: 0, width: 400, height: 300), textContainer: container)
-        textView.isEditable = true
-        textView.isRichText = true
-        textView.font = font
-        textView.appearance = NSAppearance(named: .aqua)
-        textView.drawsBackground = true
-        textView.backgroundColor = Self.background
-        textView.string = text
-        let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 400, height: 300),
-            styleMask: [.borderless],
-            backing: .buffered,
-            defer: false
-        )
-        window.contentView = textView
-        let parent = MarkdownTextView(
-            text: .constant(text),
-            font: font,
-            highlightThemeName: "xcode",
-            lineSpacing: 0,
-            horizontalInset: 0,
-            verticalInset: 0,
-            isEditable: true,
-            scrollsPastEnd: false,
-            isLivePreviewEnabled: true,
-            documentURL: nil
-        )
-        let coordinator = parent.makeCoordinator()
-        coordinator.textView = textView
-        storage.highlightDelegate = coordinator
-        return (textView, coordinator)
+        makeLivePreviewView(text, background: Self.background)
     }
 
     /// Runs `body` with a stub renderer that returns a 120 x 60 red picture.
