@@ -23,6 +23,8 @@ final class WorkspaceControlsUITests: XCTestCase {
             .write(to: notes.appendingPathComponent("plan.md"), atomically: true, encoding: .utf8)
         try "---\ntype: Task\nstatsu: done\n---\n\n# Ship it\n"
             .write(to: notes.appendingPathComponent("task.md"), atomically: true, encoding: .utf8)
+        try "# Offer\n\n## Pricing\n\nThe pricing is twelve dollars a month.\n"
+            .write(to: notes.appendingPathComponent("offer.md"), atomically: true, encoding: .utf8)
         try "# Roadmap\n\nSee [[plan]] for the numbers.\n"
             .write(to: notes.appendingPathComponent("roadmap.md"), atomically: true, encoding: .utf8)
     }
@@ -215,6 +217,26 @@ final class WorkspaceControlsUITests: XCTestCase {
         expectation(for: fixed, evaluatedWith: editor)
         waitForExpectations(timeout: 10)
         XCTAssertFalse(fix.waitForExistence(timeout: 2), "the hint stays after the fix")
+    }
+
+    /// Resting the pointer on an outline heading looks up related documents for its section (issue #8).
+    func testRestingOnAnOutlineHeadingShowsRelatedDocuments() {
+        launch(opening: "offer.md")
+        let workspaces = addWorkspace()
+        workspaces.typeKey("w", modifierFlags: .command)
+        let document = app.windows["offer.md"]
+        XCTAssertTrue(document.waitForExistence(timeout: 5))
+        document.buttons["OutlineToggleButton"].click()
+        let heading = document.outlines["OutlineSidebar"].buttons["Pricing"].firstMatch
+        XCTAssertTrue(heading.waitForExistence(timeout: 10), "no outline row:\n\(document.debugDescription)")
+        // The lookup waits for the pointer to rest on the row, and for the workspace index.
+        let card = document.descendants(matching: .any).matching(identifier: "RelatedSuggestions").firstMatch
+        for _ in 0 ..< 10 where !card.exists {
+            heading.hover()
+            _ = card.waitForExistence(timeout: 5)
+        }
+        XCTAssertTrue(card.exists, "no related documents:\n\(document.debugDescription)")
+        XCTAssertTrue(card.staticTexts.matching(NSPredicate(format: "value CONTAINS 'plan'")).firstMatch.exists)
     }
 
     /// The Document Types sheet opens from workspace settings, and Save creates `.fen/schema.yaml` (issue #7).
