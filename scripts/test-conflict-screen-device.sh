@@ -7,7 +7,7 @@
 set -euo pipefail
 [ $# -eq 1 ] || { echo "usage: $0 <device UDID>" >&2; exit 2; }
 DEVICE=$1
-BUNDLE=com.zoharbabin.fen-ios
+BUNDLE=com.zoharbabin.fen
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
 

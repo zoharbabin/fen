@@ -15,9 +15,9 @@ xcodebuild build-for-testing -scheme FeniOSApp -project FenUITesting.xcodeproj -
 APP="$(xcodebuild -scheme FeniOSApp -project FenUITesting.xcodeproj -destination "$DEST" -showBuildSettings $SIGN \
     | sed -n 's/^ *TARGET_BUILD_DIR = //p' | head -1)/Fen.app"
 xcrun simctl install "$UDID" "$APP"
-xcrun simctl launch "$UDID" com.zoharbabin.fen-ios >/dev/null
-xcrun simctl terminate "$UDID" com.zoharbabin.fen-ios
-GROUP="$(xcrun simctl get_app_container "$UDID" com.zoharbabin.fen-ios groups | sed -n 's/^group.com.zoharbabin.fen\t//p')"
+xcrun simctl launch "$UDID" com.zoharbabin.fen >/dev/null
+xcrun simctl terminate "$UDID" com.zoharbabin.fen
+GROUP="$(xcrun simctl get_app_container "$UDID" com.zoharbabin.fen groups | sed -n 's/^group.com.zoharbabin.fen\t//p')"
 [ -n "$GROUP" ] || { echo "The app has no App Group container. Is it signed with the entitlement?" >&2; exit 1; }
 TEST_RUNNER_FEN_SHARE_INBOX="$GROUP/Inbox" xcodebuild test-without-building -scheme FeniOSApp -project FenUITesting.xcodeproj \
     -destination "$DEST" -only-testing:FeniOSUITests/ShareInboxUITests $SIGN
