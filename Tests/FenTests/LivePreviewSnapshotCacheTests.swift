@@ -55,6 +55,22 @@ struct LivePreviewSnapshotCacheTests {
         #expect(snapshots.image(for: key()) == nil)
     }
 
+    @Test func aFailureIsTriedAgainAfterTheWait() async throws {
+        var calls = 0
+        let snapshots = LivePreviewSnapshots(retryAfter: .zero, kinds: { [] }, render: { _ in
+            calls += 1
+            return calls == 1 ? nil : solidImage(.red, width: 10, height: 10)
+        } as @MainActor (LivePreviewSnapshots.Key) async -> PlatformImage?)
+        let owner = NSObject()
+        snapshots.request(key(), owner: owner) {}
+        let first = try await pollUntilTrue { calls == 1 && !snapshots.hasFailed(key()) }
+        #expect(first, "A failure past the wait no longer counts")
+        snapshots.request(key(), owner: owner) {}
+        let second = try await pollUntilTrue { snapshots.image(for: key()) != nil }
+        #expect(second)
+        #expect(calls == 2)
+    }
+
     @Test func rendersOneAtATime() async throws {
         var running = 0
         var most = 0
@@ -118,7 +134,10 @@ func solidImage(_ color: NSColor, width: CGFloat, height: CGFloat) -> NSImage {
 
 extension LivePreviewSnapshots {
     /// A cache with a stub renderer, for tests that don't need WebKit.
-    convenience init(limit: Int = 32, shows kinds: Set<RenderedBlock.Kind> = [], stub: @escaping Render) {
+    convenience init(
+        limit: Int = 32, shows kinds: Set<RenderedBlock.Kind> = [],
+        stub: @escaping @MainActor (Key) async -> NSImage?
+    ) {
         self.init(limit: limit, kinds: { kinds }, render: stub)
     }
 }

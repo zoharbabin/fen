@@ -234,6 +234,8 @@
             /// the picture width the document was last styled for.
             var onLayout: (@MainActor () -> Void)?
             var livePreviewPictureWidth = 0
+            /// Whether a `LivePreviewSettingsWatch` is running for this view.
+            var isWatchingLivePreviewSettings = false
             var maximumWidth: CGFloat = 800
             /// Reserves room on the left for `EditorGutterView` (issue #21) -- toggling this
             /// re-runs `applyWidthLimitedInset()` so the text container narrows/widens to make

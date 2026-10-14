@@ -69,6 +69,10 @@ public final class DecorationLayoutManager: NSLayoutManager {
             guard value != nil else { return }
             drawColumnLine(at: range.location, origin: origin, in: storage)
         }
+        storage.enumerateAttribute(.fenInlinePicture, in: characters) { value, range, _ in
+            guard let picture = value as? InlinePicture else { return }
+            drawFormula(picture, run: range, origin: origin, in: storage)
+        }
     }
 
     // MARK: - Shapes
@@ -129,6 +133,34 @@ public final class DecorationLayoutManager: NSLayoutManager {
             image.draw(in: target, from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
         #else
             image.draw(in: target)
+        #endif
+    }
+
+    /// Draws a formula where its hidden source starts, on the line's baseline. A formula that wraps is drawn on
+    /// the line it starts on. `run` can be a clipped piece of a redraw, so the run's start is looked up first.
+    private func drawFormula(_ picture: InlinePicture, run: NSRange, origin: CGPoint, in storage: NSTextStorage) {
+        var whole = NSRange()
+        _ = storage.attribute(
+            .fenInlinePicture, at: run.location, longestEffectiveRange: &whole,
+            in: NSRange(location: 0, length: storage.length)
+        )
+        let glyph = glyphIndexForCharacter(at: whole.location)
+        guard let container = textContainer(forGlyphAt: glyph, effectiveRange: nil) else { return }
+        let fragment = lineFragmentRect(forGlyphAt: glyph, effectiveRange: nil)
+        let box = boundingRect(forGlyphRange: NSRange(location: glyph, length: 1), in: container)
+        let baseline = fragment.minY + location(forGlyphAt: glyph).y
+        let target = CGRect(
+            x: origin.x + box.minX + LivePreviewBlockStyle.formulaMargin,
+            y: origin.y + baseline - picture.baseline,
+            width: picture.image.size.width,
+            height: picture.image.size.height
+        )
+        #if canImport(AppKit)
+            picture.image.draw(
+                in: target, from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil
+            )
+        #else
+            picture.image.draw(in: target)
         #endif
     }
 
