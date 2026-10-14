@@ -36,7 +36,7 @@ These need the owner's Apple Developer account. Everything else is in the repo.
 |---|---|
 | Register the App ID `com.zoharbabin.fen` with App Sandbox, and `com.zoharbabin.fen.quicklook`. The team is `CG9APRC4WT` in `project.yml`. | Done. Xcode did it when it archived with `-allowProvisioningUpdates` |
 | Create the store certificates and a Mac App Store provisioning profile for each ID. | Done. Xcode made them on export, and the profile is "Mac Team Store Provisioning Profile" |
-| Create the app record in App Store Connect with that bundle ID. | Done. The record is "Fen.md". Both 1.0 drafts hold the listing text and screenshots from [APP-STORE-LISTING.md](APP-STORE-LISTING.md). Still empty: the review contact (name, phone, email), the build, and the questionnaires. |
+| Create the app record in App Store Connect with that bundle ID. | Done. The record is "Fen.md". Both 1.0 drafts hold the listing text and screenshots from [APP-STORE-LISTING.md](APP-STORE-LISTING.md). The app-level forms are done too: subtitle, categories, content rights, age rating, privacy answers, price and availability. Still empty: the review contact (name, phone, email) and the build. |
 | Archive: `xcodebuild archive -scheme FenMacOSAppStore -project FenUITesting.xcodeproj -destination 'platform=macOS' -archivePath build/Fen.xcarchive -allowProvisioningUpdates`. Then export a signed `.pkg` with `xcodebuild -exportArchive -exportOptionsPlist <plist> -allowProvisioningUpdates`, using `method` `app-store-connect`, `signingStyle` `automatic` and `destination` `export`. Set `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION` first. Each upload needs a higher build number. | Your Mac |
 | Upload with Xcode Organizer or Transporter. | Your Mac |
 | Never reuse the notarization secrets. Keep store credentials out of the repo. | |
@@ -50,9 +50,9 @@ These need the owner's Apple Developer account. Everything else is in the repo.
 | Privacy policy URL | `https://fen.md/privacy.html` (`site/privacy.html`) |
 | Support URL | `https://github.com/zoharbabin/fen/issues` |
 | Marketing URL | `https://fen.md` |
-| Price | Free |
-| Age rating | Answer the questionnaire in App Store Connect. Fen has no built-in content and no web browsing. |
-| App privacy ("nutrition label") | Data not collected. The app has no analytics and no server. See the policy page for the connections you start yourself. |
+| Price | Free in all 175 regions. Set in App Store Connect. |
+| Age rating | 4+. Every question is answered No or None. Set in App Store Connect. |
+| App privacy ("nutrition label") | Data not collected, and published in App Store Connect. The app has no analytics and no server. See the policy page for the connections you start yourself. |
 | Export compliance | `ITSAppUsesNonExemptEncryption` is `false`. Fen only uses the encryption built into the system (HTTPS, Keychain). |
 | Privacy manifest | `macOS/PrivacyInfo.xcprivacy`: no tracking, no collected data, the `UserDefaults` and file timestamp reasons |
 | Screenshots and icon | Made by `scripts/make-store-screenshots.sh` and listed in [APP-STORE-LISTING.md](APP-STORE-LISTING.md), together with the description, keywords and review notes |
