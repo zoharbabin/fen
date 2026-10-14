@@ -9,10 +9,18 @@ extension LivePreviewBlockStyle {
     /// Space above and below a picture.
     static let pictureMargin: CGFloat = 4
 
+    /// The size `image` is drawn at in a column `column` wide: its own size, or smaller with the same shape when
+    /// the column is narrower.
+    static func displaySize(of image: PlatformImage, column: CGFloat) -> CGSize {
+        guard image.size.width > column, image.size.width > 0 else { return image.size }
+        let scale = column / image.size.width
+        return CGSize(width: column, height: (image.size.height * scale).rounded(.up))
+    }
+
     /// Replaces a block's lines with `image`. The text shrinks to nothing and stays in the document. The first
     /// line grows to the picture's height, and `DecorationLayoutManager` draws the picture there.
     static func applyRendered(
-        _ image: PlatformImage, block: NSRange, storage: NSTextStorage, background: PlatformColor
+        _ image: PlatformImage, block: NSRange, storage: NSTextStorage, background: PlatformColor, column: CGFloat
     ) {
         guard block.length > 0 else { return }
         let first = (storage.string as NSString).lineRange(for: NSRange(location: block.location, length: 0))
@@ -24,7 +32,7 @@ extension LivePreviewBlockStyle {
         storage.enumerateAttribute(.paragraphStyle, in: first) { value, subrange, _ in
             let style = (value as? NSParagraphStyle)?.mutableCopy() as? NSMutableParagraphStyle
                 ?? NSMutableParagraphStyle()
-            let height = image.size.height + 2 * pictureMargin
+            let height = displaySize(of: image, column: column).height + 2 * pictureMargin
             style.minimumLineHeight = height
             style.maximumLineHeight = height
             storage.addAttribute(.paragraphStyle, value: style, range: subrange)
