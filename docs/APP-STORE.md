@@ -55,7 +55,7 @@ These need the owner's Apple Developer account. Everything else is in the repo.
 | App privacy ("nutrition label") | Data not collected. The app has no analytics and no server. See the policy page for the connections you start yourself. |
 | Export compliance | `ITSAppUsesNonExemptEncryption` is `false`. Fen only uses the encryption built into the system (HTTPS, Keychain). |
 | Privacy manifest | `macOS/PrivacyInfo.xcprivacy`: no tracking, no collected data, the `UserDefaults` and file timestamp reasons |
-| Screenshots | A Mac set is required: 1280x800, 1440x900, 2560x1600 or 2880x1800. Take them from the running app with a sample workspace. We don't generate them. |
+| Screenshots and icon | Made by `scripts/make-store-screenshots.sh` and listed in [APP-STORE-LISTING.md](APP-STORE-LISTING.md), together with the description, keywords and review notes |
 
 Suggested review note: "Fen is a local-first Markdown editor. It reads and writes only files and folders you grant. The only network use is an AI provider address you enter yourself and, if you enable it, map tiles. No account is needed."
 
@@ -67,4 +67,5 @@ Suggested review note: "Fen is a local-first Markdown editor. It reads and write
 
 - No archive or upload has been made. That needs the account steps above.
 - We didn't test the store build on an iPhone or iPad. The iOS app is a separate target. Its App Store path needs the same account steps, plus the App Group for the share extension ([IOS-SHARE-EXTENSION.md](IOS-SHARE-EXTENSION.md)).
+- Xcode builds of the Mac app don't bundle `DocumentIcon.icns`. Only `scripts/build-app.sh` makes it, so `.md` files show a generic icon in the store build.
 - Sandbox denials in the system log weren't reviewed beyond the passing tests.

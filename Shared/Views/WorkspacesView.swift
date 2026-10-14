@@ -11,6 +11,8 @@ public struct WorkspacesView: View {
         @Environment(\.openDocument) private var openDocument
     #endif
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.horizontalSizeClass) private var sizeClass
+    @State private var compactColumn: NavigationSplitViewColumn = .sidebar
     @State private var selection: UUID?
     @State private var showingImporter = false
     @State private var message: String?
@@ -34,8 +36,13 @@ public struct WorkspacesView: View {
     }
 
     public var body: some View {
-        NavigationSplitView {
-            sidebar
+        NavigationSplitView(preferredCompactColumn: $compactColumn) {
+            // A compact layout shows one column at a time, so search results take over the list.
+            if sizeClass == .compact, isSearching, !showingAsk {
+                searchResults
+            } else {
+                sidebar
+            }
         } detail: {
             if showingAsk {
                 AskView(library: library, service: .shared, initialWorkspace: selection, open: openPassage)
@@ -87,6 +94,9 @@ public struct WorkspacesView: View {
         }
         .onChange(of: panelRequest.isRequested) { _, _ in showAskIfRequested() }
         .onChange(of: selection) { _, new in library.setCurrent(new) }
+        // A compact layout stays on the list unless told to show Ask. Going back to the list turns Ask off.
+        .onChange(of: showingAsk) { _, on in compactColumn = on ? .detail : .sidebar }
+        .onChange(of: compactColumn) { _, column in showingAsk = showingAsk && column != .sidebar }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {
                 library.refreshAll()
@@ -554,7 +564,7 @@ private struct WorkspaceDetailView: View {
                 )
             } else {
                 List(tree, children: \.children) { node in
-                    FileRow(node: node)
+                    Label(node.name, systemImage: node.isFolder ? "folder" : "doc.text")
                         .contentShape(Rectangle())
                         .onTapGesture(count: tapsToOpen) {
                             if let file = node.file {
@@ -584,13 +594,5 @@ private struct WorkspaceDetailView: View {
     private func gitText(_ git: GitRepositoryState) -> String {
         let dirty = git.isDirty == true ? " · changes" : ""
         return (git.isDetached ? "Detached at " : "") + git.branch + dirty
-    }
-}
-
-private struct FileRow: View {
-    let node: FileTreeNode
-
-    var body: some View {
-        Label(node.name, systemImage: node.isFolder ? "folder" : "doc.text")
     }
 }

@@ -35,6 +35,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.zoharbabin.fen
         PRODUCT_NAME: Fen
         INFOPLIST_FILE: macOS/Info.plist
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         CODE_SIGN_ENTITLEMENTS: macOS/Fen.entitlements
         GENERATE_INFOPLIST_FILE: false
         ENABLE_HARDENED_RUNTIME: true
@@ -63,6 +64,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.zoharbabin.fen
         PRODUCT_NAME: Fen
         INFOPLIST_FILE: macOS/Info-AppStore.plist
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         CODE_SIGN_ENTITLEMENTS: macOS/FenAppStore.entitlements
         GENERATE_INFOPLIST_FILE: false
         SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) APPSTORE"
@@ -106,6 +108,7 @@ targets:
         PRODUCT_NAME: Fen
         INFOPLIST_FILE: iOS/Info.plist
         CODE_SIGN_ENTITLEMENTS: iOS/Fen.entitlements
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         GENERATE_INFOPLIST_FILE: false
         CODE_SIGN_STYLE: Automatic
         DEVELOPMENT_TEAM: CG9APRC4WT

@@ -132,7 +132,12 @@ private struct WorkspacesSheet: View {
             while let presented = top.presentedViewController {
                 top = presented
             }
-            top.present(UIHostingController(rootView: WorkspacesSheet()), animated: true)
+            let controller = UIHostingController(rootView: WorkspacesSheet())
+            // A form sheet on iPad is too narrow for the list and the detail side by side.
+            if UIDevice.current.userInterfaceIdiom == .pad {
+                controller.modalPresentationStyle = .fullScreen
+            }
+            top.present(controller, animated: true)
         #endif
     }
 }
