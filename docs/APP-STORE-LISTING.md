@@ -2,7 +2,7 @@
 
 Part of [#40](https://github.com/zoharbabin/fen/issues/40). Paste these into App Store Connect. The build side is in [APP-STORE.md](APP-STORE.md).
 
-The same text works for the Mac and iOS records. Where they differ, the table says so.
+The same text works for the Mac and iOS records, except the Mac block in the description. Where they differ, the table says so.
 
 ## Text
 
@@ -10,7 +10,7 @@ The same text works for the Mac and iOS records. Where they differ, the table sa
 |---|---|---|
 | Name | 30 | Fen.md ("Fen" is taken in the store) |
 | Subtitle | 30 | Markdown notes that connect |
-| Promotional text | 170 | Write Markdown with a live preview. Search your notes by meaning and ask questions across them. Your files stay plain `.md` files on your device. Free and open source. |
+| Promotional text | 170 | Write in Markdown. Link notes, search by meaning, ask questions and get answers with sources. Plain .md files, AI on your terms, no account. Free, open source. |
 | Keywords | 100 | markdown,notes,editor,writing,preview,mermaid,latex,obsidian,knowledge,wiki,local,private,search |
 | Category | | Productivity |
 | Secondary category | | Developer Tools |
@@ -19,36 +19,54 @@ The same text works for the Mac and iOS records. Where they differ, the table sa
 
 ### Description
 
+The iOS record uses this text.
+
 ```text
-Fen is a Markdown editor that keeps your notes as plain files and helps you find what's in them.
+Fen is a native Markdown editor that turns a folder of plain files into a knowledge base you can search, question and trust. Your notes stay .md files you own. No import, no vault, no lock-in.
 
 WRITE
-• Edit on one side and see the result on the other. Both sides scroll together.
-• GitHub-style Markdown: tables, task lists, footnotes, callouts and strikethrough.
-• Math with MathJax, diagrams with Mermaid, and syntax highlighting in code blocks.
-• Slash commands, an outline sidebar, focus mode and a formatting toolbar.
+• Edit on one side, see the result on the other. Both sides scroll together.
+• Live Preview (experimental) hides the Markdown marks as you type and draws tables, formulas and diagrams in place.
+• GitHub-style Markdown: tables, task lists, footnotes, callouts, highlights and emoji.
+• Math with MathJax, diagrams with Mermaid, maps from GeoJSON, 3D models from STL, and syntax highlighting.
+• Slash commands, an outline sidebar, focus mode, a formatting toolbar and Vim keys on the Mac.
 • Paste or drop an image and Fen saves it next to your note.
 • Export to HTML or PDF, and print.
 
-FIND
-• Add any folder as a workspace. Fen lists its notes without opening each one.
-• Search all your workspaces at once, by words or by meaning.
-• See related notes while you write.
-• Ask a question and get an answer with links to the notes it came from.
+CONNECT
+• Link notes with [[wiki links]] and see every note that links back.
+• Add any folder as a workspace. Fen lists and indexes its notes without opening each one.
+• Give notes a type, such as Person, Project or Meeting, with properties you define in a plain file.
+• Related notes appear while you write.
 
-YOURS
-• Your notes are plain .md files in folders you choose. There is no import and no lock-in.
+FIND AND ASK
+• Search every workspace at once, by words or by meaning.
+• Ask a question and get an answer with links to the notes it came from.
+• Conflicts finds notes that now disagree, such as two different deadlines.
+• Rewrite a selection or enrich bullets with AI. One Undo brings the old text back.
+
+AI ON YOUR TERMS
+• AI is off until you add a provider. Run a local model with Ollama and nothing leaves your device.
+• AI never writes to your files by itself. You decide whether each change waits for your approval, and every change can be undone.
 • No account, no analytics, no ads, no tracking.
-• Meaning search and answers run on a model you add. A local Ollama model never leaves your device.
-• Free and open source under the MIT license.
 
 ON EVERY DEVICE
 • Mac, iPad and iPhone share one engine, so a note looks the same everywhere.
-• Use iCloud Drive, Files or a GitHub repository to carry your notes between devices.
-• iPad supports hardware keyboards and the same shortcuts as the Mac.
+• Carry notes with iCloud Drive or Files, or copy a GitHub repository and sync it from the app.
+• Version history shows earlier versions of a note and restores one.
+• iPad supports hardware keyboards and the Mac shortcuts.
 • On iPhone, share text from Safari or any app straight into a new note.
 
-Source code and issues: github.com/zoharbabin/fen
+Free and open source under the MIT license. Source code and issues: github.com/zoharbabin/fen
+```
+
+The Mac record adds this block before the last line. MCP, agent branches and Quick Look exist only on the Mac.
+
+```text
+FOR THE MAC
+• Let an AI tool such as Claude Code read your notes over a local MCP server. It is off by default and listens only on your Mac.
+• A tool that writes works on its own git branch, so your checkout stays as it is.
+• Quick Look shows .md files in Finder.
 ```
 
 Check the claims before you paste: each line is a feature in the [README](../README.md) or [ARCHITECTURE.md](ARCHITECTURE.md). Change the text when the app changes.
