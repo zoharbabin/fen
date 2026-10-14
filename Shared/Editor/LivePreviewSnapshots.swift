@@ -8,7 +8,8 @@ import WebKit
 
 /// Pictures of rendered blocks for Live Preview (issue #135, phase 3). A block renders once in an offscreen web
 /// view, one at a time, and the picture is cached until the block, the width or the appearance changes. A block
-/// that fails to render is remembered, so its source stays visible and nothing retries on every keystroke.
+/// that fails to render is remembered for a minute, so its source stays visible and nothing retries on every
+/// keystroke. After that it may try again, in case the failure was a timeout.
 @MainActor
 final class LivePreviewSnapshots {
     struct Key: Hashable {
@@ -49,15 +50,17 @@ final class LivePreviewSnapshots {
     private let inlineLimit: Int
     private var cache: [Key: Picture] = [:]
     private var recent: [Key] = []
-    private var failed: Set<Key> = []
+    private var failed: [Key: ContinuousClock.Instant] = [:]
+    private let retryAfter: Duration
     private var queue: [Key] = []
     private var waiting: [Key: [ObjectIdentifier: @MainActor () -> Void]] = [:]
     private var isRunning = false
 
     init(
-        limit: Int = 32, inlineLimit: Int = 512,
+        limit: Int = 32, inlineLimit: Int = 512, retryAfter: Duration = .seconds(60),
         kinds: @escaping @MainActor () -> Set<RenderedBlock.Kind>, render: @escaping Render
     ) {
+        self.retryAfter = retryAfter
         self.limit = limit
         self.inlineLimit = inlineLimit
         self.kinds = kinds
@@ -66,11 +69,11 @@ final class LivePreviewSnapshots {
 
     /// For renderers that draw only a picture.
     convenience init(
-        limit: Int = 32, inlineLimit: Int = 512,
+        limit: Int = 32, inlineLimit: Int = 512, retryAfter: Duration = .seconds(60),
         kinds: @escaping @MainActor () -> Set<RenderedBlock.Kind>,
         render: @escaping @MainActor (Key) async -> PlatformImage?
     ) {
-        self.init(limit: limit, inlineLimit: inlineLimit, kinds: kinds) { key in
+        self.init(limit: limit, inlineLimit: inlineLimit, retryAfter: retryAfter, kinds: kinds) { key in
             await render(key).map { Picture(image: $0) }
         }
     }
@@ -170,14 +173,20 @@ final class LivePreviewSnapshots {
         return standIn(for: key)
     }
 
+    /// Whether `key` failed lately. A failure older than `retryAfter` doesn't count.
     func hasFailed(_ key: Key) -> Bool {
-        failed.contains(key)
+        guard let when = failed[key] else { return false }
+        if ContinuousClock.now - when >= retryAfter {
+            failed[key] = nil
+            return false
+        }
+        return true
     }
 
     /// Renders `key` unless it is cached, failed or already queued. `onReady` runs once when the picture is
     /// cached, and never for a failure. One callback per `owner` and key: asking again replaces the earlier one.
     func request(_ key: Key, owner: AnyObject, onReady: @escaping @MainActor () -> Void) {
-        guard cache[key] == nil, !failed.contains(key) else { return }
+        guard cache[key] == nil, !hasFailed(key) else { return }
         let isNew = waiting[key] == nil
         waiting[key, default: [:]][ObjectIdentifier(owner)] = onReady
         if isNew {
@@ -202,7 +211,7 @@ final class LivePreviewSnapshots {
                     callback()
                 }
             } else {
-                failed.insert(key)
+                failed[key] = .now
             }
             pump()
         }
@@ -223,6 +232,8 @@ final class LivePreviewSnapshots {
 @MainActor
 enum LivePreviewWebSnapshot {
     private static let timeout = Duration.seconds(20)
+    /// What MathJax leaves in the page for a formula it can't read, including an unknown macro.
+    private static let mathError = "mjx-merror, [data-mml-node=merror], mtext[mathcolor=red]"
     /// The tallest picture, in points. A taller block is scaled down to this height, not cut off.
     static let maxPictureHeight: CGFloat = 1600
     /// The tallest block we lay out and snapshot. WebKit can't draw much more than this in one piece.
@@ -297,7 +308,7 @@ enum LivePreviewWebSnapshot {
             s.setProperty('padding', '0', 'important');
             s.setProperty('max-width', 'none', 'important');
             var math = document.querySelector('#fen-formula mjx-container svg');
-            if (!math || document.querySelector('mjx-merror, [data-mml-node=merror], mtext[mathcolor=red]')) { return null; }
+            if (!math || document.querySelector('\(mathError)')) { return null; }
             var box = math.getBoundingClientRect();
             var baseline = document.getElementById('fen-baseline').getBoundingClientRect().bottom;
             return [box.left, box.top, box.width, box.height, baseline];
@@ -323,7 +334,7 @@ enum LivePreviewWebSnapshot {
     private static func prepare(_ webView: WKWebView, kind: RenderedBlock.Kind) async -> CGFloat? {
         let check = switch kind {
         case .mermaid: "!!document.querySelector('svg') && !document.body.innerText.includes('Syntax error')"
-        case .math: "!!document.querySelector('mjx-container') && !document.querySelector('mjx-merror, [data-mml-node=merror], mtext[mathcolor=red]')"
+        case .math: "!!document.querySelector('mjx-container') && !document.querySelector('\(mathError)')"
         case .map: "!!document.querySelector('.leaflet-container')"
         case .inlineMath: "false"
         }

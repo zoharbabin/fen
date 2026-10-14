@@ -98,6 +98,7 @@
         /// Notes the picture width this styling was made for, and restyles when a resize changes it, so pictures
         /// are drawn again at the new width.
         @MainActor func watchLivePreviewWidth(of textView: MarkdownNSTextView) {
+            watchLivePreviewSettings(of: textView)
             func pictureWidth() -> Int {
                 guard let container = textView.textContainer else { return 0 }
                 return LivePreviewSnapshots.pictureWidth(
@@ -113,6 +114,20 @@
                           forColumn: container.size.width - 2 * container.lineFragmentPadding
                       ) else { return }
                 applyLivePreviewStylingIfNeeded(in: textView, fullDocument: true)
+            }
+        }
+
+        /// Draws the note again when a preview setting that changes a picture changes.
+        @MainActor private func watchLivePreviewSettings(of textView: MarkdownNSTextView) {
+            guard !textView.isWatchingLivePreviewSettings else { return }
+            textView.isWatchingLivePreviewSettings = true
+            LivePreviewSettingsWatch.watch { [weak self, weak textView] in
+                guard let self, let textView, parent.isLivePreviewEnabled else {
+                    textView?.isWatchingLivePreviewSettings = false
+                    return false
+                }
+                applyLivePreviewStylingIfNeeded(in: textView, fullDocument: true)
+                return true
             }
         }
 
@@ -189,7 +204,8 @@
             pendingOverlaySpans: inout [LivePreviewEditing.Span]
         ) {
             for inlineSpan in LivePreviewEditing.inlineSpans(
-                in: content, textStart: contentStart,
+                in: content,
+                textStart: contentStart,
                 math: LivePreviewSnapshots.mathDelimiters(LivePreviewSnapshots.shared.kinds())
             ) {
                 applySpan(

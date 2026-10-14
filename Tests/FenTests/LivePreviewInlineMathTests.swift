@@ -77,7 +77,7 @@ struct LivePreviewInlineMathDetectionTests {
     @MainActor @Test func settingsPickTheDelimiters() throws {
         let prefs = try Preferences(defaults: #require(UserDefaults(suiteName: "inlinemath.\(UUID().uuidString)")))
         let kinds: Set<RenderedBlock.Kind> = [.inlineMath]
-        #expect(LivePreviewSnapshots.mathDelimiters([], preferences: prefs) == [])
+        #expect(LivePreviewSnapshots.mathDelimiters([], preferences: prefs).isEmpty)
         #expect(LivePreviewSnapshots.mathDelimiters(kinds, preferences: prefs) == .parentheses)
         prefs.htmlMathJaxInlineDollar = true
         #expect(LivePreviewSnapshots.mathDelimiters(kinds, preferences: prefs) == [.parentheses, .dollars])
@@ -98,9 +98,9 @@ struct LivePreviewInlineMathStyleTests {
     ) async throws {
         let saved = LivePreviewSnapshots.shared
         defer { LivePreviewSnapshots.shared = saved }
-        LivePreviewSnapshots.shared = LivePreviewSnapshots(kinds: { [.inlineMath] }) { _ in
+        LivePreviewSnapshots.shared = LivePreviewSnapshots(kinds: { [.inlineMath] }, render: { _ in
             result ? .init(image: solidImage(.red, width: size.width, height: size.height), baseline: baseline) : nil
-        }
+        })
         try await body()
     }
 
@@ -267,6 +267,29 @@ struct LivePreviewInlineMathStyleTests {
             }
             #expect(spacing() == first)
         }
+    }
+
+    @Test func aPreviewSettingChangeDrawsTheFormulaAgain() async throws {
+        let saved = LivePreviewSnapshots.shared
+        let preferences = Preferences.shared
+        let style = preferences.htmlStyleName
+        defer {
+            LivePreviewSnapshots.shared = saved
+            preferences.htmlStyleName = style
+        }
+        var looks: [Int] = []
+        LivePreviewSnapshots.shared = LivePreviewSnapshots(kinds: { [.inlineMath] }, render: { key in
+            looks.append(key.look)
+            return .init(image: solidImage(.red, width: 40, height: 20), baseline: 14)
+        })
+        let (view, coordinator) = makeLivePreviewView(Self.text, background: Self.background)
+        restyle(view, coordinator, caret: tail)
+        let first = try await pollUntilTrue { hasPicture(view) && looks.count == 1 }
+        #expect(first)
+        preferences.htmlStyleName = style == "GitHub2" ? "GitHub" : "GitHub2"
+        let second = try await pollUntilTrue { Set(looks).count == 2 }
+        #expect(second, "A new style asks for a new picture without any edit")
+        #expect(hasPicture(view))
     }
 
     @Test func aSmallPictureLeavesTheLineAlone() async throws {

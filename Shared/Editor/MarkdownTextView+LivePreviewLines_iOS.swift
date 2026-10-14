@@ -99,6 +99,7 @@
         /// Notes the picture width this styling was made for, and restyles when a resize changes it, so pictures
         /// are drawn again at the new width.
         @MainActor func watchLivePreviewWidth(of textView: MarkdownTextView.MarkdownUITextView) {
+            watchLivePreviewSettings(of: textView)
             textView.livePreviewPictureWidth = Self.pictureWidth(of: textView)
             guard textView.onLayout == nil else { return }
             textView.onLayout = { [weak self, weak textView] in
@@ -112,6 +113,20 @@
             let container = textView.textContainer
             return LivePreviewSnapshots
                 .pictureWidth(forColumn: container.size.width - 2 * container.lineFragmentPadding)
+        }
+
+        /// Draws the note again when a preview setting that changes a picture changes.
+        @MainActor private func watchLivePreviewSettings(of textView: MarkdownTextView.MarkdownUITextView) {
+            guard !textView.isWatchingLivePreviewSettings else { return }
+            textView.isWatchingLivePreviewSettings = true
+            LivePreviewSettingsWatch.watch { [weak self, weak textView] in
+                guard let self, let textView, parent.isLivePreviewEnabled else {
+                    textView?.isWatchingLivePreviewSettings = false
+                    return false
+                }
+                applyLivePreviewStylingIfNeeded(in: textView, fullDocument: true)
+                return true
+            }
         }
 
         /// Shows a formula as its picture when one is ready. The source stays as it is until then, and for a
@@ -184,7 +199,8 @@
             pendingOverlaySpans: inout [LivePreviewEditing.Span]
         ) {
             for inlineSpan in LivePreviewEditing.inlineSpans(
-                in: content, textStart: contentStart,
+                in: content,
+                textStart: contentStart,
                 math: LivePreviewSnapshots.mathDelimiters(LivePreviewSnapshots.shared.kinds())
             ) {
                 applySpan(
