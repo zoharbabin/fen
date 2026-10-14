@@ -105,7 +105,7 @@ targets:
           - "*.entitlements"
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.zoharbabin.fen-ios
+        PRODUCT_BUNDLE_IDENTIFIER: com.zoharbabin.fen
         PRODUCT_NAME: Fen
         INFOPLIST_FILE: iOS/Info.plist
         CODE_SIGN_ENTITLEMENTS: iOS/Fen.entitlements
@@ -132,7 +132,7 @@ targets:
       - path: Shared/Models/SharedTextImport.swift
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.zoharbabin.fen-ios.share
+        PRODUCT_BUNDLE_IDENTIFIER: com.zoharbabin.fen.share
         PRODUCT_NAME: FenShare
         INFOPLIST_FILE: FenShare/Info.plist
         CODE_SIGN_ENTITLEMENTS: FenShare/FenShare.entitlements
@@ -168,7 +168,7 @@ targets:
       - path: UITests/FeniOSUITests
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.zoharbabin.fen-ios.UITests
+        PRODUCT_BUNDLE_IDENTIFIER: com.zoharbabin.fen.iOSUITests
         CODE_SIGN_STYLE: Automatic
         DEVELOPMENT_TEAM: CG9APRC4WT
         GENERATE_INFOPLIST_FILE: true
