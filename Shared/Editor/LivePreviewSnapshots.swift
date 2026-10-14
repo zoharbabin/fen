@@ -7,9 +7,10 @@ import WebKit
 #endif
 
 /// Pictures of rendered blocks for Live Preview (issue #135, phase 3). A block renders once in an offscreen web
-/// view, one at a time, and the picture is cached until the block, the width or the appearance changes. A block
-/// that fails to render is remembered for a minute, so its source stays visible and nothing retries on every
-/// keystroke. After that it may try again, in case the failure was a timeout.
+/// view, one at a time, and the picture is cached until the block, the width or the appearance changes. Inline
+/// formulas that wait together render in one batch. A block that fails to render is remembered for a minute, so
+/// its source stays visible and nothing retries on every keystroke. After that it may try again, in case the
+/// failure was a timeout.
 @MainActor
 final class LivePreviewSnapshots {
     struct Key: Hashable {
@@ -29,22 +30,28 @@ final class LivePreviewSnapshots {
     }
 
     typealias Render = @MainActor (Key) async -> Picture?
+    /// Renders several formulas in one go. The pictures come back in the order of the keys.
+    typealias RenderBatch = @MainActor ([Key]) async -> [Picture?]
 
     static let widthStep: CGFloat = 40
     static let maxSourceLength = 20000
     /// Inline math is laid out at one fixed width, so a resize never asks for a new picture.
     static let inlineWidth = 800
     static let maxInlineLength = 500
+    /// Most formulas drawn in one offscreen web view.
+    static let maxBatch = 32
 
     /// Tests swap this for a stub.
     static var shared = LivePreviewSnapshots(
         kinds: { enabledKinds() },
-        render: { key in await LivePreviewWebSnapshot.render(key, preferences: .shared) }
+        render: { key in await LivePreviewWebSnapshot.render(key, preferences: .shared) },
+        renderFormulas: { keys in await LivePreviewWebSnapshot.renderFormulas(keys, preferences: .shared) }
     )
 
     /// Which kinds of block are drawn as pictures right now.
     let kinds: @MainActor () -> Set<RenderedBlock.Kind>
     private let render: Render
+    private let renderBatch: RenderBatch
     private let limit: Int
     /// How many inline formulas stay cached. They are small, and a note can hold many.
     private let inlineLimit: Int
@@ -58,9 +65,17 @@ final class LivePreviewSnapshots {
 
     init(
         limit: Int = 32, inlineLimit: Int = 512, retryAfter: Duration = .seconds(60),
-        kinds: @escaping @MainActor () -> Set<RenderedBlock.Kind>, render: @escaping Render
+        kinds: @escaping @MainActor () -> Set<RenderedBlock.Kind>, render: @escaping Render,
+        renderFormulas: RenderBatch? = nil
     ) {
         self.retryAfter = retryAfter
+        renderBatch = renderFormulas ?? { keys in
+            var pictures: [Picture?] = []
+            for key in keys {
+                await pictures.append(render(key))
+            }
+            return pictures
+        }
         self.limit = limit
         self.inlineLimit = inlineLimit
         self.kinds = kinds
@@ -199,19 +214,35 @@ final class LivePreviewSnapshots {
         guard !isRunning, !queue.isEmpty else { return }
         isRunning = true
         let key = queue.removeFirst()
+        var batch = [key]
+        if key.kind == .inlineMath {
+            // Formulas with the same look share one web view.
+            let mates = queue
+                .filter { $0.kind == .inlineMath && $0.dark == key.dark && $0.look == key.look }
+                .prefix(Self.maxBatch - 1)
+            batch += mates
+            queue.removeAll { mates.contains($0) }
+        }
+        let keys = batch
         Task { @MainActor in
-            let picture = await render(key)
-            let callbacks = waiting.removeValue(forKey: key).map { Array($0.values) } ?? []
+            let pictures = await key.kind == .inlineMath ? await renderBatch(keys) : [render(key)]
             isRunning = false
-            if let picture, picture.image.size.width > 0, picture.image.size.height > 0 {
-                cache[key] = picture
-                recent.append(key)
-                evict(inline: key.kind == .inlineMath)
-                for callback in callbacks {
-                    callback()
+            // One callback per owner, however many of its pictures arrived, so a batch restyles once.
+            var callbacks: [ObjectIdentifier: @MainActor () -> Void] = [:]
+            for (index, key) in keys.enumerated() {
+                let owners = waiting.removeValue(forKey: key) ?? [:]
+                if index < pictures.count, let picture = pictures[index],
+                   picture.image.size.width > 0, picture.image.size.height > 0 {
+                    cache[key] = picture
+                    recent.append(key)
+                    callbacks.merge(owners) { first, _ in first }
+                } else {
+                    failed[key] = .now
                 }
-            } else {
-                failed[key] = .now
+            }
+            evict(inline: key.kind == .inlineMath)
+            for callback in callbacks.values {
+                callback()
             }
             pump()
         }
@@ -225,151 +256,5 @@ final class LivePreviewSnapshots {
             cache[recent.remove(at: oldest)] = nil
             count -= 1
         }
-    }
-}
-
-/// Renders a block's Markdown through the same pipeline as export, so the picture matches the preview.
-@MainActor
-enum LivePreviewWebSnapshot {
-    private static let timeout = Duration.seconds(20)
-    /// What MathJax leaves in the page for a formula it can't read, including an unknown macro.
-    private static let mathError = "mjx-merror, [data-mml-node=merror], mtext[mathcolor=red]"
-    /// The tallest picture, in points. A taller block is scaled down to this height, not cut off.
-    static let maxPictureHeight: CGFloat = 1600
-    /// The tallest block we lay out and snapshot. WebKit can't draw much more than this in one piece.
-    private static let maxMeasuredHeight: CGFloat = 16000
-
-    /// The width of the picture for a block `width` wide and `height` tall: `width`, or less when the block is
-    /// taller than `maxPictureHeight`, which keeps its proportions.
-    static func pictureWidth(blockWidth width: CGFloat, blockHeight height: CGFloat) -> CGFloat {
-        guard height > maxPictureHeight else { return width }
-        return max((width * maxPictureHeight / height).rounded(.down), 1)
-    }
-
-    static func render(_ key: LivePreviewSnapshots.Key, preferences: Preferences) async -> LivePreviewSnapshots
-        .Picture? {
-        if key.kind == .inlineMath {
-            return await renderFormula(key, preferences: preferences)
-        }
-        let rendered = MarkdownRenderer().render(key.source, options: .from(preferences: preferences))
-        let html = HTMLComposer().composeForExport(
-            title: nil,
-            body: rendered.html,
-            preferences: preferences,
-            includeStyles: true,
-            includeHighlighting: false,
-            appearanceOverride: key.dark ? .dark : .light
-        )
-        let size = CGSize(width: key.width, height: 20)
-        guard let webView = try? await PDFRenderer()
-            .loadOffscreenWebView(html: html, baseDirectory: nil, loadTimeout: timeout, size: size)
-        else { return nil }
-        makeTransparent(webView)
-        guard let height = await prepare(webView, kind: key.kind) else { return nil }
-        webView.frame.size.height = height
-        let configuration = WKSnapshotConfiguration()
-        configuration.rect = CGRect(x: 0, y: 0, width: key.width, height: Int(height))
-        configuration.snapshotWidth = NSNumber(
-            value: pictureWidth(blockWidth: CGFloat(key.width), blockHeight: height)
-        )
-        guard let image = try? await webView.takeSnapshot(configuration: configuration) else { return nil }
-        return LivePreviewSnapshots.Picture(image: image)
-    }
-
-    /// Renders one formula in a line of its own and crops to it. The baseline comes from an empty inline box set
-    /// right before the formula: the bottom of that box sits on the text baseline.
-    private static func renderFormula(
-        _ key: LivePreviewSnapshots.Key, preferences: Preferences
-    ) async -> LivePreviewSnapshots.Picture? {
-        let escaped = key.source
-            .replacingOccurrences(of: "&", with: "&amp;")
-            .replacingOccurrences(of: "<", with: "&lt;")
-            .replacingOccurrences(of: ">", with: "&gt;")
-        let body = "<p style=\"margin:0;white-space:nowrap\"><span id=\"fen-baseline\" "
-            + "style=\"display:inline-block;width:0;height:0\"></span><span id=\"fen-formula\">\(escaped)</span></p>"
-        let html = HTMLComposer().composeForExport(
-            title: nil,
-            body: body,
-            preferences: preferences,
-            includeStyles: true,
-            includeHighlighting: false,
-            appearanceOverride: key.dark ? .dark : .light
-        )
-        guard let webView = try? await PDFRenderer().loadOffscreenWebView(
-            html: html, baseDirectory: nil, loadTimeout: timeout, size: CGSize(width: key.width, height: 20)
-        ) else { return nil }
-        makeTransparent(webView)
-        let script = """
-        (function () {
-            document.documentElement.style.setProperty('background', 'transparent', 'important');
-            var s = document.body.style;
-            s.setProperty('background', 'transparent', 'important');
-            s.setProperty('margin', '0', 'important');
-            s.setProperty('padding', '0', 'important');
-            s.setProperty('max-width', 'none', 'important');
-            var math = document.querySelector('#fen-formula mjx-container svg');
-            if (!math || document.querySelector('\(mathError)')) { return null; }
-            var box = math.getBoundingClientRect();
-            var baseline = document.getElementById('fen-baseline').getBoundingClientRect().bottom;
-            return [box.left, box.top, box.width, box.height, baseline];
-        })()
-        """
-        guard let values = try? await webView.evaluateJavaScript(script) as? [Double], values.count == 5,
-              values[2] > 0, values[3] > 0 else { return nil }
-        let rect = CGRect(
-            x: floor(values[0]),
-            y: floor(values[1]),
-            width: ceil(values[2]) + 1,
-            height: ceil(values[3]) + 1
-        )
-        webView.frame.size.height = max(rect.maxY, 1)
-        let configuration = WKSnapshotConfiguration()
-        configuration.rect = rect
-        configuration.snapshotWidth = NSNumber(value: Double(rect.width))
-        guard let image = try? await webView.takeSnapshot(configuration: configuration) else { return nil }
-        return LivePreviewSnapshots.Picture(image: image, baseline: CGFloat(values[4]) - rect.minY)
-    }
-
-    /// Strips the page chrome and measures what is left. `nil` when the renderer left an error or nothing.
-    private static func prepare(_ webView: WKWebView, kind: RenderedBlock.Kind) async -> CGFloat? {
-        let check = switch kind {
-        case .mermaid: "!!document.querySelector('svg') && !document.body.innerText.includes('Syntax error')"
-        case .math: "!!document.querySelector('mjx-container') && !document.querySelector('\(mathError)')"
-        case .map: "!!document.querySelector('.leaflet-container')"
-        case .inlineMath: "false"
-        }
-        let script = """
-        (function () {
-            document.documentElement.style.setProperty('background', 'transparent', 'important');
-            var s = document.body.style;
-            s.setProperty('background', 'transparent', 'important');
-            s.setProperty('margin', '0', 'important');
-            s.setProperty('padding', '0', 'important');
-            s.setProperty('max-width', 'none', 'important');
-            s.setProperty('display', 'flow-root', 'important');
-            // The theme draws a card around a diagram. The editor draws the picture on its own background.
-            document.querySelectorAll('pre, .fen-mermaid-container').forEach(function (box) {
-                box.style.setProperty('background', 'transparent', 'important');
-                box.style.setProperty('border', 'none', 'important');
-                box.style.setProperty('box-shadow', 'none', 'important');
-                box.style.setProperty('padding', '0', 'important');
-                box.style.setProperty('margin', '0', 'important');
-            });
-            if (!(\(check))) { return -1; }
-            return Math.ceil(document.body.getBoundingClientRect().height);
-        })()
-        """
-        guard let height = try? await webView.evaluateJavaScript(script) as? Double, height > 0 else { return nil }
-        return CGFloat(min(height, maxMeasuredHeight))
-    }
-
-    private static func makeTransparent(_ webView: WKWebView) {
-        #if canImport(AppKit)
-            webView.setValue(false, forKey: "drawsBackground")
-        #else
-            webView.isOpaque = false
-            webView.backgroundColor = .clear
-            webView.scrollView.backgroundColor = .clear
-        #endif
     }
 }
