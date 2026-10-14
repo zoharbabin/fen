@@ -200,3 +200,7 @@ Build/
 # Internal strategy/market-analysis notes - not for public repo
 #
 /docs/internal/
+
+# Local secrets
+.env
+.env.*
