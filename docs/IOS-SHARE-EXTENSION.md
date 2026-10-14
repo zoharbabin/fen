@@ -32,6 +32,6 @@ Before a release, also run `grep -r "URLSession" Shared macOS iOS FenShare`. It 
 `project.yml` sets `DEVELOPMENT_TEAM` for `FeniOSApp` and `FenShare`. Before the first device or App Store build, register in the Apple Developer portal:
 
 - The App Group `group.com.zoharbabin.fen`.
-- App IDs `com.zoharbabin.fen-ios` and `com.zoharbabin.fen-ios.share`, both with App Groups on.
+- App IDs `com.zoharbabin.fen` (shared with the Mac app) and `com.zoharbabin.fen.share`, both with App Groups on.
 
 Automatic signing then makes the profiles. The CI build uses `CODE_SIGNING_ALLOWED=NO`, so it needs none of this. Without the entitlement, `SharedTextInbox.standard` is `nil` and the share-sheet import is off. Nothing else changes.

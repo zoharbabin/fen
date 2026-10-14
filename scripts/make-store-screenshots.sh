@@ -56,7 +56,7 @@ sys.exit("no simulator named " + name)' "$1")
     # The notes open from Fen's folder. The workspace points at a shared folder, because the app's own
     # folder gets a new path each time the test runner reinstalls the app.
     local data
-    data=$(xcrun simctl get_app_container "$udid" com.zoharbabin.fen-ios data)
+    data=$(xcrun simctl get_app_container "$udid" com.zoharbabin.fen data)
     mkdir -p "$data/Documents" "$data/Library/.fen"
     cp assets/store/sample-workspace/*.md "$data/Documents/"
     rm -rf "$SHARED"

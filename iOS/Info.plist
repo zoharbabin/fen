@@ -77,7 +77,7 @@
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
-	<string>com.zoharbabin.fen-ios</string>
+	<string>com.zoharbabin.fen</string>
 	<key>CFBundleName</key>
 	<string>Fen</string>
 	<key>CFBundleDisplayName</key>
