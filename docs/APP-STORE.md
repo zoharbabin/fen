@@ -65,7 +65,7 @@ Suggested review note: "Fen is a local-first Markdown editor. It reads and write
 
 ## Not done
 
-- The Mac build 1.0 (1) is uploaded: archive with `MARKETING_VERSION=1.0 CURRENT_PROJECT_VERSION=1`, then `xcodebuild -exportArchive` with `destination` `upload`, which uses the Apple account signed in to Xcode. No iOS build is uploaded yet. Pick the Mac build on the macOS 1.0 draft once it finishes processing.
+- The Mac build 1.0 (1) is uploaded: archive with `MARKETING_VERSION=1.0 CURRENT_PROJECT_VERSION=1`, then `xcodebuild -exportArchive` with `destination` `upload`, which uses the Apple account signed in to Xcode. The iOS app uses the same bundle ID as the Mac app (`com.zoharbabin.fen`, share extension `com.zoharbabin.fen.share`), so both platforms sit in one record. Its build 1.0 (1) is uploaded the same way, with the `FeniOSApp` scheme and `-destination 'generic/platform=iOS'`. Pick each build on its 1.0 draft once it finishes processing.
 - We didn't test the store build on an iPhone or iPad. The iOS app is a separate target. Its App Store path needs the same account steps, plus the App Group for the share extension ([IOS-SHARE-EXTENSION.md](IOS-SHARE-EXTENSION.md)).
 - Xcode builds of the Mac app don't bundle `DocumentIcon.icns`. Only `scripts/build-app.sh` makes it, so `.md` files show a generic icon in the store build.
 - Sandbox denials in the system log weren't reviewed beyond the passing tests.
