@@ -29,7 +29,7 @@ WRITE
 • Live Preview (experimental) hides the Markdown marks as you type and draws tables, formulas and diagrams in place.
 • GitHub-style Markdown: tables, task lists, footnotes, callouts, highlights and emoji.
 • Math with MathJax, diagrams with Mermaid, maps from GeoJSON, 3D models from STL, and syntax highlighting.
-• Slash commands, an outline sidebar, focus mode, a formatting toolbar and Vim keys on the Mac.
+• Slash commands, an outline sidebar, focus mode and a formatting toolbar.
 • Paste or drop an image and Fen saves it next to your note.
 • Export to HTML or PDF, and print.
 
@@ -60,7 +60,7 @@ ON EVERY DEVICE
 Free and open source under the MIT license. Source code and issues: github.com/zoharbabin/fen
 ```
 
-The Mac record adds this block before the last line. MCP, agent branches and Quick Look exist only on the Mac.
+The Mac record adds this block before "ON EVERY DEVICE", adds "and Vim keys" to the slash-commands bullet, and drops the iPad and iPhone bullets. MCP, agent branches, Quick Look and Vim keys exist only on the Mac.
 
 ```text
 FOR THE MAC
