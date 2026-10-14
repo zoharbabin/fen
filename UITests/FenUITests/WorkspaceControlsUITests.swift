@@ -70,12 +70,19 @@ final class WorkspaceControlsUITests: XCTestCase {
         add.click()
         let panel = app.sheets.firstMatch
         XCTAssertTrue(panel.waitForExistence(timeout: 20))
-        app.typeKey("g", modifierFlags: [.command, .shift])
+        // The open panel runs in its own process and can miss the first shortcut while it settles.
+        let goTo = panel.sheets.firstMatch
+        for _ in 0 ..< 5 where !goTo.exists {
+            app.typeKey("g", modifierFlags: [.command, .shift])
+            _ = goTo.waitForExistence(timeout: 3)
+        }
+        XCTAssertTrue(goTo.exists, "no Go to Folder sheet:\n\(app.debugDescription)")
         app.typeText(root.appendingPathComponent("ws").path + "\n")
         let open = panel.buttons["Open"]
         XCTAssertTrue(open.waitForExistence(timeout: 5))
+        XCTAssertTrue(goTo.waitForNonExistence(timeout: 5), "Go to Folder sheet stayed open")
         open.click()
-        XCTAssertTrue(window.staticTexts["ws"].waitForExistence(timeout: 10))
+        XCTAssertTrue(window.staticTexts["ws"].waitForExistence(timeout: 10), "\(app.debugDescription)")
         return window
     }
 
