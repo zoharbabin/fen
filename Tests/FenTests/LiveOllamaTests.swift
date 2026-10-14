@@ -101,6 +101,47 @@ struct LiveOllamaTests {
         #expect(try String(contentsOf: fixture.planURL, encoding: .utf8) == inlineAIPlanText)
     }
 
+    @Test("Ask AI on a sentence answers in seconds, not tens of seconds, on a thinking model")
+    func askAIRewriteIsQuick() async throws {
+        let (fixture, _, _) = try await makeStack(approval: .ask)
+        defer { fixture.cleanUp() }
+        let store = AIProviderStore(home: fixture.home.home, secrets: MemorySecretStore())
+        try store.add(AIProviderConfig(
+            name: "Local Gemma",
+            kind: .ollama,
+            baseURL: OllamaEmbeddingProvider.defaultAddress,
+            model: "gemma4:latest"
+        ))
+        let service = AIService(store: store, workspaces: { fixture.library.registry.workspaces })
+        let controller = InlineAIController(library: fixture.library, service: service, previewBeforeApplying: { true })
+        let sentence = "Users described the avatar as looking awkward right when it loaded, like it popped in wrong"
+        let text = sentence + ".\n"
+        let target = try #require(EditorTarget.resolve(
+            in: text,
+            selected: NSRange(location: 0, length: sentence.utf16.count)
+        ))
+        // The first run loads the model, which can take 20 seconds. Time the second.
+        var elapsed = Duration.zero
+        for _ in 0 ..< 2 {
+            controller.present(target: target)
+            let start = ContinuousClock.now
+            controller.rewrite(instruction: "Fix grammar", scope: .selection, document: text, fileURL: fixture.planURL)
+            let done = try await pollUntilTrue(timeout: .seconds(90)) {
+                controller.phase != .idle && !controller.isWorking
+            }
+            elapsed = ContinuousClock.now - start
+            try #require(done)
+        }
+        print("LIVE Ask AI: \(controller.phase) in \(elapsed)")
+        guard case let .preview(proposal) = controller.phase else {
+            Issue.record("expected a preview, got \(controller.phase)")
+            return
+        }
+        #expect(!proposal.replacement.isEmpty)
+        // About 0.5 s with thinking off, about 4.5 s and up with it on.
+        #expect(elapsed < .seconds(2), "Ask AI took \(elapsed)")
+    }
+
     @Test("Enrich in Ask mode queues a diff and leaves the file alone")
     func enrichInAskMode() async throws {
         let (fixture, runner, gate) = try await makeStack(approval: .ask)
