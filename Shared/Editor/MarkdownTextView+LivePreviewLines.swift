@@ -87,7 +87,7 @@
                 snapshots.request(key, owner: self) { [weak self] in self?.livePreviewSnapshotReady() }
                 // The last picture of this block stands in while the new one renders.
                 guard let standIn = snapshots.standIn(for: key) else { return false }
-                image = standIn
+                image = standIn.image
             }
             LivePreviewBlockStyle.applyRendered(
                 image, block: block.range, storage: storage, background: background, column: column
@@ -98,6 +98,7 @@
         /// Notes the picture width this styling was made for, and restyles when a resize changes it, so pictures
         /// are drawn again at the new width.
         @MainActor func watchLivePreviewWidth(of textView: MarkdownNSTextView) {
+            watchLivePreviewSettings(of: textView)
             func pictureWidth() -> Int {
                 guard let container = textView.textContainer else { return 0 }
                 return LivePreviewSnapshots.pictureWidth(
@@ -114,6 +115,36 @@
                       ) else { return }
                 applyLivePreviewStylingIfNeeded(in: textView, fullDocument: true)
             }
+        }
+
+        /// Draws the note again when a preview setting that changes a picture changes.
+        @MainActor private func watchLivePreviewSettings(of textView: MarkdownNSTextView) {
+            guard !textView.isWatchingLivePreviewSettings else { return }
+            textView.isWatchingLivePreviewSettings = true
+            LivePreviewSettingsWatch.watch { [weak self, weak textView] in
+                guard let self, let textView, parent.isLivePreviewEnabled else {
+                    textView?.isWatchingLivePreviewSettings = false
+                    return false
+                }
+                applyLivePreviewStylingIfNeeded(in: textView, fullDocument: true)
+                return true
+            }
+        }
+
+        /// Shows a formula as its picture when one is ready. The source stays as it is until then, and for a
+        /// formula that fails to render.
+        @MainActor func styleInlineMath(
+            _ span: LivePreviewEditing.Span, source: String, textStorage: NSTextStorage, background: PlatformColor
+        ) {
+            guard let key = LivePreviewSnapshots.key(forFormula: source, background: background),
+                  let picture = LivePreviewSnapshots.shared.resolve(
+                      key, owner: self, onReady: { [weak self] in self?.livePreviewSnapshotReady() }
+                  ) else { return }
+            let range = NSRange(
+                location: span.markerRanges[0].location,
+                length: NSMaxRange(span.markerRanges[1]) - span.markerRanges[0].location
+            )
+            LivePreviewBlockStyle.applyInlineMath(picture, range: range, storage: textStorage, background: background)
         }
 
         @MainActor private func livePreviewSnapshotReady() {
@@ -172,7 +203,11 @@
             _ content: String, contentStart: Int, textStorage: NSTextStorage, textView: MarkdownNSTextView,
             pendingOverlaySpans: inout [LivePreviewEditing.Span]
         ) {
-            for inlineSpan in LivePreviewEditing.inlineSpans(in: content, textStart: contentStart) {
+            for inlineSpan in LivePreviewEditing.inlineSpans(
+                in: content,
+                textStart: contentStart,
+                math: LivePreviewSnapshots.mathDelimiters(LivePreviewSnapshots.shared.kinds())
+            ) {
                 applySpan(
                     inlineSpan,
                     textStorage: textStorage,

@@ -41,6 +41,8 @@ public enum LivePreviewEditing {
         case link(url: String)
         case checkbox(checked: Bool)
         case image(altText: String, path: String)
+        /// Inline math, with its delimiters, as MathJax takes it: `$x^2$` or `\(x^2\)`.
+        case inlineMath(source: String)
     }
 
     /// One markdown construct found within a paragraph: `markerRanges` are the delimiter/syntax
@@ -131,7 +133,9 @@ public enum LivePreviewEditing {
     /// left-to-right pass: once a delimiter run opens a construct, scanning resumes after its
     /// closing delimiter, so constructs never overlap or nest -- a deliberate limitation of this
     /// lightweight heuristic layer, not a full CommonMark parser.
-    public static func inlineSpans(in text: String, textStart: Int) -> [Span] {
+    public static func inlineSpans(
+        in text: String, textStart: Int, math: MathDelimiters = []
+    ) -> [Span] {
         let ns = text as NSString
         var spans: [Span] = []
         var index = 0
@@ -142,6 +146,12 @@ public enum LivePreviewEditing {
                 continue
             }
             if let (span, next) = matchWrapped(ns, at: index, textStart: textStart, delimiter: "`", kind: .inlineCode) {
+                spans.append(span)
+                index = next
+                continue
+            }
+            if !math.isEmpty,
+               let (span, next) = matchInlineMath(ns, at: index, textStart: textStart, delimiters: math) {
                 spans.append(span)
                 index = next
                 continue

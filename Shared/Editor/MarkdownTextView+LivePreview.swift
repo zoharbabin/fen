@@ -180,7 +180,11 @@
                 guard addImageOverlay(altText: altText, path: path, range: fullSpanRange(span), in: textView)
                 else { return }
             }
-            let backgroundColor = textView.backgroundColor
+            let backgroundColor: PlatformColor = textView.backgroundColor
+            if case let .inlineMath(source) = span.kind {
+                styleInlineMath(span, source: source, textStorage: textStorage, background: backgroundColor)
+                return
+            }
             for marker in span.markerRanges {
                 applyMarkerHidden(marker, in: textStorage, backgroundColor: backgroundColor)
             }
@@ -267,7 +271,7 @@
                 )
             case .strikethrough:
                 textStorage.addAttribute(.strikethroughStyle, value: NSUnderlineStyle.single.rawValue, range: range)
-            case .inlineCode:
+            case .inlineCode, .inlineMath:
                 break // marker-hiding alone is enough; content keeps its existing code styling
             case let .heading(level):
                 applyHeadingStyle(level: level, to: range, in: textStorage)

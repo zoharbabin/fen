@@ -48,7 +48,8 @@ enum LivePreviewBlockStyle {
 
     /// Block attributes. They go wherever they are found.
     private static let blockKeys: [NSAttributedString.Key] = [
-        .fenBlockDecoration, .fenBlockInk, .fenListOrdinal, .fenTablePipe, .kern, .fenBlockImage, .baselineOffset,
+        .fenBlockDecoration, .fenBlockInk, .fenListOrdinal, .fenTablePipe, .kern, .fenBlockImage, .fenInlinePicture,
+        .baselineOffset,
         .livePreviewOriginalParagraphStyle,
     ]
     /// Marker styling. It goes only from runs marked `livePreviewTouched`, because Highlightr sets links and

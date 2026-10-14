@@ -128,6 +128,26 @@ final class StoreScreenshotsUITests: XCTestCase {
         }
     }
 
+    /// #135: Live Preview on a note with a table and formulas leaves the Markdown as typed (the accessibility
+    /// value only holds the first few hundred characters), and the app stays up while formulas turn into pictures.
+    func testLivePreviewKeepsTheNoteText() {
+        app.terminate()
+        app.launchArguments += ["-editorLivePreviewEnabled", "YES"]
+        app.launch()
+        open("Pricing, md")
+        let editor = app.textViews.firstMatch
+        XCTAssertTrue(editor.waitForExistence(timeout: 30), "no editor")
+        let text = NSPredicate(format: "value CONTAINS '[[Launch plan]]' AND value CONTAINS '| Free | $0 |'")
+        _ = XCTWaiter().wait(for: [expectation(for: text, evaluatedWith: editor)], timeout: 30)
+        XCTAssertTrue(text.evaluate(with: editor), "the note now reads: \(editor.value ?? "nothing")")
+        // Absence check: the text must not change while the pictures arrive.
+        let pause = expectation(description: "pictures")
+        pause.isInverted = true
+        wait(for: [pause], timeout: 8)
+        XCTAssertEqual(app.state, .runningForeground, "the app stopped while drawing formulas")
+        XCTAssertTrue(text.evaluate(with: editor), "the text changed after the pictures arrived")
+    }
+
     func testSearch() throws {
         showWorkspaceList()
         let field = app.searchFields.firstMatch

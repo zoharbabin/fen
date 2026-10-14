@@ -16,6 +16,8 @@
         /// `livePreviewPictureWidth` is the picture width the document was last styled for.
         var onWidthChange: (@MainActor () -> Void)?
         var livePreviewPictureWidth = 0
+        /// Whether a `LivePreviewSettingsWatch` is running for this view.
+        var isWatchingLivePreviewSettings = false
         weak var imagePasteCoordinator: ImagePasteCoordinating?
 
         /// Subviews added on top of the text (e.g. the slash-command menu popup, issue #1) that
