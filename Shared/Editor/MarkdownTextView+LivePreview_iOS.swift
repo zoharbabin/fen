@@ -18,6 +18,7 @@
                 return
             }
 
+            watchLivePreviewWidth(of: widthLimitedTextView)
             let text = textView.text ?? ""
             let caretLocation = textView.selectedRange.location
             let newActiveRange = FocusModeEditing.activeParagraphRange(text: text, caretLocation: caretLocation)
@@ -123,12 +124,16 @@
                     styleInactiveLine(
                         kind,
                         fullRange: lineRange,
+                        ordinal: blocks.ordinal(ofLineAt: contentLineRange.location),
                         in: ns,
                         textView: textView,
                         pendingOverlaySpans: &pendingOverlaySpans
                     )
                 }
                 location = lineRange.location + lineRange.length
+            }
+            for table in blocks.tables(touching: expandedRange) {
+                LivePreviewBlockStyle.alignTable(table, active: activeRange, storage: textStorage)
             }
             textStorage.endEditing()
 

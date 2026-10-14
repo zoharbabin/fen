@@ -17,6 +17,8 @@ final class LivePreviewSnapshots {
         /// A multiple of `widthStep`, so a small resize doesn't ask for a new picture.
         var width: Int
         var dark: Bool
+        /// The preview settings the picture depends on, so a new style or custom CSS draws it again.
+        var look: Int = 0
     }
 
     typealias Render = @MainActor (Key) async -> PlatformImage?
@@ -62,14 +64,30 @@ final class LivePreviewSnapshots {
         return kinds
     }
 
-    static func key(for block: RenderedBlock, columnWidth: CGFloat, background: PlatformColor) -> Key? {
+    /// The width a picture is rendered at for a column `columnWidth` wide: the column, rounded down to a step.
+    static func pictureWidth(forColumn columnWidth: CGFloat) -> Int {
+        Int(max((columnWidth / widthStep).rounded(.down), 4) * widthStep)
+    }
+
+    /// A number that changes when a preview setting that changes a picture changes.
+    static func look(_ preferences: Preferences) -> Int {
+        var hasher = Hasher()
+        hasher.combine(preferences.htmlStyleName)
+        hasher.combine(preferences.fontSize)
+        hasher.combine(preferences.customCSSEnabled ? preferences.customCSS : "")
+        return hasher.finalize()
+    }
+
+    static func key(
+        for block: RenderedBlock, columnWidth: CGFloat, background: PlatformColor, preferences: Preferences = .shared
+    ) -> Key? {
         guard block.source.count <= maxSourceLength else { return nil }
-        let steps = max((columnWidth / widthStep).rounded(.down), 4)
         return Key(
             kind: block.kind,
             source: block.source,
-            width: Int(steps * widthStep),
-            dark: LivePreviewBlockStyle.luminance(of: background) < 0.5
+            width: pictureWidth(forColumn: columnWidth),
+            dark: LivePreviewBlockStyle.luminance(of: background) < 0.5,
+            look: look(preferences)
         )
     }
 
@@ -78,6 +96,15 @@ final class LivePreviewSnapshots {
         recent.removeAll { $0 == key }
         recent.append(key)
         return image
+    }
+
+    /// The newest picture of the same block at another width or look, with the same light or dark. It stands in
+    /// while `key` renders, so a resize or a style change doesn't flash the source.
+    func standIn(for key: Key) -> PlatformImage? {
+        guard let match = recent.last(where: {
+            $0.kind == key.kind && $0.source == key.source && $0.dark == key.dark
+        }) else { return nil }
+        return cache[match]
     }
 
     func hasFailed(_ key: Key) -> Bool {
