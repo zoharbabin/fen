@@ -71,6 +71,40 @@ struct LivePreviewSnapshotCacheTests {
         #expect(calls == 2)
     }
 
+    @Test func formulasWaitingTogetherRenderInOneBatchAndRestyleOnce() async throws {
+        var batches: [Int] = []
+        var singles = 0
+        let snapshots = LivePreviewSnapshots(
+            kinds: { [] },
+            render: { _ in
+                singles += 1
+                return nil
+            },
+            renderFormulas: { keys in
+                batches.append(keys.count)
+                return keys.map { _ in .init(image: solidImage(.red, width: 10, height: 10)) }
+            }
+        )
+        func formula(_ source: String, dark: Bool = false) -> LivePreviewSnapshots.Key {
+            .init(kind: .inlineMath, source: source, width: 800, dark: dark)
+        }
+        let owner = NSObject()
+        var ready = 0
+        for name in ["a", "b", "c", "d"] {
+            snapshots.request(formula(name), owner: owner) { ready += 1 }
+        }
+        snapshots.request(formula("e", dark: true), owner: owner) { ready += 1 }
+        let done = try await pollUntilTrue { snapshots.image(for: formula("e", dark: true)) != nil }
+        #expect(done)
+        #expect(
+            batches == [1, 3, 1],
+            "The first starts at once, the next three share a batch, the dark one has its own"
+        )
+        #expect(singles == 0)
+        #expect(ready == 3, "One callback per owner and batch")
+        #expect(["a", "b", "c", "d"].allSatisfy { snapshots.image(for: formula($0)) != nil })
+    }
+
     @Test func rendersOneAtATime() async throws {
         var running = 0
         var most = 0

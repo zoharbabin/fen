@@ -374,6 +374,30 @@ struct LivePreviewWebSnapshotTests {
     }
 
     @Test
+    func formulasInOneBatchComeBackInOrderAndABadOneOnlyFailsItself() async throws {
+        let prefs = try preferences()
+        prefs.htmlMathJaxInlineDollar = true
+        let sources = [#"\(x\)"#, #"\(\notamacro{x}\)"#, #"\(\frac{a}{b}\)"#, #"\(x^{2^{2}}\)"#]
+        let keys = sources.map {
+            LivePreviewSnapshots.Key(
+                kind: .inlineMath,
+                source: $0,
+                width: LivePreviewSnapshots.inlineWidth,
+                dark: false
+            )
+        }
+        let pictures = await LivePreviewWebSnapshot.renderFormulas(keys, preferences: prefs)
+        #expect(pictures.count == 4)
+        #expect(pictures[1] == nil, "The unknown macro fails")
+        let sizes = try [0, 2, 3].map { try #require(pictures[$0], "\(sources[$0]) renders").image.size }
+        #expect(sizes[1].height > sizes[0].height, "A fraction is taller than a letter, so the order held")
+        for index in [0, 2, 3] {
+            let picture = try #require(pictures[index])
+            #expect(picture.baseline > 0 && picture.baseline < picture.image.size.height + 1)
+        }
+    }
+
+    @Test
     func aFormulaIsDrawnInLightInkOnADarkEditor() async throws {
         let image = try #require(try await formula("$x^2$", dark: true)).image
         let cgImage = try #require(image.cgImage(forProposedRect: nil, context: nil, hints: nil))
