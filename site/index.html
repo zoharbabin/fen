@@ -223,11 +223,13 @@
     /* ═══════════════════════════════
        INSTALL
     ═══════════════════════════════ */
-    .install { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 1.25rem; }
-    .install-card { border: 1px solid var(--border); border-radius: 10px; padding: 1.25rem 1.35rem; background: var(--surface); }
-    .install-card h3 { font-size: .95rem; font-weight: 700; margin-bottom: .4rem; }
-    .install-card p { font-size: .84rem; color: var(--text-sub); line-height: 1.55; }
-    .install-card pre { margin-top: .6rem; padding: .6rem .8rem; white-space: pre-wrap; word-break: break-all; border-radius: 6px; background: var(--bg); border: 1px solid var(--border); font-size: .78rem; line-height: 1.5; }
+    .install { border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
+    .install-row { display: grid; grid-template-columns: minmax(11rem, 17rem) 1fr; gap: .5rem 2.5rem; align-items: baseline; padding: 1.2rem 1.6rem; }
+    .install-row + .install-row { border-top: 1px solid var(--border); }
+    .install-row h3 { font-size: .95rem; font-weight: 700; }
+    .install-row p { font-size: .9rem; color: var(--text-sub); line-height: 1.6; }
+    .install-row pre { margin-top: .6rem; padding: .7rem 1rem; overflow-x: auto; white-space: pre; border-radius: 6px; background: var(--bg); border: 1px solid var(--border); font-size: .82rem; line-height: 1.6; }
+    @media (max-width: 640px) { .install-row { grid-template-columns: 1fr; padding: 1rem 1.2rem; } }
 
     /* ═══════════════════════════════
        ROADMAP LIST
@@ -407,21 +409,23 @@
   <!-- ─── Install ─── -->
   <h2 id="install">Install</h2>
   <div class="install">
-    <div class="install-card">
+    <div class="install-row">
       <h3>Mac: download</h3>
       <p>Get <code>Fen.app.zip</code> from the <a href="https://github.com/zoharbabin/fen/releases/latest" target="_blank" rel="noopener">latest release</a>, unzip it, and drag Fen to Applications. Choose Fen &gt; Check for Updates… to update.</p>
     </div>
-    <div class="install-card">
+    <div class="install-row">
       <h3>Mac: Homebrew</h3>
-      <p>Install and upgrade with a tap.</p>
-      <pre><code>brew tap zoharbabin/fen https://github.com/zoharbabin/fen
+      <div>
+        <p>Install and upgrade with a tap.</p>
+        <pre><code>brew tap zoharbabin/fen https://github.com/zoharbabin/fen
 brew install --cask fen</code></pre>
+      </div>
     </div>
-    <div class="install-card">
+    <div class="install-row">
       <h3>iPhone, iPad and the Mac App Store</h3>
       <p>Fen is in App Review. One App Store listing will cover Mac, iPhone and iPad. Until it is out, use the Mac download above.</p>
     </div>
-    <div class="install-card">
+    <div class="install-row">
       <h3>Build from source</h3>
       <p>Clone the repository and run <code>swift build</code>. The <a href="https://github.com/zoharbabin/fen#build-from-source" target="_blank" rel="noopener">README</a> has the steps.</p>
     </div>
