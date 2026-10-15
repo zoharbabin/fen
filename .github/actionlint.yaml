@@ -1,0 +1,10 @@
+# Config for the "Lint workflows" job in ci.yml.
+paths:
+  .github/workflows/**/*.yml:
+    ignore:
+      # `ls -d /Applications/Xcode*.app` lists a glob we control, so odd file names can't occur.
+      - 'SC2012:'
+  .github/workflows/release.yml:
+    ignore:
+      # The keychain list is split on purpose, so each keychain is its own argument.
+      - 'SC2046:'

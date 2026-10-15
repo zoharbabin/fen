@@ -686,7 +686,27 @@ MathJax used to be the exception: earlier builds pulled `MathJax.js` from `cdnjs
 
 ## CI and releases
 
-`.github/workflows/ci.yml` runs three jobs on every push to `master` and every pull request (any base branch, so stacked PRs get checked): `swift test --no-parallel` (plus `swiftformat --lint`/`swiftlint`), `build-ios` (compiles the iOS app for the simulator, since `swift test` only builds the macOS side), and a separate `docs-links` job that runs `lychee` over every `.md` file and `site/*.html` to catch dead links left behind by a rename or move. `.github/workflows/release.yml` runs on a `v*` tag push (or manual dispatch): it builds and tests the same way, then signs and notarizes only if the signing secrets are present, verifies the resulting bundle structure (see [Resource bundle resolution](#resource-bundle-resolution-sharedcorebundleswift) above), zips it, and publishes it to a GitHub Release. See [RELEASING.md](RELEASING.md) for cutting a release by hand when secrets aren't configured in CI.
+`.github/workflows/ci.yml` runs on every push to `master`, every pull request (any base branch, so stacked PRs get checked) and a manual run. It's one job per check. The first job reads the files a change touches and switches the others on or off, so a docs-only PR doesn't wait for `swift test`.
+
+| Job | Runs when the change touches | Does |
+|---|---|---|
+| 🔎 Detect changes | always | Runs `scripts/ci-changes.sh`, which holds the rules, and lists what runs and why |
+| 🧹 Format & lint | `*.swift`, `.swiftformat`, `.swiftlint.yml` | `swiftformat --lint`, `swiftlint` |
+| 🧪 Swift tests (macOS) | `Shared/`, `macOS/`, `iOS/`, `CLI/`, `FenQuickLook/`, `FenShare/`, `Dependency/`, `assets/`, `Tests/`, `Package.*` | `swift test --no-parallel`, then checks that no test wrote to the real `~/.fen` |
+| 📱 Build iOS app (simulator) | the same as the tests, except `Tests/`, plus `project.yml` | Compiles the iOS app, since `swift test` only builds the macOS side |
+| 🏪 Build Mac App Store target | the same as the iOS build | Builds the store target and checks it is sandboxed, has no Sparkle and has its privacy manifest |
+| 🔗 Check doc & site links | any `.md` or `.html` file, `docs/`, `site/`, or a removed file | `lychee` over every `.md` file and `site/*.html`, to catch dead links left by a rename or move |
+| 🍺 Check Homebrew cask | `Casks/`, `scripts/update-cask.sh` | `brew style`, and the cask's sha256 against the published zip |
+| ⚙️ Lint workflows | `.github/workflows/` | `actionlint` (with `shellcheck`), configured in `.github/actionlint.yaml` |
+| ✅ CI gate | always | The one required check on `master` |
+
+A change to `ci.yml` or `scripts/ci-*`, and a manual run (Actions > CI > Run workflow), runs every job. A path no rule knows runs the Swift tests and builds, so a new folder can't skip a check by accident. UI tests (`UITests/`), `scripts/` and the GitHub templates run nothing beyond the format and lint check for Swift files. To add a job, add it to the list and the `case` in `scripts/ci-changes.sh` and to the gate's `needs`.
+
+Every job writes a report to the run's Summary tab: test counts and the slowest suites, lint counts, build warnings, the store build checks, link results, the cask's two sha256 values. `scripts/ci-report.sh` builds the test, lint and build reports from the job logs. A failed test run also keeps its log as the `swift-test-log` artifact for seven days.
+
+The gate fails when any job failed or was cancelled, and passes when jobs were skipped, so a skipped job never leaves a PR waiting on a check that never reports. If you rename the gate, change the required check in the branch protection of `master` too.
+
+`.github/workflows/release.yml` runs on a `v*` tag push (or manual dispatch): it builds and tests the same way, then signs and notarizes only if the signing secrets are present, verifies the resulting bundle structure (see [Resource bundle resolution](#resource-bundle-resolution-sharedcorebundleswift) above), zips it, and publishes it to a GitHub Release. See [RELEASING.md](RELEASING.md) for cutting a release by hand when secrets aren't configured in CI.
 
 `scripts/build-app.sh` builds the app in two passes: `swift build` for the main executable and its SwiftPM resource bundles, then `xcodegen generate` + `xcodebuild -scheme FenMacOSApp` for `FenQuickLook.appex` — SwiftPM has no app-extension concept, so the Quick Look extension can only come from the Xcode project `project.yml` already declares for `UITests/`. The extension is signed with its own entitlements before the main app is signed (Apple requires nested code signed first), and the main app's own signing step drops `--deep` so it doesn't re-sign the extension under the wrong entitlements. `release.yml`'s "Verify bundle structure" step asserts `Contents/PlugIns/FenQuickLook.appex` exists and verifies with `codesign`; a separate step registers it with `pluginkit` and renders a real thumbnail through it with `qlmanage -t`, so a build that produces a broken or unsigned extension fails release, not just a future bug report (see [issue #114](https://github.com/zoharbabin/fen/issues/114)).
 
@@ -694,7 +714,7 @@ Both workflows pass `--no-parallel`: several suites (`ZoomOutScrollPositionVerif
 
 ```mermaid
 flowchart LR
-    Push["push to master / PR"] --> CI["ci.yml: swift test"]
+    Push["push to master / PR"] --> CI["ci.yml: detect changes, run the jobs they need, CI gate"]
     Tag["git tag v* pushed"] --> Release["release.yml"]
     Release --> Build["swift test + build-app.sh"]
     Build --> Sign{"signing secrets present?"}
