@@ -3,19 +3,19 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Fen: a native Markdown editor that grows into a knowledge base</title>
-  <meta name="description" content="Fen is a native Markdown editor for Mac, iPhone and iPad. Live preview, workspaces, search by words and meaning, wiki-links, and Ask with sources. Your notes stay plain .md files. Free and open source.">
+  <title>Fen: your notes, and an AI that answers from them</title>
+  <meta name="description" content="A native Markdown editor for Mac, iPhone and iPad. Ask your notes and get answers with sources. Search by meaning on your device. Plain .md files. Free and open source.">
   <link rel="canonical" href="https://fen.md/">
   <link rel="icon" href="img/favicon-32.png">
   <link rel="apple-touch-icon" href="img/apple-touch-icon.png">
   <meta property="og:type" content="website">
-  <meta property="og:title" content="Fen: a native Markdown editor that grows into a knowledge base">
-  <meta property="og:description" content="A native Markdown editor for Mac, iPhone and iPad. Search and connect your notes, ask questions with sources, and keep plain .md files. Free and open source.">
+  <meta property="og:title" content="Fen: your notes, and an AI that answers from them">
+  <meta property="og:description" content="Ask your notes and get answers with sources. Search by meaning on your device. Every AI edit goes through one gate you can undo. Plain .md files, free and open source.">
   <meta property="og:url" content="https://fen.md/">
   <meta property="og:image" content="https://fen.md/img/og-image.png">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="Fen: a native Markdown editor that grows into a knowledge base">
-  <meta name="twitter:description" content="A native Markdown editor for Mac, iPhone and iPad. Search and connect your notes, ask questions with sources, and keep plain .md files. Free and open source.">
+  <meta name="twitter:title" content="Fen: your notes, and an AI that answers from them">
+  <meta name="twitter:description" content="Ask your notes and get answers with sources. Search by meaning on your device. Every AI edit goes through one gate you can undo. Plain .md files, free and open source.">
   <meta name="twitter:image" content="https://fen.md/img/og-image.png">
   <script type="application/ld+json">
   {
@@ -25,7 +25,7 @@
     "url": "https://fen.md/",
     "applicationCategory": "Productivity",
     "operatingSystem": "macOS 15 or later, iOS 18 or later",
-    "description": "A native Markdown editor for Mac, iPhone and iPad with workspaces, on-device search, wiki-links, and Ask with sources.",
+    "description": "A native Markdown editor for Mac, iPhone and iPad. Ask your notes and get answers with sources, search by meaning on your device, and keep every AI change behind one gate you can undo.",
     "author": { "@type": "Person", "name": "Zohar Babin", "url": "https://zoharbabin.com/" },
     "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
     "softwareVersion": "__FEN_LATEST_VERSION__",
@@ -183,15 +183,9 @@
       box-shadow: 0 20px 60px -20px rgba(0,0,0,.35);
     }
     .hero-shot img { display: block; width: 100%; height: auto; }
-    .hero-shot img.hero-img-dark { display: none; }
-    @media (prefers-color-scheme: dark) {
-      :root:not([data-theme]) .hero-shot img.hero-img-light { display: none; }
-      :root:not([data-theme]) .hero-shot img.hero-img-dark { display: block; }
-    }
-    [data-theme="dark"] .hero-shot img.hero-img-light { display: none; }
-    [data-theme="dark"] .hero-shot img.hero-img-dark { display: block; }
-    [data-theme="light"] .hero-shot img.hero-img-light { display: block; }
-    [data-theme="light"] .hero-shot img.hero-img-dark { display: none; }
+
+    .trust { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: 1.25rem; }
+    .trust .proof-pill { font-size: .78rem; padding: .3rem .75rem; }
 
     /* ── Section heading ── */
     h2 {
@@ -219,6 +213,46 @@
     .bento-card .ico { font-size: 1.3rem; margin-bottom: .6rem; display: block; }
     .bento-card h3 { font-size: .95rem; font-weight: 700; margin-bottom: .4rem; }
     .bento-card p { font-size: .84rem; color: var(--text-sub); line-height: 1.55; }
+    .bento-card.lead { border-color: var(--fen-teal); }
+    .bento-card .example {
+      margin-top: .8rem;
+      padding: .6rem .8rem;
+      border-left: 3px solid var(--fen-teal);
+      border-radius: 4px;
+      background: var(--bg);
+      font-size: .8rem;
+      color: var(--text-sub);
+      line-height: 1.5;
+    }
+    .bento-card .example b { color: var(--text); }
+    .bento-card .example small { display: block; margin-top: .25rem; color: var(--muted); font-size: .72rem; }
+    @media (min-width: 760px) {
+      .bento { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .bento-card.wide { grid-column: span 2; }
+    }
+
+    /* ═══════════════════════════════
+       GALLERY
+    ═══════════════════════════════ */
+    .gallery { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.25rem; }
+    .gallery figure { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: var(--surface); }
+    .gallery img { display: block; width: 100%; height: auto; }
+    .gallery figcaption { padding: .8rem 1.1rem; font-size: .84rem; color: var(--text-sub); line-height: 1.5; }
+    .gallery figcaption b { color: var(--text); }
+    @media (max-width: 640px) { .gallery { grid-template-columns: minmax(0, 1fr); } }
+
+    /* ═══════════════════════════════
+       COMPARISON
+    ═══════════════════════════════ */
+    .compare-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
+    .compare { width: 100%; min-width: 640px; border-collapse: collapse; font-size: .84rem; }
+    .compare th, .compare td { padding: .7rem 1rem; text-align: left; vertical-align: top; border-top: 1px solid var(--border); }
+    .compare thead th { border-top: 0; font-size: .8rem; color: var(--muted); font-weight: 700; }
+    .compare thead th.us { color: var(--text); }
+    .compare tbody th { font-weight: 600; color: var(--text); width: 30%; }
+    .compare td { color: var(--text-sub); }
+    .compare td.us { color: var(--text); font-weight: 600; background: color-mix(in srgb, var(--fen-teal) 12%, transparent); }
+    .compare-note { font-size: .76rem; color: var(--muted); margin-top: .75rem; }
 
     /* ═══════════════════════════════
        INSTALL
@@ -321,8 +355,8 @@
   </header>
 
   <div class="hero">
-    <h1>A native Markdown editor that grows into a knowledge base.</h1>
-    <p class="lede">Fen is a fast, native Markdown editor for Mac, iPhone and iPad. Write with a live preview. Open your folders as workspaces to search them by words and meaning, follow <code>[[wiki-links]]</code> and backlinks, and ask questions that come back with sources. Your notes stay plain <code>.md</code> files. Free and open source.</p>
+    <h1>Your notes, and an AI that answers from them.</h1>
+    <p class="lede">Fen is a native Markdown editor for Mac, iPhone and iPad that turns your folders into a knowledge base. Ask a question and get an answer with numbered sources. Search by meaning, on your device. Add the AI you trust, and every AI edit goes through one gate you can undo. Your notes stay plain <code>.md</code> files. Free and open source.</p>
     <div class="cta-row">
       <a class="btn btn-primary" href="https://github.com/zoharbabin/fen/releases/latest" target="_blank" rel="noopener">Download for macOS</a>
       <a class="btn btn-secondary" href="#install">Other ways to install</a>
@@ -333,20 +367,48 @@
     </div>
     <p class="hero-note">Signed and notarized by Apple, so it opens without Gatekeeper warnings. Needs macOS 15 or later (iOS 18 or later on iPhone and iPad).</p>
 
+    <div class="trust">
+      <span class="proof-pill">Free and open source</span>
+      <span class="proof-pill">No account</span>
+      <span class="proof-pill">No telemetry</span>
+      <span class="proof-pill">Your files, not a vault</span>
+      <span class="proof-pill">Native Swift, not Electron</span>
+    </div>
+
     <div class="hero-shot">
-      <img class="hero-img-light" src="img/hero-screenshot-light.png" alt="Fen's editor and live preview, side by side, showing a Markdown document with headings, a code block, and a rendered preview pane" loading="eager">
-      <img class="hero-img-dark" src="img/hero-screenshot-dark.png" alt="Fen's editor and live preview, side by side, showing a Markdown document with headings, a code block, and a rendered preview pane" loading="eager">
+      <img src="img/shot-ask.jpg" width="1800" height="1125" alt="Fen's Ask view. The question &quot;Why did we choose a yearly price?&quot; is answered in one line with a numbered source, Interview notes.md, and its line numbers" loading="eager">
     </div>
   </div>
 
   <!-- ─── What Fen does ─── -->
-  <h2>What Fen does</h2>
+  <h2>What makes Fen different</h2>
   <p class="section-lede">A fen is a wetland that feeds itself. Your notes can work the same way: connected, searchable and always growing, while they stay plain files.</p>
   <div class="bento">
-    <div class="bento-card">
-      <span class="ico">👀</span>
-      <h3>Live preview, scroll-synced</h3>
-      <p>GitHub-Flavored Markdown, syntax highlighting, MathJax and Mermaid render as you type. An optional Live Preview mode (Experimental) styles the source in place.</p>
+    <div class="bento-card lead wide">
+      <span class="ico">💬</span>
+      <h3>Ask your notes, get sources</h3>
+      <p>Ask a question across one workspace or all of them. The answer cites numbered sources with line numbers, so you can check it. A statement with no source gets a warning. Ask only reads. It never edits.</p>
+      <div class="example"><b>Why did we choose a yearly price?</b><br>A yearly price felt fair to most during interviews [5].<small>Example. [5] is Interview notes.md, lines 13 to 19.</small></div>
+    </div>
+    <div class="bento-card lead">
+      <span class="ico">🔎</span>
+      <h3>Search by meaning, on your device</h3>
+      <p>An on-device index finds notes by exact words and by meaning, across one workspace or all of them. Nothing leaves your Mac. The meaning side works for English.</p>
+    </div>
+    <div class="bento-card lead">
+      <span class="ico">🧭</span>
+      <h3>Related notes while you write</h3>
+      <p>A card shows the notes that link here, the ones you link to, and passages that say something similar. Open one, or insert a link in a click.</p>
+    </div>
+    <div class="bento-card lead wide">
+      <span class="ico">🛡️</span>
+      <h3>AI you control</h3>
+      <p>Fen sends no AI request until you add a provider: Apple's on-device model, Ollama, or any OpenAI-compatible service. Each workspace sets what AI may see. Ask AI, Enrich and agents all change a note through one gate. You start it, you see the change, and Undo reverts it.</p>
+    </div>
+    <div class="bento-card lead">
+      <span class="ico">🤖</span>
+      <h3>Ready for agents (Mac)</h3>
+      <p>An optional MCP server listens on 127.0.0.1 only and is off by default. Each client gets its own token and its own workspaces. An agent commits to its own branch and your checkout stays put.</p>
     </div>
     <div class="bento-card">
       <span class="ico">🗂️</span>
@@ -354,34 +416,19 @@
       <p>Add as many folders as you like, with or without git. Fen lists their notes without opening each one, and writes nothing into your folders apart from an optional schema file.</p>
     </div>
     <div class="bento-card">
-      <span class="ico">🔎</span>
-      <h3>Search by words and meaning</h3>
-      <p>An on-device index finds notes by exact words and by meaning, across one workspace or all of them. Nothing leaves your Mac. The meaning side works for English.</p>
-    </div>
-    <div class="bento-card">
       <span class="ico">🔗</span>
       <h3>Wiki-links and backlinks</h3>
       <p>Link notes with <code>[[name]]</code>, <code>[[name|text]]</code> or <code>[[name#heading]]</code>. A backlinks list shows the notes that link here, even ones you have not opened.</p>
     </div>
     <div class="bento-card">
+      <span class="ico">👀</span>
+      <h3>Live preview, scroll-synced</h3>
+      <p>GitHub-Flavored Markdown, syntax highlighting, MathJax and Mermaid render as you type. An optional Live Preview mode (Experimental) styles the source in place.</p>
+    </div>
+    <div class="bento-card">
       <span class="ico">🏷️</span>
       <h3>Document types</h3>
       <p>Define types and fields in a plain <code>schema.yaml</code>. Edit typed properties in the app. Hints flag a near-miss, and they never block a save.</p>
-    </div>
-    <div class="bento-card">
-      <span class="ico">💬</span>
-      <h3>Ask your workspaces</h3>
-      <p>Ask a question and get an answer that cites numbered sources with line numbers. A statement with no source gets a warning. Ask only reads.</p>
-    </div>
-    <div class="bento-card">
-      <span class="ico">🛡️</span>
-      <h3>AI you control</h3>
-      <p>Fen sends no AI request until you add a provider: Apple's on-device model, Ollama, or any OpenAI-compatible service. Each workspace sets what AI may see. Every AI edit goes through one gate and can be undone.</p>
-    </div>
-    <div class="bento-card">
-      <span class="ico">🤖</span>
-      <h3>Ready for agents (Mac)</h3>
-      <p>An optional MCP server listens on 127.0.0.1 only and is off by default. Each client gets its own token and its own workspaces. An agent commits to its own branch and your checkout stays put.</p>
     </div>
     <div class="bento-card">
       <span class="ico">🔄</span>
@@ -404,6 +451,50 @@
       <p>Pure Swift and SwiftUI on Apple Silicon. MIT license, no account, no telemetry. Every script ships inside the app.</p>
     </div>
   </div>
+
+  <!-- ─── Gallery ─── -->
+  <h2>See it in action</h2>
+  <div class="gallery">
+    <figure>
+      <img src="img/shot-search.jpg" width="1200" height="750" alt="Search results for &quot;subscription price&quot; across all workspaces. Matches are labeled Similar meaning" loading="lazy">
+      <figcaption>Search one workspace, a few, or all of them. Matches by meaning are labeled.</figcaption>
+    </figure>
+    <figure>
+      <img src="img/shot-related.jpg" width="1200" height="750" alt="A Related documents card open beside a note, listing notes that link to it and passages that are similar" loading="lazy">
+      <figcaption>The card lists notes that link here and similar passages. Open one, or insert a link.</figcaption>
+    </figure>
+    <figure>
+      <img src="img/shot-write.jpg" width="1200" height="750" alt="Markdown on the left and the rendered page on the right, with a checklist and a Mermaid Gantt chart" loading="lazy">
+      <figcaption>The two panes scroll together as you type.</figcaption>
+    </figure>
+    <figure>
+      <img src="img/shot-preview.jpg" width="1200" height="750" alt="A rendered note with a pricing table and a MathJax formula" loading="lazy">
+      <figcaption>Math, tables and diagrams render in exports and print too.</figcaption>
+    </figure>
+  </div>
+
+  <!-- ─── Compare ─── -->
+  <h2>How Fen compares</h2>
+  <p class="section-lede">Most tools make you pick between files you own and AI that helps. Fen keeps both.</p>
+  <div class="compare-wrap">
+    <table class="compare">
+      <thead>
+        <tr><th></th><th class="us">Fen</th><th>A plain Markdown editor</th><th>A cloud AI notes app</th></tr>
+      </thead>
+      <tbody>
+        <tr><th scope="row">Notes are plain <code>.md</code> files in your folders</th><td class="us">Yes</td><td>Yes</td><td>Often not</td></tr>
+        <tr><th scope="row">Native on Mac, iPhone and iPad</th><td class="us">Yes</td><td>Varies</td><td>Often web or Electron</td></tr>
+        <tr><th scope="row">Search by meaning, on your device</th><td class="us">Yes</td><td>Rarely</td><td>Usually in the cloud</td></tr>
+        <tr><th scope="row">Answers cite sources with line numbers</th><td class="us">Yes</td><td>No AI</td><td>Some do</td></tr>
+        <tr><th scope="row">No AI request until you add a provider</th><td class="us">Yes</td><td>No AI</td><td>The provider is fixed</td></tr>
+        <tr><th scope="row">One gate and Undo for every AI edit</th><td class="us">Yes</td><td>No AI</td><td>Varies</td></tr>
+        <tr><th scope="row">Agents over MCP, each on its own git branch</th><td class="us">Yes (Mac)</td><td>No</td><td>Rarely</td></tr>
+        <tr><th scope="row">No account, no telemetry</th><td class="us">Yes</td><td>Varies</td><td>Account needed</td></tr>
+        <tr><th scope="row">Price</th><td class="us">Free, MIT license</td><td>Free to paid</td><td>Usually a subscription</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="compare-note">General patterns across each kind of tool, not a claim about any one product.</p>
 
   <!-- ─── Install ─── -->
   <h2 id="install">Install</h2>
@@ -458,6 +549,7 @@ brew install --cask fen</code></pre>
       <svg class="gh-icon" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
       MIT licensed
     </span>
+    <a class="proof-pill" href="https://github.com/zoharbabin/fen" target="_blank" rel="noopener" style="text-decoration:none">Star Fen on GitHub</a>
     <span class="proof-pill">Swift 6, strict concurrency</span>
     <span class="proof-pill">Swift Testing suite</span>
     <span class="proof-pill">Signed &amp; notarized releases</span>
