@@ -8,7 +8,3 @@ paths:
     ignore:
       # The keychain list is split on purpose, so each keychain is its own argument.
       - 'SC2046:'
-  .github/workflows/ci.yml:
-    ignore:
-      # The store build checks are functions that `check` calls by name, which shellcheck can't follow.
-      - 'SC2329:'

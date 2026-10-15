@@ -192,31 +192,32 @@ jobs:
           linked=$(otool -L "$APP/Contents/MacOS/Fen")
           rows=$RUNNER_TEMP/checks.md
           failed=0
-          check() { # description, then a command that succeeds when the build is right
-            local what=$1
-            shift
-            if "$@"; then
-              echo "| ✅ | $what |" >> "$rows"
-            else
-              echo "| ❌ | $what |" >> "$rows"
-              echo "::error::Store build check failed: $what"
-              failed=1
-            fi
+          pass() { echo "| ✅ | $1 |" >> "$rows"; }
+          fail() {
+            echo "| ❌ | $1 |" >> "$rows"
+            echo "::error::Store build check failed: $1"
+            failed=1
           }
-          is_sandboxed() { grep -q com.apple.security.app-sandbox <<< "$entitlements"; }
-          has_no_sparkle_framework() { [ ! -e "$APP/Contents/Frameworks/Sparkle.framework" ]; }
-          links_no_sparkle() { ! grep -qi sparkle <<< "$linked"; }
-          has_privacy_manifest() { [ -f "$APP/Contents/Resources/PrivacyInfo.xcprivacy" ]; }
-          has_no_update_feed() { ! /usr/libexec/PlistBuddy -c "Print :SUFeedURL" "$APP/Contents/Info.plist" >/dev/null 2>&1; }
           {
             echo "| | Check |"
             echo "|---|---|"
           } > "$rows"
-          check "Sandboxed (app-sandbox entitlement)" is_sandboxed
-          check "No Sparkle framework in the bundle" has_no_sparkle_framework
-          check "Binary does not link Sparkle" links_no_sparkle
-          check "PrivacyInfo.xcprivacy is in the bundle" has_privacy_manifest
-          check "Info.plist has no Sparkle feed (SUFeedURL)" has_no_update_feed
+
+          what="Sandboxed (app-sandbox entitlement)"
+          if grep -q com.apple.security.app-sandbox <<< "$entitlements"; then pass "$what"; else fail "$what"; fi
+
+          what="No Sparkle framework in the bundle"
+          if [ ! -e "$APP/Contents/Frameworks/Sparkle.framework" ]; then pass "$what"; else fail "$what"; fi
+
+          what="Binary does not link Sparkle"
+          if grep -qi sparkle <<< "$linked"; then fail "$what"; else pass "$what"; fi
+
+          what="PrivacyInfo.xcprivacy is in the bundle"
+          if [ -f "$APP/Contents/Resources/PrivacyInfo.xcprivacy" ]; then pass "$what"; else fail "$what"; fi
+
+          what="Info.plist has no Sparkle feed (SUFeedURL)"
+          if /usr/libexec/PlistBuddy -c "Print :SUFeedURL" "$APP/Contents/Info.plist" >/dev/null 2>&1; then fail "$what"; else pass "$what"; fi
+
           exit "$failed"
 
       - name: Report
