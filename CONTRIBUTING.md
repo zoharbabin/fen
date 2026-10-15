@@ -25,6 +25,8 @@ swift test --no-parallel
 
 Use `--no-parallel`: several suites drive a real `WKWebView`, and running them concurrently contends for shared resources (the system pasteboard, temp files, WebView startup) and produces false failures that vanish when rerun serially — see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#ci-and-releases).
 
+CI runs only the jobs your change needs. A docs-only PR runs the link check and finishes in about a minute. The rules and the job list are in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#ci-and-releases). Every job writes a report to the run's Summary tab.
+
 `.swiftformat` and `.swiftlint.yml` at the repo root define the rules; don't fight them with inline disables unless there's a real reason, and leave a comment explaining it when you do.
 
 ## Coding style

@@ -1,17 +1,89 @@
 name: CI
 
+# One job per check. "Detect changes" reads the files a change touches and switches jobs on or off
+# (rules: scripts/ci-changes.sh, mirrored in docs/ARCHITECTURE.md#ci-and-releases). Each job writes
+# a report to the run summary. "CI gate" is the one required check on master: it passes when every
+# job that ran passed, and skipped jobs don't block a merge.
+#
+# Run every job by hand: Actions > CI > Run workflow.
+
 on:
   push:
     branches: [master]
   pull_request:
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
 jobs:
-  test:
-    name: lint & swift test (macOS)
+  changes:
+    name: 🔎 Detect changes
+    runs-on: ubuntu-latest
+    outputs:
+      lint: ${{ steps.rules.outputs.lint }}
+      tests: ${{ steps.rules.outputs.tests }}
+      builds: ${{ steps.rules.outputs.builds }}
+      docs: ${{ steps.rules.outputs.docs }}
+      cask: ${{ steps.rules.outputs.cask }}
+      workflows: ${{ steps.rules.outputs.workflows }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # the diff needs the base commit
+
+      # A manual run has no base, so every job runs.
+      - name: Decide which jobs run
+        id: rules
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: scripts/ci-changes.sh "$BASE" "$HEAD"
+
+  lint:
+    name: 🧹 Format & lint
+    needs: changes
+    if: needs.changes.outputs.lint == 'true'
+    runs-on: macos-15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install tools
+        run: |
+          brew install swiftformat swiftlint >/dev/null
+          : > "$RUNNER_TEMP/swiftformat.log"
+          : > "$RUNNER_TEMP/swiftlint.log"
+
+      - name: Check formatting
+        run: swiftformat --lint . 2>&1 | tee "$RUNNER_TEMP/swiftformat.log"
+
+      - name: Lint
+        if: ${{ !cancelled() }}
+        run: swiftlint 2>&1 | tee "$RUNNER_TEMP/swiftlint.log"
+
+      - name: Report
+        if: ${{ !cancelled() }}
+        run: |
+          {
+            scripts/ci-report.sh lint "$RUNNER_TEMP/swiftformat.log" "$RUNNER_TEMP/swiftlint.log"
+            echo
+            echo "Tools: swiftformat $(swiftformat --version), swiftlint $(swiftlint --version)"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  tests:
+    name: 🧪 Swift tests (macOS)
+    needs: changes
+    if: needs.changes.outputs.tests == 'true'
     runs-on: macos-15
 
     steps:
@@ -30,18 +102,8 @@ jobs:
           key: spm-${{ runner.os }}-${{ hashFiles('Package.resolved') }}
           restore-keys: spm-${{ runner.os }}-
 
-      - name: Check formatting
-        run: |
-          brew install swiftformat >/dev/null
-          swiftformat --lint .
-
-      - name: Lint
-        run: |
-          brew install swiftlint >/dev/null
-          swiftlint
-
       - name: Run tests
-        run: swift test --no-parallel
+        run: swift test --no-parallel 2>&1 | tee "$RUNNER_TEMP/swift-test.log"
 
       # The runner starts with no ~/.fen. Tests pass a temp FenHome everywhere, so one here means
       # a test or feature wrote to the real home (issue #9).
@@ -53,8 +115,22 @@ jobs:
             exit 1
           fi
 
+      - name: Report
+        if: ${{ !cancelled() }}
+        run: scripts/ci-report.sh tests "$RUNNER_TEMP/swift-test.log" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Keep the test log
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: swift-test-log
+          path: ${{ runner.temp }}/swift-test.log
+          retention-days: 7
+
   build-ios:
-    name: build iOS app (simulator)
+    name: 📱 Build iOS app (simulator)
+    needs: changes
+    if: needs.changes.outputs.builds == 'true'
     runs-on: macos-15
 
     steps:
@@ -69,13 +145,23 @@ jobs:
       # async call missing `await` inside an `#else` branch.
       - name: Build
         run: |
+          date +%s > "$RUNNER_TEMP/started"
           brew install xcodegen >/dev/null
           xcodegen generate
           xcodebuild -project FenUITesting.xcodeproj -scheme FeniOSApp \
-            -destination 'generic/platform=iOS Simulator' build CODE_SIGNING_ALLOWED=NO
+            -destination 'generic/platform=iOS Simulator' build CODE_SIGNING_ALLOWED=NO \
+            2>&1 | tee "$RUNNER_TEMP/xcodebuild.log"
+
+      - name: Report
+        if: ${{ !cancelled() }}
+        run: |
+          scripts/ci-report.sh xcode "📱 Build iOS app (simulator)" "$RUNNER_TEMP/xcodebuild.log" \
+            $(($(date +%s) - $(cat "$RUNNER_TEMP/started"))) >> "$GITHUB_STEP_SUMMARY"
 
   build-appstore:
-    name: build Mac App Store target
+    name: 🏪 Build Mac App Store target
+    needs: changes
+    if: needs.changes.outputs.builds == 'true'
     runs-on: macos-15
 
     steps:
@@ -86,27 +172,71 @@ jobs:
           LATEST=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -1)
           [ -n "$LATEST" ] && sudo xcode-select -s "$LATEST"
 
-      # The store build must be sandboxed, carry no Sparkle, and ship its privacy manifest (issue #40).
-      # Ad hoc signing is enough to embed the entitlements. The UI tests that run against it are local:
-      # scripts/test-appstore-sandbox.sh.
-      - name: Build and check
+      # Ad hoc signing is enough to embed the entitlements. The UI tests that run against the store
+      # build are local: scripts/test-appstore-sandbox.sh.
+      - name: Build
         run: |
+          date +%s > "$RUNNER_TEMP/started"
           brew install xcodegen >/dev/null
           xcodegen generate
           xcodebuild -project FenUITesting.xcodeproj -scheme FenMacOSAppStore -destination 'platform=macOS' \
-            -derivedDataPath build build CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM=
+            -derivedDataPath build build CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM= \
+            2>&1 | tee "$RUNNER_TEMP/xcodebuild.log"
+
+      # The store build must be sandboxed, carry no Sparkle, and ship its privacy manifest (issue #40).
+      # Every check runs, so one report shows all that fail.
+      - name: Check the store build
+        run: |
           APP=build/Build/Products/Debug/Fen.app
-          fail() { echo "::error::$1"; exit 1; }
-          codesign -d --entitlements - "$APP" 2>&1 | grep -q com.apple.security.app-sandbox \
-            || fail "The store build is not sandboxed."
-          [ ! -e "$APP/Contents/Frameworks/Sparkle.framework" ] || fail "The store build contains Sparkle."
-          ! otool -L "$APP/Contents/MacOS/Fen" | grep -qi sparkle || fail "The store build links Sparkle."
-          [ -f "$APP/Contents/Resources/PrivacyInfo.xcprivacy" ] || fail "PrivacyInfo.xcprivacy is missing."
-          ! /usr/libexec/PlistBuddy -c "Print :SUFeedURL" "$APP/Contents/Info.plist" >/dev/null 2>&1 \
-            || fail "The store Info.plist has a Sparkle feed."
+          entitlements=$(codesign -d --entitlements - "$APP" 2>&1 || true)
+          linked=$(otool -L "$APP/Contents/MacOS/Fen")
+          rows=$RUNNER_TEMP/checks.md
+          failed=0
+          check() { # description, then a command that succeeds when the build is right
+            local what=$1
+            shift
+            if "$@"; then
+              echo "| ✅ | $what |" >> "$rows"
+            else
+              echo "| ❌ | $what |" >> "$rows"
+              echo "::error::Store build check failed: $what"
+              failed=1
+            fi
+          }
+          is_sandboxed() { grep -q com.apple.security.app-sandbox <<< "$entitlements"; }
+          has_no_sparkle_framework() { [ ! -e "$APP/Contents/Frameworks/Sparkle.framework" ]; }
+          links_no_sparkle() { ! grep -qi sparkle <<< "$linked"; }
+          has_privacy_manifest() { [ -f "$APP/Contents/Resources/PrivacyInfo.xcprivacy" ]; }
+          has_no_update_feed() { ! /usr/libexec/PlistBuddy -c "Print :SUFeedURL" "$APP/Contents/Info.plist" >/dev/null 2>&1; }
+          {
+            echo "| | Check |"
+            echo "|---|---|"
+          } > "$rows"
+          check "Sandboxed (app-sandbox entitlement)" is_sandboxed
+          check "No Sparkle framework in the bundle" has_no_sparkle_framework
+          check "Binary does not link Sparkle" links_no_sparkle
+          check "PrivacyInfo.xcprivacy is in the bundle" has_privacy_manifest
+          check "Info.plist has no Sparkle feed (SUFeedURL)" has_no_update_feed
+          exit "$failed"
+
+      - name: Report
+        if: ${{ !cancelled() }}
+        run: |
+          {
+            scripts/ci-report.sh xcode "🏪 Build Mac App Store target" "$RUNNER_TEMP/xcodebuild.log" \
+              $(($(date +%s) - $(cat "$RUNNER_TEMP/started")))
+            if [ -f "$RUNNER_TEMP/checks.md" ]; then
+              echo
+              echo "**Store build checks**"
+              echo
+              cat "$RUNNER_TEMP/checks.md"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
 
   docs-links:
-    name: check doc & site links
+    name: 🔗 Check doc & site links
+    needs: changes
+    if: needs.changes.outputs.docs == 'true'
     runs-on: ubuntu-latest
 
     steps:
@@ -117,6 +247,7 @@ jobs:
       # from what it links to. Retries handle transient network flakiness;
       # a genuinely broken link (404 and the like) still fails the job. A 429 or 5xx
       # from a server is its outage, not a broken link, so it doesn't fail the job.
+      # The action writes the link report to the run summary.
       - name: Link check
         uses: lycheeverse/lychee-action@v2
         with:
@@ -133,9 +264,12 @@ jobs:
             --exclude "https://highlightjs\.org/.*"
             './**/*.md' './site/*.html'
           fail: true
+          jobSummary: true
 
   cask:
-    name: check Homebrew cask
+    name: 🍺 Check Homebrew cask
+    needs: changes
+    if: needs.changes.outputs.cask == 'true'
     runs-on: macos-15
 
     steps:
@@ -152,4 +286,93 @@ jobs:
           expected="$(sed -n 's/^  sha256 "\(.*\)"/\1/p' Casks/fen.rb)"
           curl -fsSL -o Fen.app.zip "https://github.com/zoharbabin/fen/releases/download/v${version}/Fen.app.zip"
           actual="$(shasum -a 256 Fen.app.zip | cut -d' ' -f1)"
+          if [ "$actual" = "$expected" ]; then verdict="✅ match"; else verdict="❌ mismatch"; fi
+          {
+            echo "## 🍺 Homebrew cask"
+            echo
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Cask version | $version |"
+            echo "| sha256 in the cask | \`$expected\` |"
+            echo "| sha256 of the release zip | \`$actual\` |"
+            echo "| Result | $verdict |"
+          } >> "$GITHUB_STEP_SUMMARY"
           test "$actual" = "$expected" || { echo "sha256 mismatch for v${version}: cask has ${expected}, release has ${actual}"; exit 1; }
+
+  workflows:
+    name: ⚙️ Lint workflows
+    needs: changes
+    if: needs.changes.outputs.workflows == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # actionlint also runs shellcheck over every `run:` block.
+      - name: actionlint
+        run: |
+          status=0
+          go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12 > "$RUNNER_TEMP/actionlint.log" 2>&1 || status=$?
+          count=$(find .github/workflows -name '*.yml' | wc -l | tr -d ' ')
+          {
+            echo "## ⚙️ Lint workflows"
+            echo
+            if [ "$status" = 0 ]; then
+              echo "✅ $count workflow files, no problems."
+            else
+              echo "❌ actionlint found problems:"
+              echo
+              echo '```text'
+              cat "$RUNNER_TEMP/actionlint.log"
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          cat "$RUNNER_TEMP/actionlint.log"
+          exit "$status"
+
+  # The only check master requires. It runs even when a job fails or is skipped, so a skipped
+  # job can't leave the PR waiting on a check that never reports.
+  gate:
+    name: ✅ CI gate
+    if: ${{ always() }}
+    needs: [changes, lint, tests, build-ios, build-appstore, docs-links, cask, workflows]
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+
+    steps:
+      - name: Decide and report
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # "skipped" is fine: either the change doesn't need the job, or an earlier job
+          # already failed and shows as failed itself. Detect changes must succeed, or nothing ran.
+          bad=$(jq '[.[] | select(.result == "failure" or .result == "cancelled")] | length' <<< "$NEEDS")
+          [ "$(jq -r .changes.result <<< "$NEEDS")" = success ] || bad=$((bad + 1))
+
+          elapsed=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" --jq '(now - (.run_started_at | fromdate)) | floor')
+          {
+            if [ "$bad" = 0 ]; then echo "## ✅ CI gate: passed"; else echo "## ❌ CI gate: failed"; fi
+            echo
+            echo "| Job | Result | Time |"
+            echo "|---|---|---:|"
+            gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT/jobs" --paginate \
+              --jq '.jobs[] | select(.conclusion != null and .name != "✅ CI gate")
+                | [.name, .conclusion, (try ((.completed_at | fromdate) - (.started_at | fromdate)) catch 0)] | @tsv' \
+              | while IFS=$'\t' read -r name result seconds; do
+                case $result in
+                  success) icon="✅ passed" ;;
+                  skipped) icon="⏭️ skipped" ;;
+                  cancelled) icon="🚫 cancelled" ;;
+                  *) icon="❌ $result" ;;
+                esac
+                if [ "$result" = skipped ]; then time="-"; else time="$((seconds / 60))m $((seconds % 60))s"; fi
+                echo "| $name | $icon | $time |"
+              done
+            echo
+            echo "Run time so far: $((elapsed / 60))m $((elapsed % 60))s"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          [ "$bad" = 0 ] || { echo "::error::$bad job(s) failed or were cancelled. See the summary."; exit 1; }
