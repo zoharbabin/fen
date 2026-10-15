@@ -295,7 +295,7 @@ public final class WorkspaceSearch {
     /// The vector in the space that fits the query, for matching it against the index.
     private func taggedVector(forQuery query: String) async -> TaggedVector? {
         guard let embedder, await resolveIdentity() != nil,
-              let tagged = try? await embedder.embedTagged(query),
+              let tagged = try? await embedder.embedQueryTagged(query),
               let unit = VectorCodec.normalized(tagged.vector) else { return nil }
         return TaggedVector(space: tagged.space, vector: unit)
     }

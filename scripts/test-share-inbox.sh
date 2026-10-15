@@ -4,6 +4,8 @@
 # Usage: scripts/test-share-inbox.sh [simulator-udid]   (default: the booted simulator)
 set -eu
 cd "$(dirname "$0")/.."
+# The llama.cpp binary has no simulator slice (see Package.swift).
+export FEN_WITHOUT_LLAMA=1
 UDID="${1:-booted}"
 [ "$UDID" = booted ] && UDID="$(xcrun simctl list devices booted | sed -n 's/.*(\([0-9A-F-]\{36\}\)) (Booted).*/\1/p' | head -1)"
 [ -n "$UDID" ] || { echo "Boot a simulator first, or pass its UDID." >&2; exit 1; }

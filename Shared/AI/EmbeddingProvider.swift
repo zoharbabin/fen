@@ -46,6 +46,8 @@ public protocol EmbeddingProvider: Sendable {
     func embed(_ text: String) async throws -> [Float]
     /// The vector of `text` in the space that fits it best (for example its language).
     func embedTagged(_ text: String) async throws -> TaggedVector
+    /// Like `embedTagged`, for a search query. Some models read a question differently from a note.
+    func embedQueryTagged(_ text: String) async throws -> TaggedVector
     /// `similarityFloor` for one space. Models of different languages have different score ranges.
     func similarityFloor(inSpace space: String) -> Float
 }
@@ -65,6 +67,10 @@ public extension EmbeddingProvider {
 
     func embedTagged(_ text: String) async throws -> TaggedVector {
         try await TaggedVector(space: EmbeddingSpace.single, vector: embed(text))
+    }
+
+    func embedQueryTagged(_ text: String) async throws -> TaggedVector {
+        try await embedTagged(text)
     }
 
     func similarityFloor(inSpace _: String) -> Float {

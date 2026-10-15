@@ -18,6 +18,8 @@ public struct AIContextItem: Sendable, Equatable {
 public enum ProviderKind: String, Codable, Sendable, CaseIterable {
     /// The model that ships with the OS. Runs inside Fen's process.
     case onDevice
+    /// A model you downloaded in Settings (issue #234). Runs inside Fen's process.
+    case downloaded
     /// Ollama on this Mac (`localhost:11434`).
     case ollama
     /// Any OpenAI-compatible endpoint: LM Studio, OpenRouter, OpenAI, Ollama's compatible mode.
@@ -26,6 +28,7 @@ public enum ProviderKind: String, Codable, Sendable, CaseIterable {
     public var title: String {
         switch self {
         case .onDevice: "On-device model"
+        case .downloaded: "Downloaded model"
         case .ollama: "Ollama"
         case .openAICompatible: "OpenAI-compatible"
         }

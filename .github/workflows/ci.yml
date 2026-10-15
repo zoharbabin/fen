@@ -142,15 +142,20 @@ jobs:
           [ -n "$LATEST" ] && sudo xcode-select -s "$LATEST"
 
       # `swift test` compiles only the macOS side. This catches iOS-only breakage, such as an
-      # async call missing `await` inside an `#else` branch.
+      # async call missing `await` inside an `#else` branch. The llama.cpp binary has no simulator
+      # slice, so the simulator build leaves it out (FEN_WITHOUT_LLAMA, see Package.swift) and a second
+      # build for devices compiles the code that uses it.
       - name: Build
         run: |
           date +%s > "$RUNNER_TEMP/started"
           brew install xcodegen >/dev/null
           xcodegen generate
-          xcodebuild -project FenUITesting.xcodeproj -scheme FeniOSApp \
+          FEN_WITHOUT_LLAMA=1 xcodebuild -project FenUITesting.xcodeproj -scheme FeniOSApp \
             -destination 'generic/platform=iOS Simulator' build CODE_SIGNING_ALLOWED=NO \
             2>&1 | tee "$RUNNER_TEMP/xcodebuild.log"
+          xcodebuild -project FenUITesting.xcodeproj -scheme FeniOSApp \
+            -destination 'generic/platform=iOS' build CODE_SIGNING_ALLOWED=NO \
+            2>&1 | tee -a "$RUNNER_TEMP/xcodebuild.log"
 
       - name: Report
         if: ${{ !cancelled() }}

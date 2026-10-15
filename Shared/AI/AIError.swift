@@ -15,6 +15,10 @@ public enum AIError: Error, Equatable, LocalizedError {
     case redirectRefused
     case systemModelUnavailable(String)
     case contextTooLarge
+    /// A downloaded model is chosen, but its file is not on this device.
+    case modelNotInstalled(String)
+    /// The device is too hot to run a model. Try again when it has cooled down.
+    case deviceTooHot
 
     public var errorDescription: String? {
         switch self {
@@ -47,6 +51,10 @@ public enum AIError: Error, Equatable, LocalizedError {
             reason
         case .contextTooLarge:
             "The text is too long for this model. Select less text and try again."
+        case let .modelNotInstalled(name):
+            "\(name) is not downloaded. Download it in Settings, AI, On-device models."
+        case .deviceTooHot:
+            "This device is too hot to run a model. Let it cool down and try again."
         }
     }
 }

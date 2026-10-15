@@ -77,7 +77,7 @@ Paste into "Notes" under App Review Information. No sign-in is needed, so leave 
 
 > Fen is a local-first Markdown editor. It reads and writes only the files and folders you grant through the system file picker. No account is needed.
 >
-> The only network use is what you start yourself: an AI provider address you enter in Settings (for example a local Ollama server), a GitHub repository you choose to copy, and map tiles if you turn on the map setting. Nothing is sent without that setup.
+> The only network use is what you start yourself: an AI provider address you enter in Settings (for example a local Ollama server), a model file you choose to download in Settings, a GitHub repository you choose to copy, and map tiles if you turn on the map setting. Nothing is sent without that setup.
 >
 > To try the workspace features, tap Workspaces on the launch screen (iPhone, iPad) or choose File > Workspaces (Mac), then add any folder with `.md` files. Search works at once. Ask needs an AI provider, so it shows setup help until you add one.
 
