@@ -4,7 +4,7 @@ Fen needs a model that turns text into vectors, so search can match meaning and 
 
 ## Result
 
-Fen uses Apple's sentence embedding (`NLEmbedding.sentenceEmbedding(for: .english)`) behind the `EmbeddingProvider` protocol. Search works by words alone for any text the model can't read.
+Fen uses Apple's sentence embedding (`NLEmbedding.sentenceEmbedding(for:)`) behind the `EmbeddingProvider` protocol, one model per language the OS covers (issue #234, see [More languages](#more-languages-issue-234)). Search works by words alone for any text the model can't read.
 
 ## What we measured
 
@@ -71,7 +71,7 @@ What this means:
 
 ## Limits
 
-- English only. Text in another language gets no vector and is found by words.
+- Only languages the OS has a model for. Text in any other language gets no vector and is found by words.
 - Indexing with the real model ran at about 21 ms per chunk, end to end (600 chunks in 12.5 s). A workspace of 100,000 chunks takes about 35 minutes in the background. Indexing waits in Low Power Mode and while background work is paused.
 - One vector takes 516 bytes (512 bytes plus a 4-byte scale). 100,000 chunks take about 50 MB on disk and in memory.
 
@@ -90,3 +90,32 @@ Same 12 notes and 16 queries, same Mac. Run `FEN_LIVE_OLLAMA=1 swift test --no-p
 | Memory | Held by Ollama, about 620 MB on disk. Not measured in RAM. |
 
 We did not test the task prefixes the model card suggests, or text longer than the model's input limit. Search quality on a real workspace is not measured. The set is small, so treat 1.0 as "no miss on this set", not as a benchmark.
+
+## More languages (issue #234)
+
+On the Mac we measured (macOS 26.6), the OS has sentence models for English (512 dimensions), Spanish, French, German, Italian and Portuguese (640 each). It has none for Dutch, Chinese, Japanese, Korean, Russian, Arabic, Turkish, Hebrew, Hindi, Swedish, Polish or Ukrainian. Fen asks the OS at run time (`Locale.LanguageCode.isoLanguageCodes` with `NLEmbedding.currentSentenceEmbeddingRevision(for:)` and a non-nil model), so a newer OS adds languages with no code change. The provider id is `apple.nl.sentence`. It names no language. The index signature includes the list of spaces, so an OS that gains a language rebuilds the index once.
+
+Each chunk is tagged with the language `NLLanguageRecognizer` finds. A query is tagged the same way and searched only among vectors of its language.
+
+Data: `Tests/FenTests/MultilingualQualityCorpus.swift`, 12 notes and 16 hand-labeled queries per language. Run `FEN_SPIKE=1 swift test --no-parallel --filter MultilingualQualityTests` to print the numbers again. MRR is the mean reciprocal rank of the right note. "Hybrid" is words plus meaning, as the app ranks. The floor is the one in `AppleSentenceEmbeddingProvider.floors`.
+
+| | es | fr | de | it | pt |
+|---|---|---|---|---|---|
+| Words-only MRR | 0.62 | 0.62 | 0.50 | 0.55 | 0.60 |
+| Meaning-only MRR | 0.60 | 0.32 | 0.44 | 0.40 | 0.40 |
+| Hybrid MRR | 0.71 | 0.70 | 0.60 | 0.67 | 0.61 |
+| Queries read as the wrong language | 2 of 16 | 3 of 16 | 1 of 16 | 4 of 16 | 2 of 16 |
+| Cosine, right answer (median) | 0.58 | 0.83 | 0.27 | 0.58 | 0.76 |
+| Cosine, wrong answer (median) | 0.47 | 0.81 | 0.16 | 0.49 | 0.75 |
+| Floor | 0.30 | 0.30 | 0.05 | 0.30 | 0.30 |
+
+What this means:
+
+- Hybrid beats words alone in all five languages. The gain is real but modest. Treat 16 queries per language as a sanity check, not a benchmark.
+- French and Portuguese meaning-only search is weak. The cosines of right and wrong answers are almost the same (0.83 against 0.81 for French), so a floor can't separate them. Ranking still helps, because the fused list never did worse than words in these sets.
+- German scores run low. A floor above 0.1 starts to drop right answers, so German uses 0.05.
+- For Spanish, French, Italian and Portuguese, every floor from 0 to 0.35 gave the same result. We use 0.3.
+- Short queries are the weak point. The recognizer reads one-word queries such as "tram", "faro" or "endpoints" as another language. Such a query finds nothing by meaning in that workspace and falls back to words. Hints and a language constraint on the recognizer moved 83 of 96 queries (the five sets plus the English set) to 84 correct, so we did not add them.
+- A workspace that mixes all six languages plus one Dutch note: the right note is in the top 3 by meaning alone for 43 of 80 queries (the misread ones count as misses). The Dutch note is found by words.
+
+Not measured: Catalan, Dutch and the other languages with no model; text that mixes languages inside one note; iPhone and iPad; the memory and time of the five extra models (we measured only the English one above). Classification and conflict checks stay English only.

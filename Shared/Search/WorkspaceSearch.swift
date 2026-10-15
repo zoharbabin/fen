@@ -185,7 +185,8 @@ public final class WorkspaceSearch {
         let embedder = embedder
         let task = Task.detached(priority: .utility) { () -> EmbedderIdentity? in
             guard let embedder, embedder.runsOnDevice, embedder.isAvailable else { return nil }
-            return EmbedderIdentity(id: embedder.id, dimension: embedder.dimension)
+            let spaces = embedder.spaces
+            return spaces.isEmpty ? nil : EmbedderIdentity(id: embedder.id, spaces: spaces)
         }
         identityTask = task
         return await task.value
@@ -232,7 +233,8 @@ public final class WorkspaceSearch {
         .compactMap { workspace in indexes[workspace.id].map { (workspace, $0) } }
         guard !targets.isEmpty else { return [] }
 
-        let queryVector = await vector(forQuery: meaning?.trimmingCharacters(in: .whitespacesAndNewlines) ?? trimmed)
+        let queryVector = await taggedVector(forQuery: meaning?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? trimmed)
         let perWorkspace = 50
         let candidates = await withTaskGroup(of: WorkspaceCandidates.self) { group in
             for (workspace, index) in targets {
@@ -244,7 +246,11 @@ public final class WorkspaceSearch {
                     )) ?? []
                     var meaning: [VectorCandidate] = []
                     if let queryVector {
-                        meaning = await (try? index.vectorCandidates(for: queryVector, limit: perWorkspace)) ?? []
+                        meaning = await (try? index.vectorCandidates(
+                            for: queryVector.vector,
+                            space: queryVector.space,
+                            limit: perWorkspace
+                        )) ?? []
                     }
                     return WorkspaceCandidates(
                         workspaceID: workspace.id,
@@ -262,7 +268,7 @@ public final class WorkspaceSearch {
         }
         return HybridRanker.rank(
             candidates,
-            similarityFloor: embedder?.similarityFloor ?? 0,
+            similarityFloor: embedder?.similarityFloor(inSpace: queryVector?.space ?? EmbeddingSpace.single) ?? 0,
             origin: origin,
             limit: limit
         )
@@ -279,9 +285,18 @@ public final class WorkspaceSearch {
         await vector(forQuery: text)
     }
 
+    /// The default-space vector, for callers that compare vectors of different texts.
     private func vector(forQuery query: String) async -> [Float]? {
         guard let embedder, await resolveIdentity() != nil,
               let raw = try? await embedder.embed(query) else { return nil }
         return VectorCodec.normalized(raw)
+    }
+
+    /// The vector in the space that fits the query, for matching it against the index.
+    private func taggedVector(forQuery query: String) async -> TaggedVector? {
+        guard let embedder, await resolveIdentity() != nil,
+              let tagged = try? await embedder.embedTagged(query),
+              let unit = VectorCodec.normalized(tagged.vector) else { return nil }
+        return TaggedVector(space: tagged.space, vector: unit)
     }
 }

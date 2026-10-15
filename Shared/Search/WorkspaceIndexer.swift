@@ -87,7 +87,7 @@ enum WorkspaceIndexer {
             return .unchanged
         }
         let document = MarkdownChunker.parse(String(decoding: data, as: UTF8.self), path: file.relativePath)
-        var vectors: [Data?] = []
+        var vectors: [StoredVector?] = []
         var embedderFailed = false
         for (number, chunk) in document.chunks.enumerated() {
             if number > 0, number % chunksPerCheckpoint == 0 {
@@ -117,11 +117,12 @@ enum WorkspaceIndexer {
         for chunk: DocumentChunk,
         title: String,
         embedder: (any EmbeddingProvider)?
-    ) async throws -> Data? {
+    ) async throws -> StoredVector? {
         guard let embedder, chunk.embeddable else { return nil }
         let text = (chunk.heading.isEmpty ? title : chunk.heading) + "\n" + chunk.text
         do {
-            return try await VectorCodec.encode(embedder.embed(String(text.prefix(2000))))
+            let tagged = try await embedder.embedTagged(String(text.prefix(2000)))
+            return VectorCodec.encode(tagged.vector).map { StoredVector(space: tagged.space, data: $0) }
         } catch is CancellationError {
             throw CancellationError()
         } catch is EmbeddingTextError {

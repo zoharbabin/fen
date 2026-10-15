@@ -3,7 +3,7 @@ import Foundation
 /// Which model turns text into vectors for search (issue #35). The choice is read at launch.
 /// Changing it rebuilds each workspace index with the new model.
 public enum EmbedderChoice: String, CaseIterable, Identifiable, Sendable {
-    /// Apple's sentence model. Built in, English only, no setup.
+    /// Apple's sentence models. Built in, no setup. One model per language, for the languages the OS covers.
     case apple
     /// EmbeddingGemma served by Ollama on this Mac. Needs `ollama pull embeddinggemma`.
     /// While Ollama isn't running, search uses words only.
@@ -17,7 +17,7 @@ public enum EmbedderChoice: String, CaseIterable, Identifiable, Sendable {
 
     public var title: String {
         switch self {
-        case .apple: "Built in (Apple, English)"
+        case .apple: "Built in (Apple, several languages)"
         case .embeddingGemma: "EmbeddingGemma (Ollama on this Mac)"
         }
     }
