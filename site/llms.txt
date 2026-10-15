@@ -1,6 +1,6 @@
 # Fen
 
-> A native Swift/SwiftUI Markdown editor for macOS and iOS — fast, minimal, open source, and Apple Silicon native. Grew out of a full rewrite of MacDown. Growing into a connected knowledge base: multi-file workspaces, backlinks, and local search are on the roadmap.
+> A native Markdown editor for Mac, iPhone and iPad, written in Swift and SwiftUI. Fast, open source, Apple Silicon native. It grew out of a full rewrite of MacDown, and it now also searches, links and answers questions across your notes, which stay plain `.md` files.
 
 Fen is built and maintained by Zohar Babin (https://zoharbabin.com/), CSO at Kaltura, Inc. and a long-time open-source builder. Fen itself is not affiliated with Kaltura — it's an independent open-source project.
 
@@ -11,6 +11,13 @@ Fen is built and maintained by Zohar Babin (https://zoharbabin.com/), CSO at Kal
 - GitHub-Flavored Markdown via Apple's swift-cmark (tables, task lists, strikethrough, autolinks, footnotes).
 - An optional WYSIWYG-in-source live preview editing mode, a slash-command menu for inserting blocks, focus/typewriter mode, and synced line-number gutters between editor and preview.
 - A Quick Look extension that renders `.md` files in Finder's preview panel, and a first-run sample document for new installs.
+- Workspaces: add any number of folders, with or without git. Fen lists their notes without opening each file.
+- On-device search by words and meaning, `[[wiki-links]]` with backlinks, related documents, and typed properties from a plain `schema.yaml`.
+- Ask your workspaces: answers cite numbered sources with line numbers. Inline Ask AI and Enrich edit through one gate, and each edit can be undone.
+- AI only through providers you add (Apple's on-device model, Ollama, or an OpenAI-compatible service). With none added, Fen makes no AI request.
+- An opt-in MCP server on 127.0.0.1 (Mac), with per-client tokens and workspaces, and agent branches that leave your checkout alone.
+- GitHub sync (clone, pull, push with a token limited to one repository), conflicts that wait for your choice, and version history that includes iCloud versions.
+- iPhone and iPad: keyboard shortcuts, a share sheet in and out, and one pane at a time on a narrow screen.
 - Free, MIT-licensed, no telemetry, no account required.
 - Signed and notarized by Apple — installs without Gatekeeper warnings.
 
@@ -22,6 +29,13 @@ Fen is built and maintained by Zohar Babin (https://zoharbabin.com/), CSO at Kal
 - Contributing: https://github.com/zoharbabin/fen/blob/master/CONTRIBUTING.md
 - License: https://github.com/zoharbabin/fen/blob/master/LICENSE.md
 
+## Install
+
+- Mac, download: `Fen.app.zip` from https://github.com/zoharbabin/fen/releases/latest. Needs macOS 15 or later.
+- Mac, Homebrew: `brew tap zoharbabin/fen https://github.com/zoharbabin/fen` then `brew install --cask fen`.
+- iPhone, iPad and the Mac App Store: in App Review. One listing will cover all three.
+- From source: https://github.com/zoharbabin/fen#build-from-source
+
 ## Where Fen is headed
 
-Shipped: a formatting toolbar, default-`.md`-editor system integration (Finder icon, Open Recent, session restore), export & printing (PDF/HTML export, native printing, Copy as Raw HTML/Rich Text Formatted, and a `fen-export` command-line tool), slash commands, live preview mode, focus mode, synced gutters, a first-run sample document, and Quick Look in Finder. Longer-term ("the knowledge suite"): multi-file workspaces, `[[wiki-link]]` backlinks, local full-text search, and a lightweight document-type/ontology layer — turning isolated Markdown files into a connected, searchable knowledge base.
+Shipped: the editor, export and the `fen-export` command, Quick Look, workspaces, search, wiki-links and backlinks, document types, Ask with sources, a write gate, an opt-in MCP server, GitHub sync, version history, iPhone and iPad support, signed and notarized builds, and a Homebrew cask. In progress: Live Preview parity (Experimental) and the App Store release.

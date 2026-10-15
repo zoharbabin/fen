@@ -3,19 +3,19 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Fen — a native Markdown editor that grows into a knowledge base</title>
-  <meta name="description" content="Fen is a native Swift/SwiftUI Markdown editor for macOS and iOS — fast, minimal, open source. Live preview, GitHub-Flavored Markdown, Mermaid, and a roadmap toward a connected knowledge base.">
+  <title>Fen: a native Markdown editor that grows into a knowledge base</title>
+  <meta name="description" content="Fen is a native Markdown editor for Mac, iPhone and iPad. Live preview, workspaces, search by words and meaning, wiki-links, and Ask with sources. Your notes stay plain .md files. Free and open source.">
   <link rel="canonical" href="https://fen.md/">
   <link rel="icon" href="img/favicon-32.png">
   <link rel="apple-touch-icon" href="img/apple-touch-icon.png">
   <meta property="og:type" content="website">
-  <meta property="og:title" content="Fen — a native Markdown editor that grows into a knowledge base">
-  <meta property="og:description" content="A native Swift/SwiftUI Markdown editor for macOS and iOS. Fast, minimal, open source — and just getting started.">
+  <meta property="og:title" content="Fen: a native Markdown editor that grows into a knowledge base">
+  <meta property="og:description" content="A native Markdown editor for Mac, iPhone and iPad. Search and connect your notes, ask questions with sources, and keep plain .md files. Free and open source.">
   <meta property="og:url" content="https://fen.md/">
   <meta property="og:image" content="https://fen.md/img/og-image.png">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="Fen — a native Markdown editor that grows into a knowledge base">
-  <meta name="twitter:description" content="A native Swift/SwiftUI Markdown editor for macOS and iOS. Fast, minimal, open source — and just getting started.">
+  <meta name="twitter:title" content="Fen: a native Markdown editor that grows into a knowledge base">
+  <meta name="twitter:description" content="A native Markdown editor for Mac, iPhone and iPad. Search and connect your notes, ask questions with sources, and keep plain .md files. Free and open source.">
   <meta name="twitter:image" content="https://fen.md/img/og-image.png">
   <script type="application/ld+json">
   {
@@ -24,12 +24,12 @@
     "name": "Fen",
     "url": "https://fen.md/",
     "applicationCategory": "Productivity",
-    "operatingSystem": "macOS, iOS",
-    "description": "A native Swift/SwiftUI Markdown editor for macOS and iOS, growing into a connected knowledge suite.",
+    "operatingSystem": "macOS 15 or later, iOS 18 or later",
+    "description": "A native Markdown editor for Mac, iPhone and iPad with workspaces, on-device search, wiki-links, and Ask with sources.",
     "author": { "@type": "Person", "name": "Zohar Babin", "url": "https://zoharbabin.com/" },
     "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
     "softwareVersion": "__FEN_LATEST_VERSION__",
-    "downloadUrl": "https://github.com/zoharbabin/fen/releases",
+    "downloadUrl": "https://github.com/zoharbabin/fen/releases/latest",
     "codeRepository": "https://github.com/zoharbabin/fen",
     "license": "https://github.com/zoharbabin/fen/blob/master/LICENSE.md"
   }
@@ -221,6 +221,15 @@
     .bento-card p { font-size: .84rem; color: var(--text-sub); line-height: 1.55; }
 
     /* ═══════════════════════════════
+       INSTALL
+    ═══════════════════════════════ */
+    .install { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 1.25rem; }
+    .install-card { border: 1px solid var(--border); border-radius: 10px; padding: 1.25rem 1.35rem; background: var(--surface); }
+    .install-card h3 { font-size: .95rem; font-weight: 700; margin-bottom: .4rem; }
+    .install-card p { font-size: .84rem; color: var(--text-sub); line-height: 1.55; }
+    .install-card pre { margin-top: .6rem; padding: .6rem .8rem; white-space: pre-wrap; word-break: break-all; border-radius: 6px; background: var(--bg); border: 1px solid var(--border); font-size: .78rem; line-height: 1.5; }
+
+    /* ═══════════════════════════════
        ROADMAP LIST
     ═══════════════════════════════ */
     .road-list { border-top: 1px solid var(--border); }
@@ -312,15 +321,16 @@
 
   <div class="hero">
     <h1>A native Markdown editor that grows into a knowledge base.</h1>
-    <p class="lede">Fen is a fast, minimal Swift/SwiftUI Markdown editor for macOS and iOS — live preview, GitHub-Flavored Markdown, Mermaid diagrams, MathJax — with a roadmap toward multi-file workspaces, backlinks, and local search. Free. Open source. Apple Silicon native.</p>
+    <p class="lede">Fen is a fast, native Markdown editor for Mac, iPhone and iPad. Write with a live preview. Open your folders as workspaces to search them by words and meaning, follow <code>[[wiki-links]]</code> and backlinks, and ask questions that come back with sources. Your notes stay plain <code>.md</code> files. Free and open source.</p>
     <div class="cta-row">
-      <a class="btn btn-primary" href="https://github.com/zoharbabin/fen/releases" target="_blank" rel="noopener">Download for macOS</a>
+      <a class="btn btn-primary" href="https://github.com/zoharbabin/fen/releases/latest" target="_blank" rel="noopener">Download for macOS</a>
+      <a class="btn btn-secondary" href="#install">Other ways to install</a>
       <a class="btn btn-secondary" href="https://github.com/zoharbabin/fen" target="_blank" rel="noopener">
         <svg class="gh-icon" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
         View source
       </a>
     </div>
-    <p class="hero-note">Signed &amp; notarized by Apple — opens without Gatekeeper warnings. macOS 15+ required.</p>
+    <p class="hero-note">Signed and notarized by Apple, so it opens without Gatekeeper warnings. Needs macOS 15 or later (iOS 18 or later on iPhone and iPad).</p>
 
     <div class="hero-shot">
       <img class="hero-img-light" src="img/hero-screenshot-light.png" alt="Fen's editor and live preview, side by side, showing a Markdown document with headings, a code block, and a rendered preview pane" loading="eager">
@@ -328,93 +338,153 @@
     </div>
   </div>
 
-  <!-- ─── Why Fen ─── -->
-  <h2>Why Fen?</h2>
-  <p class="section-lede">A fen is a wetland that feeds itself — nutrient-rich, self-sustaining, always growing. That's the idea: your notes shouldn't just sit in files, they should grow into something more connected and useful over time.</p>
+  <!-- ─── What Fen does ─── -->
+  <h2>What Fen does</h2>
+  <p class="section-lede">A fen is a wetland that feeds itself. Your notes can work the same way: connected, searchable and always growing, while they stay plain files.</p>
   <div class="bento">
-    <div class="bento-card">
-      <span class="ico">⚡</span>
-      <h3>Pure Swift + SwiftUI</h3>
-      <p>Cross-platform core shared between macOS and iOS via FenCore. No Objective-C, no CocoaPods, no Intel-era baggage.</p>
-    </div>
-    <div class="bento-card">
-      <span class="ico">📝</span>
-      <h3>GitHub-Flavored Markdown</h3>
-      <p>Built on Apple's swift-cmark — tables, task lists, strikethrough, autolinks, and footnotes, rendered accurately.</p>
-    </div>
     <div class="bento-card">
       <span class="ico">👀</span>
       <h3>Live preview, scroll-synced</h3>
-      <p>Syntax highlighting, MathJax, and Mermaid diagrams render as you type, with the preview tracking your cursor.</p>
+      <p>GitHub-Flavored Markdown, syntax highlighting, MathJax and Mermaid render as you type. An optional Live Preview mode (Experimental) styles the source in place.</p>
     </div>
     <div class="bento-card">
-      <span class="ico">🧭</span>
-      <h3>Apple Silicon native</h3>
-      <p>Built with Swift Package Manager for the current generation of Macs — fast launch, low memory, no Rosetta.</p>
+      <span class="ico">🗂️</span>
+      <h3>Workspaces</h3>
+      <p>Add as many folders as you like, with or without git. Fen lists their notes without opening each one, and writes nothing into your folders apart from an optional schema file.</p>
     </div>
     <div class="bento-card">
-      <span class="ico">🔓</span>
-      <h3>Free and open source</h3>
-      <p>MIT-licensed, with the original MacDown and Mou copyrights preserved. No account, no telemetry, no paywall.</p>
+      <span class="ico">🔎</span>
+      <h3>Search by words and meaning</h3>
+      <p>An on-device index finds notes by exact words and by meaning, across one workspace or all of them. Nothing leaves your Mac. The meaning side works for English.</p>
     </div>
     <div class="bento-card">
-      <span class="ico">🌱</span>
-      <h3>Growing into a knowledge base</h3>
-      <p>Multi-file workspaces, backlinks, local search, and a lightweight ontology layer are next on the roadmap.</p>
+      <span class="ico">🔗</span>
+      <h3>Wiki-links and backlinks</h3>
+      <p>Link notes with <code>[[name]]</code>, <code>[[name|text]]</code> or <code>[[name#heading]]</code>. A backlinks list shows the notes that link here, even ones you have not opened.</p>
+    </div>
+    <div class="bento-card">
+      <span class="ico">🏷️</span>
+      <h3>Document types</h3>
+      <p>Define types and fields in a plain <code>schema.yaml</code>. Edit typed properties in the app. Hints flag a near-miss, and they never block a save.</p>
+    </div>
+    <div class="bento-card">
+      <span class="ico">💬</span>
+      <h3>Ask your workspaces</h3>
+      <p>Ask a question and get an answer that cites numbered sources with line numbers. A statement with no source gets a warning. Ask only reads.</p>
+    </div>
+    <div class="bento-card">
+      <span class="ico">🛡️</span>
+      <h3>AI you control</h3>
+      <p>Fen sends no AI request until you add a provider: Apple's on-device model, Ollama, or any OpenAI-compatible service. Each workspace sets what AI may see. Every AI edit goes through one gate and can be undone.</p>
+    </div>
+    <div class="bento-card">
+      <span class="ico">🤖</span>
+      <h3>Ready for agents (Mac)</h3>
+      <p>An optional MCP server listens on 127.0.0.1 only and is off by default. Each client gets its own token and its own workspaces. An agent commits to its own branch and your checkout stays put.</p>
+    </div>
+    <div class="bento-card">
+      <span class="ico">🔄</span>
+      <h3>GitHub sync</h3>
+      <p>Clone a repository as a workspace, then pull and push with a token limited to that repository, kept in the Keychain. On iPhone, Fen copies the repository through the GitHub API. Conflicts wait for your choice.</p>
+    </div>
+    <div class="bento-card">
+      <span class="ico">🕘</span>
+      <h3>Version history</h3>
+      <p>See the earlier versions the system keeps for a note. On iCloud, your other devices' recent versions show up too. We measured this between a Mac and an iPhone.</p>
+    </div>
+    <div class="bento-card">
+      <span class="ico">📱</span>
+      <h3>iPhone and iPad</h3>
+      <p>The same editor with keyboard shortcuts, a share sheet in and out, and one pane at a time on a narrow screen.</p>
+    </div>
+    <div class="bento-card">
+      <span class="ico">⚡</span>
+      <h3>Native, free and open source</h3>
+      <p>Pure Swift and SwiftUI on Apple Silicon. MIT license, no account, no telemetry. Every script ships inside the app.</p>
+    </div>
+  </div>
+
+  <!-- ─── Install ─── -->
+  <h2 id="install">Install</h2>
+  <div class="install">
+    <div class="install-card">
+      <h3>Mac: download</h3>
+      <p>Get <code>Fen.app.zip</code> from the <a href="https://github.com/zoharbabin/fen/releases/latest" target="_blank" rel="noopener">latest release</a>, unzip it, and drag Fen to Applications. Choose Fen &gt; Check for Updates… to update.</p>
+    </div>
+    <div class="install-card">
+      <h3>Mac: Homebrew</h3>
+      <p>Install and upgrade with a tap.</p>
+      <pre><code>brew tap zoharbabin/fen https://github.com/zoharbabin/fen
+brew install --cask fen</code></pre>
+    </div>
+    <div class="install-card">
+      <h3>iPhone, iPad and the Mac App Store</h3>
+      <p>Fen is in App Review. One App Store listing will cover Mac, iPhone and iPad. Until it is out, use the Mac download above.</p>
+    </div>
+    <div class="install-card">
+      <h3>Build from source</h3>
+      <p>Clone the repository and run <code>swift build</code>. The <a href="https://github.com/zoharbabin/fen#build-from-source" target="_blank" rel="noopener">README</a> has the steps.</p>
     </div>
   </div>
 
   <!-- ─── Roadmap ─── -->
-  <h2>Where Fen is headed</h2>
-  <p class="section-lede">A snapshot of the <a href="https://github.com/zoharbabin/fen/issues" target="_blank" rel="noopener">full roadmap</a> — the knowledge suite is next.</p>
+  <h2>What is done and what is next</h2>
+  <p class="section-lede">A snapshot of the <a href="https://github.com/zoharbabin/fen/issues" target="_blank" rel="noopener">full roadmap</a>.</p>
   <div class="road-list">
     <div class="road-item">
       <span class="road-status done">Done</span>
       <div class="road-body">
-        <div class="road-title">Full Swift/SwiftUI rewrite, Apple Silicon native</div>
-        <div class="road-desc">Cross-platform FenCore, GitHub-Flavored Markdown, live preview, syntax highlighting.</div>
+        <div class="road-title">Editor, export and Finder</div>
+        <div class="road-desc">Live preview, formatting toolbar, slash commands, focus mode, synced gutters, PDF and HTML export, printing, the <code>fen-export</code> command, and Quick Look for <code>.md</code> files.</div>
       </div>
     </div>
     <div class="road-item">
       <span class="road-status done">Done</span>
       <div class="road-body">
-        <div class="road-title">Formatting toolbar &amp; default <code>.md</code> editor integration</div>
-        <div class="road-desc">Toolbar/menu actions for common formatting, plus a proper document icon, Open Recent, and session restore as the system default for Markdown files.</div>
+        <div class="road-title">Knowledge suite</div>
+        <div class="road-desc">Workspaces, on-device search by words and meaning, wiki-links, backlinks, related documents and document types.</div>
       </div>
     </div>
     <div class="road-item">
       <span class="road-status done">Done</span>
       <div class="road-body">
-        <div class="road-title">Export to PDF &amp; HTML, printing, and a CLI</div>
-        <div class="road-desc">Paginated PDF export, self-contained/linked-assets HTML export, native printing, Copy as Raw HTML/Rich Text Formatted, and a <code>fen-export</code> command-line tool.</div>
+        <div class="road-title">AI and agents</div>
+        <div class="road-desc">Ask with sources, inline Ask AI and Enrich, a write gate with undo, an opt-in MCP server, agent branches and conflict checks.</div>
       </div>
     </div>
     <div class="road-item">
       <span class="road-status done">Done</span>
       <div class="road-body">
-        <div class="road-title">Slash commands, live preview mode, focus mode &amp; synced gutters</div>
-        <div class="road-desc">A <code>/</code> menu for inserting blocks, an optional WYSIWYG-in-source editing mode, focus/typewriter mode, and line numbers synced between the editor and preview.</div>
+        <div class="road-title">Sync and versions</div>
+        <div class="road-desc">GitHub clone, pull and push, conflicts that wait for your choice, and version history that includes iCloud.</div>
       </div>
     </div>
     <div class="road-item">
       <span class="road-status done">Done</span>
       <div class="road-body">
-        <div class="road-title">First-run sample document &amp; Quick Look in Finder</div>
-        <div class="road-desc">A bundled welcome document for new installs, plus a Quick Look extension that renders <code>.md</code> files right in Finder's preview panel.</div>
+        <div class="road-title">iPhone and iPad</div>
+        <div class="road-desc">Layout for every width, keyboard shortcuts, and a share sheet in and out.</div>
       </div>
     </div>
     <div class="road-item">
-      <span class="road-status next">Knowledge suite</span>
+      <span class="road-status done">Done</span>
       <div class="road-body">
-        <div class="road-title">Multi-file workspaces, backlinks &amp; wiki-links, local search</div>
-        <div class="road-desc">Open a folder as one project, link notes with <code>[[wiki-links]]</code>, and search a workspace with an on-device index.</div>
+        <div class="road-title">Distribution</div>
+        <div class="road-desc">Signed and notarized builds, updates you start from the menu, and a Homebrew cask.</div>
       </div>
     </div>
     <div class="road-item">
-      <span class="road-status next">Knowledge suite</span>
+      <span class="road-status next">In progress</span>
       <div class="road-body">
-        <div class="road-title">Document-type schema &amp; ontology layer</div>
-        <div class="road-desc">A small, editable set of note types and fields, so your notes carry structure beyond grep-able text.</div>
+        <div class="road-title">Live Preview parity (Experimental)</div>
+        <div class="road-desc">Tables, lists, math, Mermaid and maps already render in place. Edge cases are still being closed.</div>
+      </div>
+    </div>
+    <div class="road-item">
+      <span class="road-status next">In review</span>
+      <div class="road-body">
+        <div class="road-title">App Store release</div>
+        <div class="road-desc">The Mac, iPhone and iPad versions are waiting for Apple's review.</div>
       </div>
     </div>
   </div>
