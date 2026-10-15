@@ -201,17 +201,22 @@ struct ModelStoreTests {
     @Test("a download that stops keeps its part, and the next one asks only for the rest")
     func resumes() async throws {
         let first = try await LoopbackServer.start { _ in
-            // Sends the first 2000 bytes and says there are 5000, so the client sees a cut-off.
+            // Sends the first 2000 bytes of 5000 and then stalls. The test stops the download itself,
+            // because a server that closes the socket can reset it before the bytes arrive.
             LoopbackServer.Response(
-                headers: ["Content-Length": "\(Self.big.count)"], chunks: [Self.big.prefix(2000)]
+                headers: ["Content-Length": "\(Self.big.count)"], chunks: [Self.big.prefix(2000)], holdOpen: true
             )
         }
         let temp = try TempHome()
         defer { temp.cleanUp() }
         let model = try bigDescriptor(url: "\(first.baseURL)/big.gguf")
-        await #expect(throws: (any Error).self) {
+        let download = Task {
             try await store(temp).download(model, confirmedHost: model.host, confirmedBytes: model.byteCount)
         }
+        let arrived = try await pollUntilTrue(timeout: .seconds(20)) { store(temp).partialBytes(model) == 2000 }
+        #expect(arrived)
+        download.cancel()
+        await #expect(throws: (any Error).self) { try await download.value }
         first.stop()
         #expect(store(temp).partialBytes(model) == 2000)
         #expect(!store(temp).isInstalled(model))

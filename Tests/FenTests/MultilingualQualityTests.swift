@@ -5,6 +5,10 @@ import Testing
 /// Hand-labeled sets for the languages Apple's sentence models cover (issue #234), plus one
 /// workspace that mixes them. The data is in `MultilingualQualityCorpus.swift`. Set `FEN_SPIKE=1` to
 /// print the numbers that `docs/spikes/embedding-model.md` quotes.
+/// The sentence models this machine has. A CI runner may have English only, so a test that needs
+/// another language is skipped there instead of failing.
+private let installedSentenceTags = Set(AppleSentenceEmbeddingProvider().spaces.map(\.tag))
+
 @Suite("Search quality in every language the OS covers (issue #234)", .serialized)
 struct MultilingualQualityTests {
     private let provider = AppleSentenceEmbeddingProvider()
@@ -32,13 +36,6 @@ struct MultilingualQualityTests {
         let source = MemorySource(contents: documents)
         _ = try await WorkspaceIndexer.run(index: index, source: source, files: source.files(), embedder: provider)
         return index
-    }
-
-    private func requireModel(_ tag: String) throws {
-        try #require(
-            provider.spaces.contains { $0.tag == tag },
-            "This OS has no \(tag) sentence model."
-        )
     }
 
     private struct Result {
@@ -88,10 +85,9 @@ struct MultilingualQualityTests {
 
     @Test(
         "meaning search helps and hybrid ranking never does worse than words alone",
-        arguments: MultilingualCorpus.all.map(\.tag)
+        arguments: MultilingualCorpus.all.map(\.tag).filter(installedSentenceTags.contains)
     )
     func perLanguage(tag: String) async throws {
-        try requireModel(tag)
         let corpus = try #require(MultilingualCorpus.all.first { $0.tag == tag })
         let folder = try TempFolder("quality-\(tag)")
         defer { folder.cleanUp() }
@@ -124,11 +120,16 @@ struct MultilingualQualityTests {
         #expect(chosen.meaning.reciprocalRank / count >= 0.3)
     }
 
-    @Test("a workspace that mixes languages finds each note in the language of the query")
+    @Test(
+        "a workspace that mixes languages finds each note in the language of the query",
+        .enabled(
+            if: installedSentenceTags.contains("en")
+                && MultilingualCorpus.all.allSatisfy { installedSentenceTags.contains($0.tag) },
+            "Not every sentence model is installed."
+        )
+    )
     func mixedWorkspace() async throws {
-        let covered = MultilingualCorpus.all.filter { corpus in provider.spaces.contains { $0.tag == corpus.tag } }
-        try #require(covered.count == MultilingualCorpus.all.count, "Not every language model is installed.")
-        try requireModel("en")
+        let covered = MultilingualCorpus.all
         // One file per topic and language, plus the English set and a Dutch note no model covers.
         var documents: [String: String] = [:]
         for (name, text) in QualityCorpus.documents {
@@ -178,10 +179,14 @@ struct MultilingualQualityTests {
         #expect(dutch.map(\.path) == ["nl/fiets.md"])
     }
 
-    @Test("text in a language with no model gets no vector, and text with a model gets one of its size")
+    @Test(
+        "text in a language with no model gets no vector, and text with a model gets one of its size",
+        .enabled(
+            if: installedSentenceTags.isSuperset(of: ["en", "es"]),
+            "The English and Spanish models aren't installed."
+        )
+    )
     func tagging() async throws {
-        try requireModel("es")
-        try requireModel("en")
         let spanish = try await provider.embedTagged("Riega los tomates a primera hora de la mañana.")
         #expect(spanish.space == "es")
         #expect(spanish.vector.count == provider.spaces.first { $0.tag == "es" }?.dimension)
