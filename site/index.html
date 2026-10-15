@@ -223,11 +223,13 @@
     /* ═══════════════════════════════
        INSTALL
     ═══════════════════════════════ */
-    .install { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 1.25rem; }
-    .install-card { border: 1px solid var(--border); border-radius: 10px; padding: 1.25rem 1.35rem; background: var(--surface); }
-    .install-card h3 { font-size: .95rem; font-weight: 700; margin-bottom: .4rem; }
-    .install-card p { font-size: .84rem; color: var(--text-sub); line-height: 1.55; }
-    .install-card pre { margin-top: .6rem; padding: .6rem .8rem; white-space: pre-wrap; word-break: break-all; border-radius: 6px; background: var(--bg); border: 1px solid var(--border); font-size: .78rem; line-height: 1.5; }
+    .install { border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
+    .install-row { display: grid; grid-template-columns: minmax(11rem, 17rem) minmax(0, 1fr); gap: .5rem 2.5rem; align-items: baseline; padding: 1.2rem 1.6rem; }
+    .install-row + .install-row { border-top: 1px solid var(--border); }
+    .install-row h3 { font-size: .95rem; font-weight: 700; }
+    .install-row p { font-size: .9rem; color: var(--text-sub); line-height: 1.6; }
+    .install-row pre { margin-top: .6rem; padding: .7rem 1rem; overflow-x: auto; white-space: pre; border-radius: 6px; background: var(--bg); border: 1px solid var(--border); font-size: .82rem; line-height: 1.6; }
+    @media (max-width: 640px) { .install-row { grid-template-columns: minmax(0, 1fr); padding: 1rem 1.2rem; } .install-row pre { white-space: pre-wrap; overflow-wrap: anywhere; } }
 
     /* ═══════════════════════════════
        ROADMAP LIST
@@ -251,7 +253,6 @@
       margin-top: .15rem;
       white-space: nowrap;
     }
-    .road-status.done { background: rgba(91,198,134,.15); color: #5bc686; }
     .road-status.next { background: var(--tag-bg); color: var(--tag-text); }
     .road-body .road-title { font-size: .9rem; font-weight: 600; color: var(--text); }
     .road-body .road-desc { font-size: .82rem; color: var(--muted); margin-top: .15rem; }
@@ -407,77 +408,37 @@
   <!-- ─── Install ─── -->
   <h2 id="install">Install</h2>
   <div class="install">
-    <div class="install-card">
+    <div class="install-row">
       <h3>Mac: download</h3>
       <p>Get <code>Fen.app.zip</code> from the <a href="https://github.com/zoharbabin/fen/releases/latest" target="_blank" rel="noopener">latest release</a>, unzip it, and drag Fen to Applications. Choose Fen &gt; Check for Updates… to update.</p>
     </div>
-    <div class="install-card">
+    <div class="install-row">
       <h3>Mac: Homebrew</h3>
-      <p>Install and upgrade with a tap.</p>
-      <pre><code>brew tap zoharbabin/fen https://github.com/zoharbabin/fen
+      <div>
+        <p>Install and upgrade with a tap.</p>
+        <pre><code>brew tap zoharbabin/fen https://github.com/zoharbabin/fen
 brew install --cask fen</code></pre>
+      </div>
     </div>
-    <div class="install-card">
+    <div class="install-row">
       <h3>iPhone, iPad and the Mac App Store</h3>
       <p>Fen is in App Review. One App Store listing will cover Mac, iPhone and iPad. Until it is out, use the Mac download above.</p>
     </div>
-    <div class="install-card">
+    <div class="install-row">
       <h3>Build from source</h3>
       <p>Clone the repository and run <code>swift build</code>. The <a href="https://github.com/zoharbabin/fen#build-from-source" target="_blank" rel="noopener">README</a> has the steps.</p>
     </div>
   </div>
 
   <!-- ─── Roadmap ─── -->
-  <h2>What is done and what is next</h2>
-  <p class="section-lede">A snapshot of the <a href="https://github.com/zoharbabin/fen/issues" target="_blank" rel="noopener">full roadmap</a>.</p>
+  <h2>What's coming?</h2>
+  <p class="section-lede">A snapshot of the <a href="https://github.com/zoharbabin/fen/issues" target="_blank" rel="noopener">full roadmap</a>. Missing something? <a href="https://github.com/zoharbabin/fen/issues/new?template=feature_request.md" target="_blank" rel="noopener">Propose a feature or share an idea</a> in the issues.</p>
   <div class="road-list">
     <div class="road-item">
-      <span class="road-status done">Done</span>
-      <div class="road-body">
-        <div class="road-title">Editor, export and Finder</div>
-        <div class="road-desc">Live preview, formatting toolbar, slash commands, focus mode, synced gutters, PDF and HTML export, printing, the <code>fen-export</code> command, and Quick Look for <code>.md</code> files.</div>
-      </div>
-    </div>
-    <div class="road-item">
-      <span class="road-status done">Done</span>
-      <div class="road-body">
-        <div class="road-title">Knowledge suite</div>
-        <div class="road-desc">Workspaces, on-device search by words and meaning, wiki-links, backlinks, related documents and document types.</div>
-      </div>
-    </div>
-    <div class="road-item">
-      <span class="road-status done">Done</span>
-      <div class="road-body">
-        <div class="road-title">AI and agents</div>
-        <div class="road-desc">Ask with sources, inline Ask AI and Enrich, a write gate with undo, an opt-in MCP server, agent branches and conflict checks.</div>
-      </div>
-    </div>
-    <div class="road-item">
-      <span class="road-status done">Done</span>
-      <div class="road-body">
-        <div class="road-title">Sync and versions</div>
-        <div class="road-desc">GitHub clone, pull and push, conflicts that wait for your choice, and version history that includes iCloud.</div>
-      </div>
-    </div>
-    <div class="road-item">
-      <span class="road-status done">Done</span>
-      <div class="road-body">
-        <div class="road-title">iPhone and iPad</div>
-        <div class="road-desc">Layout for every width, keyboard shortcuts, and a share sheet in and out.</div>
-      </div>
-    </div>
-    <div class="road-item">
-      <span class="road-status done">Done</span>
-      <div class="road-body">
-        <div class="road-title">Distribution</div>
-        <div class="road-desc">Signed and notarized builds, updates you start from the menu, and a Homebrew cask.</div>
-      </div>
-    </div>
-    <div class="road-item">
-      <span class="road-status next">In progress</span>
+      <span class="road-status next">Later</span>
       <div class="road-body">
         <div class="road-title">Live Preview parity (Experimental)</div>
-        <div class="road-desc">Tables, lists, math, Mermaid and maps already render in place. Edge cases are still being closed.</div>
+        <div class="road-desc">Tables, lists, math, Mermaid and maps already render in place. The rest of the edge cases wait for a later release.</div>
       </div>
     </div>
     <div class="road-item">

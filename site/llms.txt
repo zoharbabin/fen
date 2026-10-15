@@ -38,4 +38,4 @@ Fen is built and maintained by Zohar Babin (https://zoharbabin.com/), CSO at Kal
 
 ## Where Fen is headed
 
-Shipped: the editor, export and the `fen-export` command, Quick Look, workspaces, search, wiki-links and backlinks, document types, Ask with sources, a write gate, an opt-in MCP server, GitHub sync, version history, iPhone and iPad support, signed and notarized builds, and a Homebrew cask. In progress: Live Preview parity (Experimental) and the App Store release.
+Shipped: the editor, export and the `fen-export` command, Quick Look, workspaces, search, wiki-links and backlinks, document types, Ask with sources, a write gate, an opt-in MCP server, GitHub sync, version history, iPhone and iPad support, signed and notarized builds, and a Homebrew cask. In review: the App Store release. Later: Live Preview parity (Experimental).
