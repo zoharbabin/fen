@@ -4,135 +4,171 @@
 
 <h1 align="center">Fen</h1>
 
-<p align="center">A native <strong>Swift / SwiftUI</strong> Markdown editor for macOS and iOS — fast, minimal, and built for Apple Silicon.</p>
+<p align="center"><strong>A native Markdown editor for Mac, iPhone and iPad.</strong><br>Write plain <code>.md</code> files. Search them by meaning. Ask questions across them. On your device, free and open source.</p>
 
 <p align="center">
   <a href="https://github.com/zoharbabin/fen/actions/workflows/ci.yml"><img src="https://github.com/zoharbabin/fen/actions/workflows/ci.yml/badge.svg" alt="CI status"></a>
   <a href="https://github.com/zoharbabin/fen/releases/latest"><img src="https://img.shields.io/github/v/release/zoharbabin/fen" alt="Latest release"></a>
   <a href="LICENSE.md"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"></a>
-  <img src="https://img.shields.io/badge/platform-macOS%20%7C%20iOS-lightgrey" alt="Platform: macOS and iOS">
+  <img src="https://img.shields.io/badge/macOS-15%2B-lightgrey" alt="macOS 15 or later">
+  <img src="https://img.shields.io/badge/iOS-18%2B-lightgrey" alt="iOS 18 or later">
 </p>
 
 <p align="center">
-  <a href="https://github.com/zoharbabin/fen/releases/latest">Download</a> ·
+  <a href="#install">Install</a> ·
   <a href="https://fen.md/">Website</a> ·
-  <a href="https://github.com/zoharbabin/fen/issues">Roadmap</a> ·
+  <a href="#features">Features</a> ·
+  <a href="https://github.com/zoharbabin/fen/issues">Roadmap and ideas</a> ·
   <a href="CONTRIBUTING.md">Contributing</a>
 </p>
 
 <p align="center">
-  <img src="site/img/hero-screenshot-light.png" alt="Fen split-pane editor and live preview" width="820">
+  <img src="docs/img/mac-1-write.png" alt="Fen with Markdown on the left and the rendered page, with a Mermaid chart, on the right" width="820">
 </p>
 
-Fen edits Markdown on one side and renders it live on the other, with the two panes scrolling in sync as you type. It supports GitHub-Flavored Markdown, MathJax, and Mermaid diagrams. And it's built to grow: your notes become a connected, searchable knowledge base instead of a pile of loose files.
+## Why Fen
 
-Our north star: be the app people reach for to write and *think* in Markdown on macOS — clean, fast, and native, that grows into a connected knowledge base instead of a pile of loose files. We take inspiration from Typora, iA Writer, Bear, Obsidian, and the original MacDown, but we stay minimal: speed and clarity over feature sprawl. Fen reads and writes plain `.md` files straight through the filesystem — no proprietary library or vault format — which keeps it iCloud- and Finder-friendly by construction, and we protect that property as the knowledge suite grows. See the [open issues](https://github.com/zoharbabin/fen/issues) for what's planned and in progress, and [issue #3](https://github.com/zoharbabin/fen/issues/3) for the AI & knowledge layer epic specifically.
+- **Your notes stay plain files.** Fen reads and writes `.md` files in your own folders. There is no vault or proprietary format, so Finder, iCloud and git keep working.
+- **Your notes become a knowledge base.** Search by words and meaning, follow `[[wiki-links]]` and backlinks, and ask questions that answer with sources.
+- **It runs on your device.** Search and indexing never leave your Mac. Fen sends nothing to an AI service until you add one.
+- **It's native.** Swift and SwiftUI, not Electron, built for Apple Silicon.
+- **It's free**, open source (MIT), with no account and no telemetry. If Fen ever charges for anything, it will be a one-time purchase, not a subscription.
 
-If Fen ever charges for anything, we'll favor a one-time purchase over a subscription — a vocal segment of this app's audience treats subscriptions as a dealbreaker and one-time pricing as a loyalty driver.
-
-## Features
-
-- **Workspaces** — add any number of folders, with or without git. Fen lists their notes without opening each file and writes nothing into your folders apart from an optional `.fen/schema.yaml`
-- **Search by words and meaning** — an on-device index per workspace, searched across one workspace or all of them. Nothing leaves your Mac
-- **Wiki-links and backlinks** — `[[name]]`, `[[name|text]]` and `[[name#heading]]`, with a backlinks list and a related-documents card
-- **Document types** — typed properties from a plain `schema.yaml`, with hints that never block a save
-- **Ask your workspaces** — answers cite numbered sources with line numbers. Inline Ask AI and Enrich change a note through one gate, and each change can be undone
-- **AI you add yourself** — Apple's on-device model, Ollama, or an OpenAI-compatible service. With no provider added, Fen makes no AI request
-- **MCP server for agents (Mac, off by default)** — listens on `127.0.0.1`, with per-client tokens and workspaces. Agent edits go through the same gate, on their own branch
-- **GitHub sync** — clone a repository as a workspace, then pull and push with a token limited to that repository. iPhone copies through the GitHub API. Conflicts wait for your choice
-- **Version history** — the earlier versions the system keeps, including recent ones from your other iCloud devices
-- **Live preview with scroll sync** — the preview pane tracks your scroll position as you type
-- **WYSIWYG-in-source live preview mode (Experimental)** (Cmd+Shift+P) — an optional editor mode that hides markdown markers (`**`, `#`, `` ` ``, and more) off-focus and renders the styling they imply directly in the source, without leaving plain text. It covers inline emphasis, headings, blockquotes, checkboxes, links, images, horizontal rules, list indents with round bullets and the numbers Markdown gives a numbered list, footnote references, pipe tables (shaded header, aligned column lines and row lines) and a panel behind fenced code. Mermaid diagrams and `$$` math blocks show as pictures while the caret is elsewhere, and so do `geojson`/`topojson` maps when the map preference is on. Inline formulas (`\(x^2\)`, and `$x$` when that preference is on) show as pictures on the text line. Put the caret in one and its source comes back
-- **Slash-command menu** — type `/` at the start of a line (or after whitespace) to insert a heading, table, image, quote, code block, horizontal rule, or Mermaid diagram from a filterable popup
-- **Outline/table of contents sidebar** (Cmd+Shift+O) — a per-document heading tree with fold/expand state; click a heading to jump both panes to it
-- **Focus/typewriter mode** (Cmd+Shift+F) — dims every paragraph except the one you're editing and keeps your cursor vertically centered as you type
-- **Synced line numbers** — an optional editor gutter and matching preview-pane gutter, numbered from the same source lines so both panes agree
-- **Find (Cmd+F), Find Next/Previous, and Find and Replace (Opt+Cmd+F)** — the built-in AppKit find bar
-- **Quick Look preview for `.md` files** — select a Markdown file in Finder and press Space to see it rendered through the same renderer the editor and export use
-- **A welcome document on first launch** — a genuinely fresh install opens a bundled document that walks through formatting, math/Mermaid rendering, and the slash-command menu instead of a blank page; every document after that opens blank as usual
-- **GitHub-Flavored Markdown** via Apple's [`swift-cmark`](https://github.com/apple/swift-cmark) — tables, task lists, strikethrough, autolinks, footnotes, and `==highlight==` marks, plus GitHub-style alert/callout blocks (`> [!NOTE]`, `[!TIP]`, `[!WARNING]`, and more)
-- **A formatting toolbar and menu commands** — bold, italic, strikethrough, code, headings, lists, task items, blockquotes, links, images, tables, and more, one click or keyboard shortcut away
-- **iPad and hardware keyboards** — the same shortcuts as the Mac (hold Cmd to list them), in the iPadOS menu bar too. A narrow window, such as a phone or Slide Over, shows the editor or the preview one at a time instead of squeezing two panes side by side
-- **Share sheet in and out (iOS)** — choose Fen in another app's share sheet or Files to open a Markdown file in place. Use the share button in a document to send it out as a `.md` file, or as text to apps that only take text. To save text from another app as a note, share it to Fen, or copy it and tap **New from Clipboard** on the launch screen. Notes land in Fen's folder in the document list
-- **Editing quality-of-life** — auto-pair brackets/quotes, tabs-to-spaces, smart Home key, and list/blockquote continuation on Enter
-- **Vim keys (macOS, off by default)** — turn on Normal and Insert mode in Settings. Esc leaves Insert mode. In Normal mode `h j k l`, `w b`, `0 $`, `gg G` move, and `i a I A` start typing. Nothing else from Vim is included
-- **Set as your default `.md` editor** — a proper Finder document icon, Open Recent, and session restore on both platforms
-- **Autosave and crash recovery** — an unsaved buffer is periodically saved to a recovery file; Fen offers to restore it the next time you reopen that document after an unclean exit
-- **External change detection** — if a file you have open changes on disk (another app, `git checkout`, a sync conflict), Fen prompts you to reload it or keep your own edits
-- **Paste and drag-and-drop image insertion** — a pasted screenshot or dropped image file is written into a `<document>.assets` sidecar folder next to the document and linked automatically
-- **Dark-mode preview** that follows the system appearance automatically, alongside a full set of light/dark theme pairs
-- **Custom preview CSS**, plus per-document `fen:` front-matter overrides for theme and table-of-contents rendering that apply consistently across preview, export, print, and the CLI
-- **Copy-to-clipboard buttons** on every rendered code block in the preview, plus **Copy as Raw HTML** and **Copy as Rich Text Formatted** for the whole document
-- **Syntax highlighting** in code blocks, **MathJax** for equations, and **Mermaid** for diagrams — rendered everywhere: preview, export, print, and the CLI
-- **Emoji shortcodes** (`:tada:`, `:rocket:`, and more) rendered as native Unicode characters
-- **Interactive 3D model viewer** for `stl` code blocks — drag to orbit, scroll to zoom, and toggle between shaded and wireframe rendering per model
-- **Raw-HTML sanitization** — inline HTML in a document is sanitized (via a vendored [DOMPurify](https://github.com/cure53/DOMPurify)) before it reaches the preview, so pasted or authored HTML can't run scripts or load remote content
-- **Export to HTML or PDF, and Print…** — reuse the same rendering pipeline as the live preview
-- **`fen-export` command-line tool** for batch-converting Markdown files to HTML or PDF from a terminal or script
-- **Pure Swift + SwiftUI**, with a cross-platform core (macOS and iOS share `FenCore`) — no Objective-C, no CocoaPods
-- **Apple Silicon native**, built with Swift Package Manager
-- **Free and open source**, no telemetry, no account required
-- **Signed and notarized** — every release opens without Gatekeeper warnings
+<table>
+  <tr>
+    <td><img src="docs/img/mac-3-search.png" alt="Search across a workspace by words and meaning"></td>
+    <td><img src="docs/img/mac-4-ask.png" alt="Ask your workspaces and get an answer with numbered sources"></td>
+  </tr>
+</table>
 
 ## Install
 
-Download the latest `Fen.app.zip` from the [Releases page](https://github.com/zoharbabin/fen/releases), unzip, and drag **Fen.app** to your Applications folder.
+**Mac, download:** get `Fen.app.zip` from the [Releases page](https://github.com/zoharbabin/fen/releases/latest), unzip it, and drag **Fen.app** to Applications. Every release is signed with an Apple Developer ID and notarized, so it opens without Gatekeeper warnings. Fen needs macOS 15 or later.
 
-We sign every release with an Apple Developer ID and notarize it, so it opens without Gatekeeper warnings. Requires macOS 15+. iPhone and iPad need iOS 18+. The App Store release is in review: until it's out, use the download here on the Mac.
-
-Or install with Homebrew:
+**Mac, Homebrew:**
 
 ```sh
 brew tap zoharbabin/fen https://github.com/zoharbabin/fen
 brew install --cask fen
 ```
 
-To update, choose **Fen > Check for Updates…**. Fen checks only when you ask. If a newer version exists, it downloads, verifies and installs it, then relaunches. If you installed with Homebrew, `brew upgrade --cask fen` works too. A build from source only opens the Releases page.
+**iPhone and iPad:** needs iOS 18 or later. The App Store release is in review. It isn't available as a download yet.
+
+**Updates:** choose **Fen > Check for Updates…**. Fen checks only when you ask, then downloads, verifies and installs the new version. With Homebrew, `brew upgrade --cask fen` works too. A build from source only opens the Releases page.
+
+## Features
+
+### Write and preview
+
+- **Split view with scroll sync.** Markdown on one side, the rendered page on the other, tracking each other as you type.
+- **GitHub-Flavored Markdown** through Apple's [`swift-cmark`](https://github.com/apple/swift-cmark): tables, task lists, strikethrough, autolinks, footnotes, `==highlight==` marks and `> [!NOTE]` alerts.
+- **Math, diagrams and more.** MathJax equations, Mermaid diagrams, syntax highlighting, emoji shortcodes, GeoJSON maps (opt in) and an interactive 3D viewer for `stl` blocks. All of it renders in the preview, in exports and in the CLI.
+- **Live preview mode (Experimental, Cmd+Shift+P).** Hides Markdown markers away from the caret and shows the styling they mean, while the file stays plain text. See [how it works](docs/ARCHITECTURE.md#slash-command-menu-focus-mode-live-preview-and-the-editor-gutter).
+- **Writing tools.** Slash-command menu, outline sidebar (Cmd+Shift+O), focus mode (Cmd+Shift+F), synced line numbers, find and replace, a formatting toolbar, auto-pair and list continuation.
+- **Vim keys (Mac, off by default).** Normal and Insert mode with basic motions. Nothing else from Vim is included.
+- **Images.** Paste or drop an image and Fen saves it in a `<document>.assets` folder next to the file and links it.
+- **Themes.** Light and dark pairs that follow the system, custom preview CSS, and per-document `fen:` front-matter overrides.
+- **Safe HTML.** Inline HTML goes through a vendored [DOMPurify](https://github.com/cure53/DOMPurify) first, so a document can't run scripts or load remote content.
+
+### Your notes as a knowledge base
+
+- **Workspaces.** Add any number of folders, with or without git. Fen lists their notes without opening each file and writes nothing into them apart from an optional `.fen/schema.yaml`.
+- **Search by words and meaning.** An on-device index per workspace, searched across one workspace or all of them.
+- **Wiki-links and backlinks.** `[[name]]`, `[[name|text]]` and `[[name#heading]]`, with a backlinks list and a related-documents card.
+- **Document types.** Typed properties from a plain `schema.yaml`, with hints that never block a save.
+- **Version history.** The earlier versions the system keeps, including recent ones from your other iCloud devices.
+
+### AI and agents, on your terms
+
+- **Ask your workspaces.** Answers cite numbered sources with line numbers.
+- **Ask AI and Enrich.** Change a note from inside it. Every change goes through one gate and can be undone.
+- **AI you add yourself.** Apple's on-device model, Ollama, or an OpenAI-compatible service. With no provider added, Fen makes no AI request.
+- **MCP server (Mac, off by default).** Lets an agent read and edit your workspaces. It listens on `127.0.0.1` only, with per-client tokens. Agent edits go through the same gate, on their own git branch.
+
+### Sync, files and sharing
+
+- **GitHub sync.** Clone a repository as a workspace, then pull and push with a token limited to that repository. The iPhone copies through the GitHub API. Conflicts wait for your choice.
+- **Default `.md` editor.** Finder document icon, Open Recent and session restore on both platforms.
+- **Quick Look.** Select a Markdown file in Finder and press Space to see it rendered.
+- **Autosave and crash recovery.** Fen offers to restore an unsaved buffer after an unclean exit. If a file changes on disk, Fen asks whether to reload it or keep your edits.
+- **Export.** HTML, PDF and Print from the same renderer as the preview. Copy as Raw HTML or Rich Text. The `fen-export` command-line tool converts files in batches.
+
+### iPhone and iPad
+
+- **Same shortcuts as the Mac** on a hardware keyboard (hold Cmd to list them).
+- **Narrow windows** show the editor or the preview one at a time.
+- **Share sheet in and out.** Open a Markdown file from another app in place, send a document out as `.md` or text, or save text as a note with **New from Clipboard**.
+
+## Privacy and trust
+
+Fen reads and writes only the files and folders you give it. These are the only network uses:
+
+| What | When |
+|---|---|
+| Update check | You choose **Check for Updates…** |
+| GitHub sync | You cloned a workspace from GitHub |
+| AI providers | You added one |
+| Map tiles from OpenStreetMap | You turned on the GeoJSON map preference |
+| MCP server | You turned it on. It listens on `127.0.0.1` only |
+
+Every script and style ships inside the app, with no CDN. See [ARCHITECTURE.md](docs/ARCHITECTURE.md#no-proprietary-storage-format-and-no-cloud-ai-by-default) for the reasoning and the code that enforces it.
 
 ## Build from source
 
-Requirements: macOS 15+ and a recent Xcode / Swift 6 toolchain.
+You need macOS 15 or later and a recent Xcode with the Swift 6 toolchain.
 
 ```sh
 git clone https://github.com/zoharbabin/fen.git
 cd fen
 
-swift build                     # build the package
-swift test --no-parallel        # run the test suite
-swift run Fen        # launch the macOS app
-
-./scripts/build-app.sh   # produce dist/Fen.app
+swift build                  # build the package
+swift test --no-parallel     # run the test suite
+swift run Fen                # launch the Mac app
+./scripts/build-app.sh       # produce dist/Fen.app
 ```
 
-See [RELEASING.md](docs/RELEASING.md) for signing, notarization, and cutting a release.
+See [RELEASING.md](docs/RELEASING.md) for signing, notarization and cutting a release.
 
 ## Project layout
 
 ```
-Shared/        FenCore — cross-platform model, rendering, editor, preview, CLI export
-macOS/         macOS app target (DocumentGroup, menus, Settings)
-iOS/           iOS app target
-FenQuickLook/  Quick Look preview extension for .md files
-Tests/         Swift Testing test suite
-UITests/       UI tests (xcodegen-generated project, see CONTRIBUTING.md)
-scripts/       build-app.sh — assembles the .app bundle
+Shared/        FenCore: model, rendering, editor, preview, search, AI, sync
+macOS/         Mac app (DocumentGroup, menus, Settings)
+iOS/           iPhone and iPad app
+FenQuickLook/  Quick Look extension for .md files
+FenShare/      iOS share extension
+CLI/           fen-export command-line tool
+Dependency/    Vendored Highlightr
+Tests/         Swift Testing suite
+UITests/       UI tests (xcodegen project, see CONTRIBUTING.md)
+Casks/         Homebrew cask
+assets/        Demo documents and store screenshots
+scripts/       Build, release and CI scripts
 site/          fen.md landing page (GitHub Pages)
-docs/          architecture, release, and debugging documentation
+docs/          Architecture, release and debugging docs
 ```
 
 See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for why things are shaped this way.
 
-## Contributing
+## Get involved
 
-Fen is open to contributions — see [CONTRIBUTING.md](CONTRIBUTING.md) for coding style and pull request guidelines.
+- **Found a bug?** [Open an issue](https://github.com/zoharbabin/fen/issues/new?template=bug_report.md).
+- **Want a feature?** [Suggest it](https://github.com/zoharbabin/fen/issues/new?template=feature_request.md). Check the [open issues](https://github.com/zoharbabin/fen/issues) first. [Issue #3](https://github.com/zoharbabin/fen/issues/3) tracks the AI and knowledge layer.
+- **Want to code?** Read [CONTRIBUTING.md](CONTRIBUTING.md). Issues labeled [good first issue](https://github.com/zoharbabin/fen/labels/good%20first%20issue) are a good start.
+- **Found a vulnerability?** Don't post it in a public issue. Use [GitHub's private vulnerability reporting](https://github.com/zoharbabin/fen/security/advisories/new).
+- **Like Fen?** Star the repo and tell a friend. It helps other people find it.
+
+Everyone taking part follows the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## License
 
-Fen ships under the **MIT License** ([LICENSE.md](LICENSE.md)). Full license texts for every third-party component live in the [`LICENSE/`](LICENSE/) directory, alongside the vendored resource it covers for components bundled directly under `Shared/Resources/` (`Shared/Resources/Extensions/LICENSE-dompurify`, `Shared/Resources/Extensions/LICENSE-leaflet`, `Shared/Resources/Extensions/LICENSE-topojson-client`, `Shared/Resources/Emoji/LICENSE-gemoji`).
+Fen is MIT licensed ([LICENSE.md](LICENSE.md)). The license texts for third-party components are in [`LICENSE/`](LICENSE/), and next to each vendored resource under `Shared/Resources/`.
 
 ## Origin and thanks
 
-Fen grew out of a full rewrite of [MacDown](https://github.com/MacDownApp/macdown), the open-source Markdown editor for macOS. **[Tzu-ping Chung](https://github.com/uranusjr)** and contributors created MacDown, drawing inspiration from [Chen Luo](https://twitter.com/chenluois)'s [Mou](http://mouapp.com). Fen is an independent rewrite, not a fork. The original hasn't shipped an update in years, and Apple is winding down support for Intel-only apps. We keep every original copyright and the MIT License intact. These editor themes and CSS files come from Mou, courtesy of Chen Luo:
+Fen grew out of a full rewrite of [MacDown](https://github.com/MacDownApp/macdown), the open-source Markdown editor for macOS. **[Tzu-ping Chung](https://github.com/uranusjr)** and contributors created MacDown, drawing inspiration from [Chen Luo](https://twitter.com/chenluois)'s [Mou](http://mouapp.com). Fen is an independent rewrite, not a fork. The original hasn't shipped an update in years, and Apple is winding down support for Intel-only apps. We keep every original copyright and the MIT License intact. We also take inspiration from Typora, iA Writer, Bear and Obsidian.
+
+These editor themes and CSS files come from Mou, courtesy of Chen Luo:
 
 * Mou Fresh Air / Fresh Air+
 * Mou Night / Night+
@@ -142,4 +178,4 @@ Fen grew out of a full rewrite of [MacDown](https://github.com/MacDownApp/macdow
 * Clearness / Clearness Dark
 * GitHub / GitHub2
 
-Fen also builds on [Highlightr](https://github.com/raspu/Highlightr), [highlight.js](https://highlightjs.org), [MathJax](https://www.mathjax.org), [Mermaid](https://mermaid.js.org), [three.js](https://threejs.org), [DOMPurify](https://github.com/cure53/DOMPurify), and GitHub's [gemoji](https://github.com/github/gemoji) shortcode data.
+Fen also builds on [swift-cmark](https://github.com/apple/swift-cmark), [swift-collections](https://github.com/apple/swift-collections), [Yams](https://github.com/jpsim/Yams), [Sparkle](https://sparkle-project.org), [Highlightr](https://github.com/raspu/Highlightr), [highlight.js](https://highlightjs.org), [MathJax](https://www.mathjax.org), [Mermaid](https://mermaid.js.org), [three.js](https://threejs.org), [Leaflet](https://leafletjs.com), [topojson-client](https://github.com/topojson/topojson-client), [DOMPurify](https://github.com/cure53/DOMPurify), and GitHub's [gemoji](https://github.com/github/gemoji) shortcode data.
