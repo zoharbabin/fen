@@ -122,3 +122,14 @@ struct ViewCommandReceivers: ViewModifier {
             .onReceive(NotificationCenter.default.publisher(for: .toggleEditor)) { _ in editor() }
     }
 }
+
+extension SplitEditorView {
+    /// A phone in portrait cuts off what doesn't fit the bar, so there the actions go into the More menu.
+    var toolbarPlacement: ToolbarItemPlacement {
+        #if os(iOS)
+            horizontalSizeClass == .compact ? .secondaryAction : .automatic
+        #else
+            .automatic
+        #endif
+    }
+}

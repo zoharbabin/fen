@@ -11,7 +11,7 @@ struct InlineAIButton: View {
         Button {
             controller.present(target: EditorTarget.resolve(in: document.text, selected: caret.range))
         } label: {
-            Image(systemName: "sparkles")
+            Label("Ask AI", systemImage: "sparkles")
         }
         .help("Ask AI to rewrite or expand your text, or enrich bullets from your notes")
         .accessibilityIdentifier("InlineAIButton")

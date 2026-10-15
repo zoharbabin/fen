@@ -430,11 +430,11 @@ public struct SplitEditorView: View {
 
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
-        ToolbarItemGroup {
+        ToolbarItemGroup(placement: toolbarPlacement) {
             Button {
                 isOutlineVisible.toggle()
             } label: {
-                Image(systemName: "list.bullet.indent")
+                Label("Outline", systemImage: "list.bullet.indent")
             }
             .help("Toggle Outline")
             .accessibilityIdentifier("OutlineToggleButton")
@@ -442,7 +442,7 @@ public struct SplitEditorView: View {
             Button {
                 preferences.editorFocusModeEnabled.toggle()
             } label: {
-                Image(systemName: preferences.editorFocusModeEnabled ? "eye.slash.fill" : "eye.slash")
+                Label("Focus Mode", systemImage: preferences.editorFocusModeEnabled ? "eye.slash.fill" : "eye.slash")
             }
             .help("Toggle Focus Mode")
             .accessibilityIdentifier("FocusModeToggleButton")
@@ -457,7 +457,7 @@ public struct SplitEditorView: View {
                     .accessibilityIdentifier(action.accessibilityIdentifier)
                 }
             } label: {
-                Image(systemName: "textformat")
+                Label("Formatting", systemImage: "textformat")
             }
             .help("Formatting")
             .accessibilityIdentifier("FormattingMenuButton")
@@ -470,7 +470,7 @@ public struct SplitEditorView: View {
                 editorOnRight.toggle()
                 preferences.editorOnRight = editorOnRight
             } label: {
-                Image(systemName: "arrow.left.arrow.right")
+                Label("Swap Editor and Preview", systemImage: "arrow.left.arrow.right")
             }
             .help("Swap editor and preview positions")
 
@@ -512,7 +512,7 @@ public struct SplitEditorView: View {
                 if isPDFExporting || isPrinting {
                     ProgressView()
                 } else {
-                    Image(systemName: "square.and.arrow.up.on.square")
+                    Label("Export", systemImage: "square.and.arrow.up.on.square")
                 }
             }
             .disabled(isPDFExporting || isPrinting)

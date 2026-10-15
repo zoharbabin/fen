@@ -141,7 +141,7 @@ struct VersionHistoryButton: View {
             Button {
                 showing = true
             } label: {
-                Image(systemName: "clock.arrow.circlepath")
+                Label("Version History", systemImage: "clock.arrow.circlepath")
             }
             .help("Earlier versions of this document")
             .accessibilityIdentifier("VersionHistoryButton")
