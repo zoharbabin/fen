@@ -1,12 +1,13 @@
 #!/usr/bin/env swift
 // Checks a Markdown file in iCloud Drive after `ICloudDocumentUITests` saved it from Fen (issue #59).
-// Usage: swift scripts/check-icloud-file.swift <file> <original-text-file>
-// Prints what it finds, then puts the original text back. Run it from a terminal that can read iCloud Drive.
+// Usage: swift scripts/check-icloud-file.swift <file> <original-text-file> [--keep]
+// Prints what it finds, then puts the original text back. With --keep it leaves the file as it is. Run it from a
+// terminal that can read iCloud Drive.
 import Foundation
 
 let args = CommandLine.arguments
-guard args.count == 3 else {
-    print("usage: check-icloud-file.swift <file> <original-text-file>")
+guard args.count == 3 || (args.count == 4 && args[3] == "--keep") else {
+    print("usage: check-icloud-file.swift <file> <original-text-file> [--keep]")
     exit(2)
 }
 
@@ -37,5 +38,7 @@ for _ in 0 ..< 45 {
 
 let final = try file.resourceValues(forKeys: keys)
 print("uploaded: \(final.ubiquitousItemIsUploaded ?? false), uploading: \(final.ubiquitousItemIsUploading ?? false)")
-try original.write(to: file, atomically: true, encoding: .utf8)
-print("original text restored")
+if args.count == 3 {
+    try original.write(to: file, atomically: true, encoding: .utf8)
+    print("original text restored")
+}

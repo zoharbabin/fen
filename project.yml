@@ -90,8 +90,12 @@ targets:
         CODE_SIGN_ENTITLEMENTS: FenQuickLook/FenQuickLook.entitlements
         GENERATE_INFOPLIST_FILE: false
         CODE_SIGN_STYLE: Automatic
-        DEVELOPMENT_TEAM: CG9APRC4WT
         SKIP_INSTALL: true
+      # Only the store archive (Release) signs with the team. In Debug the app is ad hoc signed, and an
+      # extension signed with the team would fail the embedded binary check.
+      configs:
+        Release:
+          DEVELOPMENT_TEAM: CG9APRC4WT
     dependencies:
       - package: Fen
         product: FenCore

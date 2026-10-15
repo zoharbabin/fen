@@ -548,7 +548,8 @@ Limits you should know:
 
 - iOS cannot create versions (`addVersionOfItem` is macOS only), so an iOS document has history only when iCloud made it.
 - The system drops versions when you copy or move a file to another volume, duplicate it, Save As, move it into or out of iCloud, or restore from a backup.
-- Since macOS Monterey, iCloud does not sync the shared version history ([Eclectic Light, 2022-08-05](https://eclecticlight.co/2022/08/05/how-macos-versions-help-you-recover-from-errors/)). Assume the other device has its own local versions plus the latest synced one. We have no iCloud account or second device in CI, so cross-device version sharing is untested.
+- Eclectic Light reports that since macOS Monterey iCloud no longer syncs the shared version history ([2022-08-05](https://eclecticlight.co/2022/08/05/how-macos-versions-help-you-recover-from-errors/)). We measured it on 2026-10-14 with a Mac and an iPhone on one iCloud account (`scripts/test-icloud-device.sh`). The Mac saved a marker from Fen and had 26 versions of the file. The iPhone opened the file with the marker text. Its Version History sheet listed 12 versions, all from the Mac, each marked "In iCloud". So the other device sees recent versions, not the whole chain. The run depends on iCloud timing, so it stays a manual check and is not in CI.
+- On a phone in portrait the toolbar actions (outline, focus mode, formatting, export, Version History) sit in the More menu, because the bar cuts off what does not fit (`SplitEditorView.toolbarPlacement`).
 
 Tests: `FileVersionHistoryTests` (real `NSFileVersion`s: newest first, current version excluded, missing file, reading changes nothing). The menu item and the iOS sheet compile on both platforms. Their UI isn't covered by a test.
 
