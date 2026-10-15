@@ -68,7 +68,7 @@ struct SearchQualityTests {
         try #require(provider.isAvailable, "The on-device sentence model isn't installed on this machine.")
         let folder = try TempFolder("quality")
         defer { folder.cleanUp() }
-        let identity = EmbedderIdentity(id: provider.id, dimension: provider.dimension)
+        let identity = EmbedderIdentity(id: provider.id, spaces: provider.spaces)
         let index = SearchIndex(directory: folder.root.appendingPathComponent("index"), embedder: identity)
         let source = MemorySource(contents: QualityCorpus.documents)
         _ = try await WorkspaceIndexer.run(index: index, source: source, files: source.files(), embedder: provider)
@@ -78,7 +78,7 @@ struct SearchQualityTests {
             var words = Scores(), meaning = Scores(), hybrid = Scores()
             for (query, answer) in QualityCorpus.queries {
                 let text = try await index.textCandidates(matching: query, limit: 50)
-                let vector = try await index.vectorCandidates(for: provider.embed(query), limit: 50)
+                let vector = try await index.vectorCandidates(for: provider.embed(query), space: "en", limit: 50)
                 score(text.map(\.path), answer: answer, into: &words)
                 score(vector.filter { $0.score >= Double(floor) }.map(\.path), answer: answer, into: &meaning)
                 let fused = HybridRanker.rank(
@@ -104,7 +104,7 @@ struct SearchQualityTests {
         #expect(chosen.hybrid.top3 > chosen.words.top3)
 
         let nonsense = try await provider.embed("quantum xylophone zebra")
-        let weak = try await index.vectorCandidates(for: nonsense, limit: 50)
+        let weak = try await index.vectorCandidates(for: nonsense, space: "en", limit: 50)
             .filter { $0.score >= Double(provider.similarityFloor) }
         print("QUALITY nonsense query keeps \(weak.count) of \(QualityCorpus.documents.count) chunks above the floor")
     }
@@ -117,7 +117,7 @@ struct SearchQualityTests {
         try #require(provider.isAvailable)
         let folder = try TempFolder("spike")
         defer { folder.cleanUp() }
-        let identity = EmbedderIdentity(id: provider.id, dimension: provider.dimension)
+        let identity = EmbedderIdentity(id: provider.id, spaces: provider.spaces)
         let index = SearchIndex(directory: folder.root.appendingPathComponent("index"), embedder: identity)
         let source = MemorySource(contents: QualityCorpus.documents)
         let start = ContinuousClock.now
@@ -127,7 +127,7 @@ struct SearchQualityTests {
         )
         var right: [Float] = [], wrong: [Float] = []
         for (query, answer) in QualityCorpus.queries {
-            let found = try await index.vectorCandidates(for: provider.embed(query), limit: 50)
+            let found = try await index.vectorCandidates(for: provider.embed(query), space: "en", limit: 50)
             for hit in found {
                 if hit.path == answer {
                     right.append(Float(hit.score))

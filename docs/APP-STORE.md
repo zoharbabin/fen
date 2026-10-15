@@ -57,11 +57,12 @@ These need the owner's Apple Developer account. Everything else is in the repo.
 | Privacy manifest | `macOS/PrivacyInfo.xcprivacy`: no tracking, no collected data, the `UserDefaults` and file timestamp reasons |
 | Screenshots and icon | Made by `scripts/make-store-screenshots.sh` and listed in [APP-STORE-LISTING.md](APP-STORE-LISTING.md), together with the description, keywords and review notes |
 
-Suggested review note: "Fen is a local-first Markdown editor. It reads and writes only files and folders you grant. The only network use is an AI provider address you enter yourself and, if you enable it, map tiles. No account is needed."
+Suggested review note: "Fen is a local-first Markdown editor. It reads and writes only files and folders you grant. The only network use is an AI provider address you enter yourself, a model file you choose to download in Settings (data only, no code, checked against a published SHA-256), and, if you enable it, map tiles. No account is needed."
 
 ## Open questions only App Review can answer
 
 - Whether the user-added AI provider setting, including a local Ollama address, passes review as is.
+- Whether downloading model weights (data files that llama.cpp reads, never executed) passes review. The store build has `com.apple.security.network.client` already, so it needs no entitlement change. The App Store and iOS builds have not been submitted with llama.cpp yet.
 
 ## Not done
 

@@ -1,5 +1,10 @@
 // swift-tools-version: 6.0
+import Foundation
 import PackageDescription
+
+/// The llama.cpp binary has no iOS Simulator slice. Set FEN_WITHOUT_LLAMA=1 to build for the simulator
+/// without it: downloaded models then report that this build can't run them.
+let withLlama = ProcessInfo.processInfo.environment["FEN_WITHOUT_LLAMA"] == nil
 
 let package = Package(
     name: "Fen",
@@ -41,7 +46,7 @@ let package = Package(
                 "Yams",
                 .product(name: "OrderedCollections", package: "swift-collections"),
                 "Highlightr",
-            ],
+            ] + (withLlama ? ["llama"] : []),
             path: "Shared",
             resources: [
                 .copy("Resources/Styles"),
@@ -52,6 +57,13 @@ let package = Package(
                 .copy("Resources/ScrollSync"),
                 .copy("Resources/Emoji"),
             ]
+        ),
+        // llama.cpp, the engine for models you download in Settings (issue #234, docs/spikes/on-device-runtime.md).
+        // Pinned to one build. The checksum is `swift package compute-checksum` of the zip.
+        .binaryTarget(
+            name: "llama",
+            url: "https://github.com/ggml-org/llama.cpp/releases/download/b11669/llama-b11669-xcframework.zip",
+            checksum: "937891f26734c29c80817cdf8bf59b139c84a9c6fb36a4ad6ce31cceea608e7c"
         ),
         .executableTarget(
             name: "FenMacOS",

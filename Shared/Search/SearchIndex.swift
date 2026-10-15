@@ -67,20 +67,42 @@ enum SearchIndexError: Error, LocalizedError {
 /// vectors, so the index starts over.
 struct EmbedderIdentity: Equatable, Sendable {
     let id: String
-    let dimension: Int
+    /// Every vector space the model fills. Sorted by tag, so the same set always reads the same.
+    let spaces: [EmbeddingSpace]
+
+    init(id: String, spaces: [EmbeddingSpace]) {
+        self.id = id
+        self.spaces = spaces.sorted { $0.tag < $1.tag }
+    }
+
+    init(id: String, dimension: Int) {
+        self.init(id: id, spaces: [EmbeddingSpace(tag: EmbeddingSpace.single, dimension: dimension)])
+    }
+
+    /// Part of the index signature: a model that gains or changes a space starts the index over.
+    var signature: String {
+        id + "|" + spaces.map { "\($0.tag):\($0.dimension)" }.joined(separator: ",")
+    }
+}
+
+/// An encoded vector and the space it lives in, ready to store beside its chunk.
+struct StoredVector: Sendable, Equatable {
+    let space: String
+    let data: Data
 }
 
 /// One workspace's search index: SQLite with full-text search (FTS5) and one quantized vector per
 /// chunk (issue #35). It lives in `~/.fen` and is a cache: deleting the file is always safe.
 actor SearchIndex {
-    static let schemaVersion = "2"
+    static let schemaVersion = "3"
     static let fileName = "search.sqlite"
 
     private let url: URL
     private let embedder: EmbedderIdentity?
     private let closedFlag = Mutex(false)
     private var database: SQLiteDatabase?
-    private var matrix: VectorMatrix?
+    /// One matrix per vector space, loaded together on the first meaning search.
+    private var matrices: [String: VectorMatrix]?
     /// `true` when the stored inbound counts may be out of date. Starts `true`, so the first run
     /// after a launch repairs counts a crash left behind.
     private var inboundStale = true
@@ -102,7 +124,7 @@ actor SearchIndex {
         markClosed()
         database?.close()
         database = nil
-        matrix = nil
+        matrices = nil
     }
 
     // MARK: - Writing
@@ -123,7 +145,7 @@ actor SearchIndex {
     func remove(paths: [String]) throws {
         guard !paths.isEmpty else { return }
         let database = try open()
-        let removedVectors = try matrix == nil ? [] : vectorIDs(ofPaths: paths)
+        let removedVectors = try matrices == nil ? [] : vectorIDs(ofPaths: paths)
         try database.transaction {
             for path in paths {
                 try database.deleteContent(ofPath: path)
@@ -132,7 +154,7 @@ actor SearchIndex {
                 try statement.step()
             }
         }
-        matrix?.remove(ids: Set(removedVectors))
+        removeFromMatrices(Set(removedVectors))
         inboundStale = true
     }
 
@@ -151,12 +173,12 @@ actor SearchIndex {
         size: Int,
         modified: Double,
         document: ParsedDocument,
-        vectors: [Data?]
+        vectors: [StoredVector?]
     ) throws {
         let database = try open()
-        let replacedVectors = try matrix == nil ? [] : vectorIDs(ofPaths: [path])
+        let replacedVectors = try matrices == nil ? [] : vectorIDs(ofPaths: [path])
         let newLinks = Set(document.links.map { $0.kind.rawValue + "\u{0}" + $0.target })
-        var added: [(id: Int64, vector: Data)] = []
+        var added: [(id: Int64, vector: StoredVector)] = []
         var linksChanged = false
         try database.transaction {
             let known = try database.prepare("SELECT 1 FROM docs WHERE path = ?1")
@@ -178,7 +200,7 @@ actor SearchIndex {
             try doc.step()
 
             let chunk = try database.prepare(
-                "INSERT INTO chunks (path, ord, heading, start_line, text, vector) VALUES (?1, ?2, ?3, ?4, ?5, ?6)"
+                "INSERT INTO chunks (path, ord, heading, start_line, text, vector, space) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)"
             )
             for (order, piece) in document.chunks.enumerated() {
                 chunk.reset()
@@ -188,7 +210,8 @@ actor SearchIndex {
                 chunk.bind(4, piece.startLine)
                 chunk.bind(5, piece.text)
                 let vector = order < vectors.count ? vectors[order] : nil
-                chunk.bind(6, vector)
+                chunk.bind(6, vector?.data)
+                chunk.bind(7, vector?.space ?? EmbeddingSpace.single)
                 try chunk.step()
                 if let vector {
                     added.append((database.lastInsertRowID, vector))
@@ -208,9 +231,9 @@ actor SearchIndex {
             inboundStale = true
         }
         // Patch the vectors in memory. Reading them all back from disk would slow the next search.
-        matrix?.remove(ids: Set(replacedVectors))
+        removeFromMatrices(Set(replacedVectors))
         for item in added {
-            matrix?.append(id: item.id, encoded: item.vector)
+            matrices?[item.vector.space]?.append(id: item.id, encoded: item.vector.data)
         }
     }
 
@@ -327,10 +350,17 @@ actor SearchIndex {
         return []
     }
 
-    func vectorCandidates(for query: [Float], limit: Int) throws -> [VectorCandidate] {
-        guard let embedder, query.count == embedder.dimension,
-              let unit = VectorCodec.normalized(query) else { return [] }
-        let matches = try loadedMatrix(dimension: embedder.dimension).top(limit, for: unit)
+    /// The best matches for `query` among the vectors of one space. Vectors of another space (for
+    /// example another language) are not compared: their scores mean something else.
+    func vectorCandidates(
+        for query: [Float],
+        space: String = EmbeddingSpace.single,
+        limit: Int
+    ) throws -> [VectorCandidate] {
+        guard let embedder, embedder.spaces.contains(where: { $0.tag == space && $0.dimension == query.count }),
+              let unit = VectorCodec.normalized(query),
+              let matrix = try loadedMatrices()[space] else { return [] }
+        let matches = matrix.top(limit, for: unit)
         let statement = try open().prepare("""
         SELECT c.path, d.title, c.heading, c.start_line, d.inbound, substr(c.text, 1, 240)
         FROM chunks c JOIN docs d ON d.path = c.path WHERE c.id = ?1
@@ -378,19 +408,29 @@ actor SearchIndex {
         return found
     }
 
-    private func loadedMatrix(dimension: Int) throws -> VectorMatrix {
-        if let matrix {
-            return matrix
+    private func removeFromMatrices(_ removed: Set<Int64>) {
+        guard !removed.isEmpty, let tags = matrices?.keys else { return }
+        for tag in tags {
+            matrices?[tag]?.remove(ids: removed)
+        }
+    }
+
+    private func loadedMatrices() throws -> [String: VectorMatrix] {
+        if let matrices {
+            return matrices
         }
         matrixLoads += 1
-        let statement = try open().prepare("SELECT id, vector FROM chunks WHERE vector IS NOT NULL")
-        var loaded = VectorMatrix(dimension: dimension)
+        var loaded: [String: VectorMatrix] = [:]
+        for space in embedder?.spaces ?? [] {
+            loaded[space.tag] = VectorMatrix(dimension: space.dimension)
+        }
+        let statement = try open().prepare("SELECT id, space, vector FROM chunks WHERE vector IS NOT NULL")
         while try statement.step() {
-            if let data = statement.data(1) {
-                loaded.append(id: Int64(statement.int(0)), encoded: data)
+            if let data = statement.data(2) {
+                loaded[statement.string(1)]?.append(id: Int64(statement.int(0)), encoded: data)
             }
         }
-        matrix = loaded
+        matrices = loaded
         return loaded
     }
 
@@ -425,7 +465,7 @@ actor SearchIndex {
         let database = try SQLiteDatabase(url: url)
         try database.execute("PRAGMA journal_mode = WAL")
         try database.execute("PRAGMA synchronous = NORMAL")
-        let expected = "\(Self.schemaVersion)|\(embedder?.id ?? "none")|\(embedder?.dimension ?? 0)"
+        let expected = "\(Self.schemaVersion)|\(embedder?.signature ?? "none")"
         if try storedSignature(database) != expected {
             try database.execute("""
             DROP TABLE IF EXISTS chunks_fts; DROP TABLE IF EXISTS chunks; DROP TABLE IF EXISTS links;
@@ -453,7 +493,7 @@ actor SearchIndex {
     );
     CREATE TABLE chunks (
         id INTEGER PRIMARY KEY, path TEXT NOT NULL, ord INTEGER NOT NULL, heading TEXT NOT NULL,
-        start_line INTEGER NOT NULL, text TEXT NOT NULL, vector BLOB
+        start_line INTEGER NOT NULL, text TEXT NOT NULL, vector BLOB, space TEXT NOT NULL DEFAULT ''
     );
     CREATE INDEX chunks_path ON chunks(path);
     CREATE TABLE links (source TEXT NOT NULL, kind TEXT NOT NULL, target TEXT NOT NULL);

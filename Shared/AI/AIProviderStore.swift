@@ -6,9 +6,9 @@ public struct AIProviderConfig: Codable, Identifiable, Sendable, Equatable {
     public let id: UUID
     public var name: String
     public var kind: ProviderKind
-    /// Empty for the on-device model.
+    /// Empty for the on-device model and for downloaded models.
     public var baseURL: String
-    /// Empty for the on-device model.
+    /// Empty for the on-device model. For a downloaded model, its id in `ModelCatalog`.
     public var model: String
 
     public init(id: UUID = UUID(), name: String, kind: ProviderKind, baseURL: String = "", model: String = "") {
@@ -19,14 +19,19 @@ public struct AIProviderConfig: Codable, Identifiable, Sendable, Equatable {
         self.model = model
     }
 
-    /// The address as Fen would use it, or `nil` for the on-device model and for a bad address.
+    /// Runs inside Fen's process, so it has no address.
+    private var runsInProcess: Bool {
+        kind == .onDevice || kind == .downloaded
+    }
+
+    /// The address as Fen would use it, or `nil` for in-process models and for a bad address.
     public var endpoint: AIEndpoint? {
-        kind == .onDevice ? nil : try? AIEndpoint(baseURL)
+        runsInProcess ? nil : try? AIEndpoint(baseURL)
     }
 
     /// Where content goes. `nil` while the address is invalid.
     public var destination: ModelDestination? {
-        kind == .onDevice ? .local : endpoint?.destination
+        runsInProcess ? .local : endpoint?.destination
     }
 
     /// The notice to show where an action sends content, or `nil` when content stays on this device.
@@ -94,6 +99,9 @@ public final class AIProviderStore {
     public func validate(_ config: AIProviderConfig) throws {
         switch config.kind {
         case .onDevice:
+            return
+        case .downloaded:
+            guard ModelCatalog.model(id: config.model)?.role == .answer else { throw AIError.missingModel }
             return
         case .ollama:
             let endpoint = try AIEndpoint(config.baseURL)
@@ -169,6 +177,11 @@ public final class AIProviderStore {
         switch config.kind {
         case .onDevice:
             return OnDeviceProvider()
+        case .downloaded:
+            let store = ModelStore(home: home)
+            guard let model = ModelCatalog.model(id: config.model) else { throw AIError.missingModel }
+            guard store.isInstalled(model) else { throw AIError.modelNotInstalled(model.displayName) }
+            return try LlamaAnswerProvider(model: model, file: store.fileURL(for: model))
         case .ollama:
             return try OllamaProvider(endpoint: AIEndpoint(config.baseURL), model: config.model, session: session)
         case .openAICompatible:

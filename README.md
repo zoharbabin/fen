@@ -29,9 +29,9 @@
 ## What makes Fen different
 
 - **Ask your notes, get sources.** Ask a question across one workspace or all of them. The answer cites numbered sources with line numbers, so you can check it. Ask only reads. It never edits.
-- **Search by meaning, on your device.** Fen builds an index per workspace and finds notes by words and by meaning. The index never leaves your Mac.
+- **Search by meaning, on your device.** Fen builds an index per workspace and finds notes by words and by meaning, in the languages your OS has models for. Download a model in Settings to find notes in 100+ languages, even across them. The index never leaves your Mac.
 - **Related notes while you write.** A card shows the notes that link to this one, the ones it links to, and similar passages, with a one-click link.
-- **AI on your terms.** You choose the provider: Apple's on-device model, Ollama, or an OpenAI-compatible service. With none added, Fen makes no AI request.
+- **AI on your terms.** You choose the provider: Apple's on-device model, a Gemma 4 model you download, Ollama, or an OpenAI-compatible service. With none added, Fen makes no AI request.
 - **One gate for every AI edit.** Ask AI, Enrich and agents all change a note through the same gate. You start it, you see the change, and Undo reverts it.
 - **Agents on a leash.** The opt-in MCP server (Mac) lets any MCP client read your workspaces and write through that same gate, on their own git branch. Your checkout stays put.
 - **Plain files, native, free.** Your notes are `.md` files in your own folders, with no vault or proprietary format. Fen is Swift and SwiftUI, not Electron. It's MIT licensed, with no account and no telemetry. If Fen ever charges for anything, it will be a one-time purchase, not a subscription.
@@ -72,7 +72,7 @@ brew install --cask fen
 
 - **Ask your workspaces.** Answers cite numbered sources with line numbers.
 - **Ask AI and Enrich.** Change a note from inside it. Every change goes through one gate and can be undone.
-- **AI you add yourself.** Apple's on-device model, Ollama, or an OpenAI-compatible service. With no provider added, Fen makes no AI request.
+- **AI you add yourself.** Apple's on-device model, a Gemma 4 model you download, Ollama, or an OpenAI-compatible service. With no provider added, Fen makes no AI request.
 - **MCP server (Mac, off by default).** Lets an agent read and edit your workspaces. It listens on `127.0.0.1` only, with per-client tokens. Agent edits go through the same gate, on their own git branch.
 
 ### Write and preview
@@ -112,6 +112,7 @@ Fen reads and writes only the files and folders you give it. These are the only 
 | Update check | You choose **Check for Updates…** |
 | GitHub sync | You cloned a workspace from GitHub |
 | AI providers | You added one |
+| Model downloads from Hugging Face | You pressed **Download** in Settings, AI, On-device models and confirmed the host and size |
 | Map tiles from OpenStreetMap | You turned on the GeoJSON map preference |
 | MCP server | You turned it on. It listens on `127.0.0.1` only |
 
@@ -182,4 +183,4 @@ These editor themes and CSS files come from Mou, courtesy of Chen Luo:
 * Clearness / Clearness Dark
 * GitHub / GitHub2
 
-Fen also builds on [swift-cmark](https://github.com/apple/swift-cmark), [swift-collections](https://github.com/apple/swift-collections), [Yams](https://github.com/jpsim/Yams), [Sparkle](https://sparkle-project.org), [Highlightr](https://github.com/raspu/Highlightr), [highlight.js](https://highlightjs.org), [MathJax](https://www.mathjax.org), [Mermaid](https://mermaid.js.org), [three.js](https://threejs.org), [Leaflet](https://leafletjs.com), [topojson-client](https://github.com/topojson/topojson-client), [DOMPurify](https://github.com/cure53/DOMPurify), and GitHub's [gemoji](https://github.com/github/gemoji) shortcode data.
+Fen also builds on [swift-cmark](https://github.com/apple/swift-cmark), [swift-collections](https://github.com/apple/swift-collections), [Yams](https://github.com/jpsim/Yams), [Sparkle](https://sparkle-project.org), [llama.cpp](https://github.com/ggml-org/llama.cpp), [Highlightr](https://github.com/raspu/Highlightr), [highlight.js](https://highlightjs.org), [MathJax](https://www.mathjax.org), [Mermaid](https://mermaid.js.org), [three.js](https://threejs.org), [Leaflet](https://leafletjs.com), [topojson-client](https://github.com/topojson/topojson-client), [DOMPurify](https://github.com/cure53/DOMPurify), and GitHub's [gemoji](https://github.com/github/gemoji) shortcode data.

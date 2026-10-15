@@ -9,6 +9,7 @@ struct AISettingsTab: View {
     @State private var errorMessage: String?
     @Bindable private var preferences = Preferences.shared
     @AppStorage(EmbedderChoice.defaultsKey) private var embedder = EmbedderChoice.apple.rawValue
+    @State private var models = ModelManager.shared
 
     init(service: AIService = .shared) {
         self.service = service
@@ -29,7 +30,7 @@ struct AISettingsTab: View {
                     row(provider)
                 }
                 Menu("Add provider", systemImage: "plus") {
-                    ForEach(ProviderKind.allCases, id: \.self) { kind in
+                    ForEach(ProviderKind.allCases.filter { $0 != .downloaded }, id: \.self) { kind in
                         Button(kind.title) { editing = ProviderDraft(kind: kind) }
                     }
                 }
@@ -45,16 +46,18 @@ struct AISettingsTab: View {
             } footer: {
                 Text("Show the result and wait for your click before it changes the document. Undo works either way.")
             }
+            OnDeviceModelsSection(manager: models, providers: store, embedder: $embedder)
             Section {
                 Picker("Search model", selection: $embedder) {
-                    ForEach(EmbedderChoice.allCases) { Text($0.title).tag($0.rawValue) }
+                    ForEach(models.offeredEmbedders()) { Text($0.title).tag($0.rawValue) }
                 }
             } header: {
                 Text("Search")
             } footer: {
                 Text(
-                    "Matches by meaning. Both run on this Mac and send nothing out. "
-                        + "EmbeddingGemma needs Ollama running with `embeddinggemma`. Without it, search uses words only. "
+                    "Matches by meaning. They run on this device and send nothing out. "
+                        + "Ollama's EmbeddingGemma needs Ollama running with `embeddinggemma`. Without it, search uses words only. "
+                        + "A model you download above covers 100+ languages and finds notes across them. "
                         + "Applies after you restart Fen, and re-indexes your workspaces."
                 )
             }
@@ -100,7 +103,11 @@ struct AISettingsTab: View {
     }
 
     private func subtitle(_ provider: AIProviderConfig) -> String {
-        provider.kind == .onDevice ? provider.kind.title : "\(provider.kind.title), \(provider.model)"
+        switch provider.kind {
+        case .onDevice: provider.kind.title
+        case .downloaded: ModelCatalog.model(id: provider.model)?.displayName ?? provider.kind.title
+        default: "\(provider.kind.title), \(provider.model)"
+        }
     }
 
     private func check(_ provider: AIProviderConfig) {
@@ -132,6 +139,7 @@ struct ProviderDraft: Identifiable {
     init(kind: ProviderKind) {
         let defaults: (name: String, url: String) = switch kind {
         case .onDevice: ("On-device model", "")
+        case .downloaded: ("Downloaded model", "")
         case .ollama: ("Ollama", "http://localhost:11434")
         case .openAICompatible: ("", "http://localhost:1234/v1")
         }

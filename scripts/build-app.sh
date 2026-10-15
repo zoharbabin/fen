@@ -60,6 +60,11 @@ rm -rf "$CONTENTS/Frameworks/Sparkle.framework/Versions/B/XPCServices"
 rm -f "$CONTENTS/Frameworks/Sparkle.framework/XPCServices"
 install_name_tool -add_rpath "@executable_path/../Frameworks" "$CONTENTS/MacOS/$APP_NAME"
 
+# llama.framework (issue #234), the engine for models you download. It carries no model weights. Same copy as Sparkle.
+LLAMA="$BIN_PATH/llama.framework"
+[ -d "$LLAMA" ] || { echo "!! llama.framework not found in $BIN_PATH" >&2; exit 1; }
+ditto "$LLAMA" "$CONTENTS/Frameworks/llama.framework"
+
 # SwiftPM resource bundles (themes, styles, templates, extensions).
 # Bundles live in Contents/Resources/ (Bundle.main.resourceURL), where codesign
 # expects nested bundles. Our vendored Highlightr resolves against resourceURL.
@@ -177,7 +182,8 @@ printf 'APPL????' > "$CONTENTS/PkgInfo"
 if [ -n "${SIGN_IDENTITY:-}" ]; then
     echo "==> Signing with: $SIGN_IDENTITY"
     SPARKLE_B="$CONTENTS/Frameworks/Sparkle.framework/Versions/B"
-    for nested in "$SPARKLE_B/Autoupdate" "$SPARKLE_B/Updater.app" "$CONTENTS/Frameworks/Sparkle.framework"; do
+    for nested in "$SPARKLE_B/Autoupdate" "$SPARKLE_B/Updater.app" "$CONTENTS/Frameworks/Sparkle.framework" \
+        "$CONTENTS/Frameworks/llama.framework"; do
         codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" "$nested"
     done
     if [ -d "$CONTENTS/PlugIns/FenQuickLook.appex" ]; then

@@ -16,7 +16,7 @@ struct SearchIndexTests {
             size: text.utf8.count,
             modified: 1,
             document: MarkdownChunker.parse(text, path: path),
-            vectors: vectors
+            vectors: vectors.map { $0.map { StoredVector(space: EmbeddingSpace.single, data: $0) } }
         )
     }
 

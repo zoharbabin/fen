@@ -4,7 +4,7 @@ Fen needs a model that turns text into vectors, so search can match meaning and 
 
 ## Result
 
-Fen uses Apple's sentence embedding (`NLEmbedding.sentenceEmbedding(for: .english)`) behind the `EmbeddingProvider` protocol. Search works by words alone for any text the model can't read.
+Fen uses Apple's sentence embedding (`NLEmbedding.sentenceEmbedding(for:)`) behind the `EmbeddingProvider` protocol, one model per language the OS covers (issue #234, see [More languages](#more-languages-issue-234)). Search works by words alone for any text the model can't read. You can also download a model that covers 100+ languages in one space, see [Downloaded models](#downloaded-models-issue-234).
 
 ## What we measured
 
@@ -71,7 +71,7 @@ What this means:
 
 ## Limits
 
-- English only. Text in another language gets no vector and is found by words.
+- Only languages the OS has a model for. Text in any other language gets no vector and is found by words.
 - Indexing with the real model ran at about 21 ms per chunk, end to end (600 chunks in 12.5 s). A workspace of 100,000 chunks takes about 35 minutes in the background. Indexing waits in Low Power Mode and while background work is paused.
 - One vector takes 516 bytes (512 bytes plus a 4-byte scale). 100,000 chunks take about 50 MB on disk and in memory.
 
@@ -90,3 +90,83 @@ Same 12 notes and 16 queries, same Mac. Run `FEN_LIVE_OLLAMA=1 swift test --no-p
 | Memory | Held by Ollama, about 620 MB on disk. Not measured in RAM. |
 
 We did not test the task prefixes the model card suggests, or text longer than the model's input limit. Search quality on a real workspace is not measured. The set is small, so treat 1.0 as "no miss on this set", not as a benchmark.
+
+## More languages (issue #234)
+
+On the Mac we measured (macOS 26.6), the OS has sentence models for English (512 dimensions), Spanish, French, German, Italian and Portuguese (640 each). It has none for Dutch, Chinese, Japanese, Korean, Russian, Arabic, Turkish, Hebrew, Hindi, Swedish, Polish or Ukrainian. Fen asks the OS at run time (`Locale.LanguageCode.isoLanguageCodes` with `NLEmbedding.currentSentenceEmbeddingRevision(for:)` and a non-nil model), so a newer OS adds languages with no code change. The provider id is `apple.nl.sentence`. It names no language. The index signature includes the list of spaces, so an OS that gains a language rebuilds the index once.
+
+Each chunk is tagged with the language `NLLanguageRecognizer` finds. A query is tagged the same way and searched only among vectors of its language.
+
+Data: `Tests/FenTests/MultilingualQualityCorpus.swift`, 12 notes and 16 hand-labeled queries per language. Run `FEN_SPIKE=1 swift test --no-parallel --filter MultilingualQualityTests` to print the numbers again. MRR is the mean reciprocal rank of the right note. "Hybrid" is words plus meaning, as the app ranks. The floor is the one in `AppleSentenceEmbeddingProvider.floors`.
+
+| | es | fr | de | it | pt |
+|---|---|---|---|---|---|
+| Words-only MRR | 0.62 | 0.62 | 0.50 | 0.55 | 0.60 |
+| Meaning-only MRR | 0.60 | 0.32 | 0.44 | 0.40 | 0.40 |
+| Hybrid MRR | 0.71 | 0.70 | 0.60 | 0.67 | 0.61 |
+| Queries read as the wrong language | 2 of 16 | 3 of 16 | 1 of 16 | 4 of 16 | 2 of 16 |
+| Cosine, right answer (median) | 0.58 | 0.83 | 0.27 | 0.58 | 0.76 |
+| Cosine, wrong answer (median) | 0.47 | 0.81 | 0.16 | 0.49 | 0.75 |
+| Floor | 0.30 | 0.30 | 0.05 | 0.30 | 0.30 |
+
+What this means:
+
+- Hybrid beats words alone in all five languages. The gain is real but modest. Treat 16 queries per language as a sanity check, not a benchmark.
+- French and Portuguese meaning-only search is weak. The cosines of right and wrong answers are almost the same (0.83 against 0.81 for French), so a floor can't separate them. Ranking still helps, because the fused list never did worse than words in these sets.
+- German scores run low. A floor above 0.1 starts to drop right answers, so German uses 0.05.
+- For Spanish, French, Italian and Portuguese, every floor from 0 to 0.35 gave the same result. We use 0.3.
+- Short queries are the weak point. The recognizer reads one-word queries such as "tram", "faro" or "endpoints" as another language. Such a query finds nothing by meaning in that workspace and falls back to words. Hints and a language constraint on the recognizer moved 83 of 96 queries (the five sets plus the English set) to 84 correct, so we did not add them.
+- A workspace that mixes all six languages plus one Dutch note: the right note is in the top 3 by meaning alone for 43 of 80 queries (the misread ones count as misses). The Dutch note is found by words.
+
+Not measured: Catalan, Dutch and the other languages with no model; text that mixes languages inside one note; iPhone and iPad; the memory and time of the five extra models (we measured only the English one above). Classification and conflict checks stay English only.
+
+## Downloaded models (issue #234)
+
+Two embedding models you download in Settings > AI > On-device models, run inside Fen by llama.cpp (the choice is in [on-device-runtime.md](on-device-runtime.md)). Unlike Apple's models, each one puts every language in one vector space, so a query in one language can find a note in another.
+
+| | EmbeddingGemma 2 (Q8_0) | Qwen3 Embedding 0.6B (Q8_0) |
+|---|---|---|
+| Size | 310 MB | 639 MB |
+| Dimensions | 768 | 1024 |
+| Languages | 100+ | 100+ |
+| License | Apache-2.0 | Apache-2.0 |
+| Similarity floor | 0.6 | 0.3 |
+| Prompts | Documents: `title: none \| text: {text}`. Queries: `task: search result \| query: {q}` | Documents: plain. Queries: `Instruct: ...` then `Query:{q}` |
+
+Data: the same 12 notes and 16 hand-labeled queries for English and for each of es, fr, de, it, pt that Apple's models were measured on (`QualityCorpus`, `MultilingualCorpus`), 96 queries in all. Run `FEN_SPIKE=1 FEN_MODEL_DIR=<folder with the two files> swift test --no-parallel --filter LlamaQualityTests` to print the numbers again. The tests skip when `FEN_MODEL_DIR` is unset.
+
+Meaning-only MRR in the query's own language, at each model's floor:
+
+| | en | es | fr | de | it | pt |
+|---|---|---|---|---|---|---|
+| Apple, meaning only | 0.74 | 0.60 | 0.32 | 0.44 | 0.40 | 0.40 |
+| EmbeddingGemma 2 | 0.70 | 0.82 | 0.91 | 0.87 | 0.89 | 0.83 |
+| Qwen3 Embedding 0.6B | 0.67 | 0.57 | 0.86 | 0.64 | 0.49 | 0.63 |
+
+Over all 96 queries, with the notes of all six languages in one index:
+
+| | Own-language MRR | Right note in the top 3 | Any-language MRR (the right note in any language counts) | Recall@6 across languages |
+|---|---|---|---|---|
+| EmbeddingGemma 2 | 0.84 | 90 of 96 | 0.98 | 0.85 |
+| Qwen3 Embedding 0.6B | 0.64 | 79 of 96 | 0.96 | 0.79 |
+
+A language with no Apple model. One Dutch note about a bike tyre among the 72 notes of the other languages:
+
+| Query | EmbeddingGemma 2 | Qwen3 Embedding 0.6B |
+|---|---|---|
+| "flat tyre on my bicycle" (English) | rank 3 | rank 7 |
+| "tengo un neumático desinflado" (Spanish) | rank 7 | rank 7 |
+| "lekke band" (Dutch) | rank 3 | rank 1 |
+
+What this means:
+
+- EmbeddingGemma 2 is the better default. It is smaller and wins in every language we measured. We list it first in Settings.
+- Both find notes across languages. When a note in any language counts as right, the MRR is 0.98 and 0.96. Only a downloaded model can do this. Apple's models can't, by design.
+- Qwen3 Embedding is weaker on Spanish, Italian and Portuguese here. Its Italian MRR (0.49) is our lowest. Its cosines run lower (right answers have a median of 0.50, wrong ones 0.24), so its floor is 0.3.
+- EmbeddingGemma 2's cosines are high for everything (right answers 0.74, wrong ones 0.60), so the floor is only a trim. Raising it past 0.65 starts to cost answers: at 0.7 cross-language recall falls from 0.85 to 0.43.
+- EmbeddingGemma 2 puts the Dutch note in the top 3 for an English and for a Dutch query, and at rank 7 for a Spanish one. So a language with no Apple model still gets meaning search.
+- EmbeddingGemma 2 must not run in fp16, and it needs `llama_model_n_embd_out` for its size (its hidden size is 512 and its output is 768). Qwen3 Embedding needs the end token added, because it pools the last token.
+
+Changing the model rebuilds each workspace index, because the provider id is part of the index signature. Fen reads the choice at launch.
+
+Not measured: Chinese, Japanese, Korean and the other languages with no hand-labeled set; notes longer than a chunk; hybrid (words plus meaning) ranking with these models; speed and memory on any device, including iPhone and iPad; indexing time for a large workspace. The sets are small, so treat the figures as a comparison between models, not as benchmarks. The Apple column is from the earlier runs above, on the same sets, but the comparison holds only on these sets.

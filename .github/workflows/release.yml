@@ -143,6 +143,14 @@ jobs:
             || fail "Sparkle XPCServices should be removed (Fen is not sandboxed)"
           codesign --verify --strict --deep "$SPARKLE" \
             || fail "Sparkle.framework failed codesign verification"
+          # Issue #234: the engine for downloaded models. No weights ship inside the app.
+          LLAMA="$APP/Contents/Frameworks/llama.framework"
+          [ -d "$LLAMA" ] \
+            || fail "llama.framework missing from Contents/Frameworks/"
+          codesign --verify --strict --deep "$LLAMA" \
+            || fail "llama.framework failed codesign verification"
+          ! find "$APP" -name '*.gguf' -o -name '*.safetensors' | grep -q . \
+            || fail "Model weights found inside the app"
           /usr/libexec/PlistBuddy -c "Print :SUPublicEDKey" "$APP/Contents/Info.plist" >/dev/null \
             || fail "SUPublicEDKey missing from Info.plist"
 

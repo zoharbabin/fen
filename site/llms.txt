@@ -14,7 +14,7 @@ Fen is built and maintained by Zohar Babin (https://zoharbabin.com/), CSO at Kal
 - Workspaces: add any number of folders, with or without git. Fen lists their notes without opening each file.
 - On-device search by words and meaning, `[[wiki-links]]` with backlinks, related documents, and typed properties from a plain `schema.yaml`.
 - Ask your workspaces: answers cite numbered sources with line numbers. Inline Ask AI and Enrich edit through one gate, and each edit can be undone.
-- AI only through providers you add (Apple's on-device model, Ollama, or an OpenAI-compatible service). With none added, Fen makes no AI request.
+- AI only through providers you add (Apple's on-device model, a Gemma 4 model you download, Ollama, or an OpenAI-compatible service). With none added, Fen makes no AI request.
 - An opt-in MCP server on 127.0.0.1 (Mac), with per-client tokens and workspaces, and agent branches that leave your checkout alone.
 - GitHub sync (clone, pull, push with a token limited to one repository), conflicts that wait for your choice, and version history that includes iCloud versions.
 - iPhone and iPad: keyboard shortcuts, a share sheet in and out, and one pane at a time on a narrow screen.
