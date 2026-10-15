@@ -32,6 +32,15 @@ If Fen ever charges for anything, we'll favor a one-time purchase over a subscri
 
 ## Features
 
+- **Workspaces** — add any number of folders, with or without git. Fen lists their notes without opening each file and writes nothing into your folders apart from an optional `.fen/schema.yaml`
+- **Search by words and meaning** — an on-device index per workspace, searched across one workspace or all of them. Nothing leaves your Mac
+- **Wiki-links and backlinks** — `[[name]]`, `[[name|text]]` and `[[name#heading]]`, with a backlinks list and a related-documents card
+- **Document types** — typed properties from a plain `schema.yaml`, with hints that never block a save
+- **Ask your workspaces** — answers cite numbered sources with line numbers. Inline Ask AI and Enrich change a note through one gate, and each change can be undone
+- **AI you add yourself** — Apple's on-device model, Ollama, or an OpenAI-compatible service. With no provider added, Fen makes no AI request
+- **MCP server for agents (Mac, off by default)** — listens on `127.0.0.1`, with per-client tokens and workspaces. Agent edits go through the same gate, on their own branch
+- **GitHub sync** — clone a repository as a workspace, then pull and push with a token limited to that repository. iPhone copies through the GitHub API. Conflicts wait for your choice
+- **Version history** — the earlier versions the system keeps, including recent ones from your other iCloud devices
 - **Live preview with scroll sync** — the preview pane tracks your scroll position as you type
 - **WYSIWYG-in-source live preview mode (Experimental)** (Cmd+Shift+P) — an optional editor mode that hides markdown markers (`**`, `#`, `` ` ``, and more) off-focus and renders the styling they imply directly in the source, without leaving plain text. It covers inline emphasis, headings, blockquotes, checkboxes, links, images, horizontal rules, list indents with round bullets and the numbers Markdown gives a numbered list, footnote references, pipe tables (shaded header, aligned column lines and row lines) and a panel behind fenced code. Mermaid diagrams and `$$` math blocks show as pictures while the caret is elsewhere, and so do `geojson`/`topojson` maps when the map preference is on. Inline formulas (`\(x^2\)`, and `$x$` when that preference is on) show as pictures on the text line. Put the caret in one and its source comes back
 - **Slash-command menu** — type `/` at the start of a line (or after whitespace) to insert a heading, table, image, quote, code block, horizontal rule, or Mermaid diagram from a filterable popup
@@ -69,7 +78,7 @@ If Fen ever charges for anything, we'll favor a one-time purchase over a subscri
 
 Download the latest `Fen.app.zip` from the [Releases page](https://github.com/zoharbabin/fen/releases), unzip, and drag **Fen.app** to your Applications folder.
 
-We sign every release with an Apple Developer ID and notarize it, so it opens without Gatekeeper warnings. Requires macOS 15+.
+We sign every release with an Apple Developer ID and notarize it, so it opens without Gatekeeper warnings. Requires macOS 15+. iPhone and iPad need iOS 18+. The App Store release is in review: until it's out, use the download here on the Mac.
 
 Or install with Homebrew:
 
