@@ -4,10 +4,18 @@ import Testing
 
 /// Numbers for issue #5's "optimal performance" bar. The limits are loose on purpose: they catch a
 /// regression of an order of magnitude, not noise between machines. The measured values are
-/// printed, so the PR can quote them.
+/// printed, so the PR can quote them. Wall-clock limits stretch when other processes keep the CPUs busy
+/// (`allowed(_:)`), so a loaded Mac doesn't fail a run that CI passes. The main-actor gap stays strict.
 @Suite("Workspace performance", .serialized)
 @MainActor
 struct WorkspacePerformanceTests {
+    /// `base`, scaled up when the one-minute load average is above half the CPU count.
+    private func allowed(_ base: Duration) -> Duration {
+        var load = 0.0
+        getloadavg(&load, 1)
+        return base * max(1, 2 * load / Double(ProcessInfo.processInfo.activeProcessorCount))
+    }
+
     private func populate(_ folder: TempFolder, files: Int, perDirectory: Int = 25) throws {
         for index in 0 ..< files {
             try folder.write("section-\(index / perDirectory)/note-\(index).md", "# Note \(index)\n")
@@ -51,7 +59,7 @@ struct WorkspacePerformanceTests {
         let total = clock.now - started
         print("PERF scan: 3 workspaces x 3000 files in \(total), longest main-actor gap \(maxGap)")
         #expect(ids.allSatisfy { library.state(for: $0).snapshot.files.count == 3000 })
-        #expect(total < .seconds(20))
+        #expect(total < allowed(.seconds(20)), "took \(total)")
         #expect(maxGap < .milliseconds(250))
     }
 
@@ -70,7 +78,7 @@ struct WorkspacePerformanceTests {
         let elapsed = clock.now - started
         print("PERF tree: 20000 files sorted and grouped in \(elapsed)")
         #expect(tree.count == 800)
-        #expect(elapsed < .seconds(2))
+        #expect(elapsed < allowed(.seconds(2)), "took \(elapsed)")
     }
 
     @Test("an incremental update is much cheaper than a full scan")
