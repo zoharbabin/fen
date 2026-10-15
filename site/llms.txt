@@ -1,6 +1,6 @@
 # Fen
 
-> A native Markdown editor for Mac, iPhone and iPad, written in Swift and SwiftUI. Fast, open source, Apple Silicon native. It grew out of a full rewrite of MacDown, and it now also searches, links and answers questions across your notes, which stay plain `.md` files.
+> A native Markdown editor for Mac, iPhone and iPad, written in Swift and SwiftUI. It turns your folders of plain `.md` files into a knowledge base you can search by meaning, link and ask. Answers cite their sources, every AI change goes through one gate and can be undone, and AI runs only through providers you add. Open source, Apple Silicon native. It grew out of a full rewrite of MacDown.
 
 Fen is built and maintained by Zohar Babin (https://zoharbabin.com/), CSO at Kaltura, Inc. and a long-time open-source builder. Fen itself is not affiliated with Kaltura — it's an independent open-source project.
 

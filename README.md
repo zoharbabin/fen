@@ -4,7 +4,7 @@
 
 <h1 align="center">Fen</h1>
 
-<p align="center"><strong>A native Markdown editor for Mac, iPhone and iPad.</strong><br>Write plain <code>.md</code> files. Search them by meaning. Ask questions across them. On your device, free and open source.</p>
+<p align="center"><strong>Your notes, and an AI that answers from them.</strong><br>Fen is a native Markdown editor for Mac, iPhone and iPad. It turns your folders of plain <code>.md</code> files into a knowledge base you can search, link and ask. Every answer cites its sources. Every AI change goes through one gate and can be undone.</p>
 
 <p align="center">
   <a href="https://github.com/zoharbabin/fen/actions/workflows/ci.yml"><img src="https://github.com/zoharbabin/fen/actions/workflows/ci.yml/badge.svg" alt="CI status"></a>
@@ -23,21 +23,23 @@
 </p>
 
 <p align="center">
-  <img src="docs/img/mac-1-write.png" alt="Fen with Markdown on the left and the rendered page, with a Mermaid chart, on the right" width="820">
+  <img src="docs/img/mac-4-ask.png" alt="Fen's Ask view: a question about your notes, answered with a numbered source and its line numbers" width="820">
 </p>
 
-## Why Fen
+## What makes Fen different
 
-- **Your notes stay plain files.** Fen reads and writes `.md` files in your own folders. There is no vault or proprietary format, so Finder, iCloud and git keep working.
-- **Your notes become a knowledge base.** Search by words and meaning, follow `[[wiki-links]]` and backlinks, and ask questions that answer with sources.
-- **It runs on your device.** Search and indexing never leave your Mac. Fen sends nothing to an AI service until you add one.
-- **It's native.** Swift and SwiftUI, not Electron, built for Apple Silicon.
-- **It's free**, open source (MIT), with no account and no telemetry. If Fen ever charges for anything, it will be a one-time purchase, not a subscription.
+- **Ask your notes, get sources.** Ask a question across one workspace or all of them. The answer cites numbered sources with line numbers, so you can check it. Ask only reads. It never edits.
+- **Search by meaning, on your device.** Fen builds an index per workspace and finds notes by words and by meaning. The index never leaves your Mac.
+- **Related notes while you write.** A card shows the notes that link to this one, the ones it links to, and similar passages, with a one-click link.
+- **AI on your terms.** You choose the provider: Apple's on-device model, Ollama, or an OpenAI-compatible service. With none added, Fen makes no AI request.
+- **One gate for every AI edit.** Ask AI, Enrich and agents all change a note through the same gate. You start it, you see the change, and Undo reverts it.
+- **Agents on a leash.** The opt-in MCP server (Mac) lets any MCP client read your workspaces and write through that same gate, on their own git branch. Your checkout stays put.
+- **Plain files, native, free.** Your notes are `.md` files in your own folders, with no vault or proprietary format. Fen is Swift and SwiftUI, not Electron. It's MIT licensed, with no account and no telemetry. If Fen ever charges for anything, it will be a one-time purchase, not a subscription.
 
 <table>
   <tr>
     <td><img src="docs/img/mac-3-search.png" alt="Search across a workspace by words and meaning"></td>
-    <td><img src="docs/img/mac-4-ask.png" alt="Ask your workspaces and get an answer with numbered sources"></td>
+    <td><img src="docs/img/mac-5-related.png" alt="A related-documents card beside the note you're writing"></td>
   </tr>
 </table>
 
@@ -58,18 +60,6 @@ brew install --cask fen
 
 ## Features
 
-### Write and preview
-
-- **Split view with scroll sync.** Markdown on one side, the rendered page on the other, tracking each other as you type.
-- **GitHub-Flavored Markdown** through Apple's [`swift-cmark`](https://github.com/apple/swift-cmark): tables, task lists, strikethrough, autolinks, footnotes, `==highlight==` marks and `> [!NOTE]` alerts.
-- **Math, diagrams and more.** MathJax equations, Mermaid diagrams, syntax highlighting, emoji shortcodes, GeoJSON maps (opt in) and an interactive 3D viewer for `stl` blocks. All of it renders in the preview, in exports and in the CLI.
-- **Live preview mode (Experimental, Cmd+Shift+P).** Hides Markdown markers away from the caret and shows the styling they mean, while the file stays plain text. See [how it works](docs/ARCHITECTURE.md#slash-command-menu-focus-mode-live-preview-and-the-editor-gutter).
-- **Writing tools.** Slash-command menu, outline sidebar (Cmd+Shift+O), focus mode (Cmd+Shift+F), synced line numbers, find and replace, a formatting toolbar, auto-pair and list continuation.
-- **Vim keys (Mac, off by default).** Normal and Insert mode with basic motions. Nothing else from Vim is included.
-- **Images.** Paste or drop an image and Fen saves it in a `<document>.assets` folder next to the file and links it.
-- **Themes.** Light and dark pairs that follow the system, custom preview CSS, and per-document `fen:` front-matter overrides.
-- **Safe HTML.** Inline HTML goes through a vendored [DOMPurify](https://github.com/cure53/DOMPurify) first, so a document can't run scripts or load remote content.
-
 ### Your notes as a knowledge base
 
 - **Workspaces.** Add any number of folders, with or without git. Fen lists their notes without opening each file and writes nothing into them apart from an optional `.fen/schema.yaml`.
@@ -84,6 +74,20 @@ brew install --cask fen
 - **Ask AI and Enrich.** Change a note from inside it. Every change goes through one gate and can be undone.
 - **AI you add yourself.** Apple's on-device model, Ollama, or an OpenAI-compatible service. With no provider added, Fen makes no AI request.
 - **MCP server (Mac, off by default).** Lets an agent read and edit your workspaces. It listens on `127.0.0.1` only, with per-client tokens. Agent edits go through the same gate, on their own git branch.
+
+### Write and preview
+
+<p align="center"><img src="docs/img/mac-1-write.png" alt="Markdown on the left, the rendered page with a Mermaid chart on the right" width="640"></p>
+
+- **Split view with scroll sync.** Markdown on one side, the rendered page on the other, tracking each other as you type.
+- **GitHub-Flavored Markdown** through Apple's [`swift-cmark`](https://github.com/apple/swift-cmark): tables, task lists, strikethrough, autolinks, footnotes, `==highlight==` marks and `> [!NOTE]` alerts.
+- **Math, diagrams and more.** MathJax equations, Mermaid diagrams, syntax highlighting, emoji shortcodes, GeoJSON maps (opt in) and an interactive 3D viewer for `stl` blocks. All of it renders in the preview, in exports and in the CLI.
+- **Live preview mode (Experimental, Cmd+Shift+P).** Hides Markdown markers away from the caret and shows the styling they mean, while the file stays plain text. See [how it works](docs/ARCHITECTURE.md#slash-command-menu-focus-mode-live-preview-and-the-editor-gutter).
+- **Writing tools.** Slash-command menu, outline sidebar (Cmd+Shift+O), focus mode (Cmd+Shift+F), synced line numbers, find and replace, a formatting toolbar, auto-pair and list continuation.
+- **Vim keys (Mac, off by default).** Normal and Insert mode with basic motions. Nothing else from Vim is included.
+- **Images.** Paste or drop an image and Fen saves it in a `<document>.assets` folder next to the file and links it.
+- **Themes.** Light and dark pairs that follow the system, custom preview CSS, and per-document `fen:` front-matter overrides.
+- **Safe HTML.** Inline HTML goes through a vendored [DOMPurify](https://github.com/cure53/DOMPurify) first, so a document can't run scripts or load remote content.
 
 ### Sync, files and sharing
 
