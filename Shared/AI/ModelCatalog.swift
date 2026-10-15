@@ -6,6 +6,9 @@ import Foundation
 /// (`/api/models/<repo>?blobs=true`), then download the file once and check the hash yourself.
 public enum ModelCatalog {
     private static let gib: Int64 = 1 << 30
+    /// What `ProcessInfo.physicalMemory` shows for a device sold as 8 GB. An iPhone 15 Pro Max reports
+    /// 7655 MB, not 8192, so a minimum of 8 GiB would turn away every 8 GB iPhone and iPad.
+    private static let eightGigabyteDevice = 7 * gib
 
     /// Hugging Face hands the file to its download network. These are the only hosts it may reach.
     private static let huggingFaceHosts = ["huggingface.co", "hf.co"]
@@ -69,7 +72,7 @@ public enum ModelCatalog {
         kind: .gemma4,
         languages: "140+ languages",
         redirectHostSuffixes: huggingFaceHosts,
-        minimumMemory: 6 * gib
+        minimumMemory: eightGigabyteDevice
     )
 
     public static let gemma4E2B = ModelDescriptor(
@@ -87,7 +90,7 @@ public enum ModelCatalog {
         kind: .gemma4,
         languages: "140+ languages",
         redirectHostSuffixes: huggingFaceHosts,
-        minimumMemory: 8 * gib,
+        minimumMemory: eightGigabyteDevice,
         platforms: [.mac, .iPad]
     )
 
