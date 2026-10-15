@@ -646,7 +646,7 @@ Text from another app (a Safari selection, Notes) is not a file, and a `Document
 
 The key map and the caret math are plain functions in `Shared/Editor/VimMotion.swift`. `j` and `k` use AppKit's `moveDown` and `moveUp`, so they follow wrapped lines on screen. Command shortcuts, arrows and the function keys go to AppKit as usual. Control keys and Forward Delete are swallowed in Normal mode, because AppKit would run their Emacs bindings (Ctrl-K, Ctrl-D) and edit text. On a layout that types no ASCII, such as Hebrew or Cyrillic, `VimCommand.asciiCharacters(forKeyCode:shift:)` maps the physical key to its US character, so `h j k l` work where the keys are on a US keyboard (`VimKeyTests`). Esc goes through `cancelOperation`, so it closes the slash menu first and leaves Insert mode only when no menu is open. The caret is a half-transparent block in Normal mode.
 
-Left out on purpose, as in [#102](https://github.com/zoharbabin/fen/issues/102): Visual mode, counts, operators, text objects, registers, `:` commands, `.` repeat and Vim-style undo. Undo is the normal Cmd-Z. Full Vim is a different-sized project, tracked in [#23](https://github.com/zoharbabin/fen/issues/23).
+Left out on purpose, as in [#102](https://github.com/zoharbabin/fen/issues/102): Visual mode, counts, operators, text objects, registers, `:` commands, `.` repeat and Vim-style undo. Undo is the normal Cmd-Z. Full Vim is a different-sized project. We decided not to build it ([#23](https://github.com/zoharbabin/fen/issues/23), closed as not planned), and will reopen it if people ask.
 
 ## Check for updates: Sparkle installs a build you asked for
 
