@@ -224,12 +224,12 @@
        INSTALL
     ═══════════════════════════════ */
     .install { border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
-    .install-row { display: grid; grid-template-columns: minmax(11rem, 17rem) 1fr; gap: .5rem 2.5rem; align-items: baseline; padding: 1.2rem 1.6rem; }
+    .install-row { display: grid; grid-template-columns: minmax(11rem, 17rem) minmax(0, 1fr); gap: .5rem 2.5rem; align-items: baseline; padding: 1.2rem 1.6rem; }
     .install-row + .install-row { border-top: 1px solid var(--border); }
     .install-row h3 { font-size: .95rem; font-weight: 700; }
     .install-row p { font-size: .9rem; color: var(--text-sub); line-height: 1.6; }
     .install-row pre { margin-top: .6rem; padding: .7rem 1rem; overflow-x: auto; white-space: pre; border-radius: 6px; background: var(--bg); border: 1px solid var(--border); font-size: .82rem; line-height: 1.6; }
-    @media (max-width: 640px) { .install-row { grid-template-columns: 1fr; padding: 1rem 1.2rem; } }
+    @media (max-width: 640px) { .install-row { grid-template-columns: minmax(0, 1fr); padding: 1rem 1.2rem; } .install-row pre { white-space: pre-wrap; overflow-wrap: anywhere; } }
 
     /* ═══════════════════════════════
        ROADMAP LIST
