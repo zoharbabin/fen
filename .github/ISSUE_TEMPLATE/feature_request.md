@@ -15,5 +15,5 @@ What you'd like to see happen.
 **Alternatives considered**
 Any alternative solutions or workarounds you've tried.
 
-**Fits with the roadmap?**
-Check the [open issues](https://github.com/zoharbabin/fen/issues) — does this align with an existing one, or is it something new?
+**Is there a related issue?**
+Check the [open issues](https://github.com/zoharbabin/fen/issues) first. Link a match here, or say it's new.

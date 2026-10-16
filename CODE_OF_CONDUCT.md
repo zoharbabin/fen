@@ -2,13 +2,13 @@
 
 ## Our pledge
 
-Fen is a small open-source project. We want it to be a welcoming, harassment-free space for everyone, regardless of experience level, background, or identity.
+Fen is a small open-source project. We want it to be a welcoming, harassment-free space for everyone, whatever your experience, background or identity.
 
 ## Expected behavior
 
 - Be respectful and considerate in issues, pull requests, and discussions.
 - Give and accept constructive feedback gracefully.
-- Assume good faith — most disagreements come from different context, not bad intent.
+- Assume good faith. Most disagreements come from different context, not bad intent.
 
 ## Unacceptable behavior
 
@@ -19,7 +19,7 @@ Fen is a small open-source project. We want it to be a welcoming, harassment-fre
 
 ## Enforcement
 
-If you experience or witness unacceptable behavior, report it by opening a [GitHub issue](https://github.com/zoharbabin/fen/issues) marked private/sensitive, or by contacting the maintainer directly. We review and handle every report with discretion. Maintainers may edit, remove, or reject comments, commits, and contributions that violate this Code of Conduct, and may temporarily or permanently ban contributors for behavior they deem inappropriate, threatening, or harmful.
+If you see or experience unacceptable behavior, report it privately. Don't use a public issue. Use [GitHub's private reporting form](https://github.com/zoharbabin/fen/security/advisories/new) or message the maintainer, [@zoharbabin](https://github.com/zoharbabin), on GitHub. We handle every report with discretion. Maintainers may edit, remove or reject comments, commits and contributions that break this Code of Conduct. They may ban contributors, temporarily or for good, for behavior they judge inappropriate, threatening or harmful.
 
 ## Scope
 

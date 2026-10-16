@@ -2,7 +2,7 @@
 
 > A native Markdown editor for Mac, iPhone and iPad, written in Swift and SwiftUI. It turns your folders of plain `.md` files into a knowledge base you can search by meaning, link and ask. Answers cite their sources, every AI change goes through one gate and can be undone, and AI runs only through providers you add. Open source, Apple Silicon native. It grew out of a full rewrite of MacDown.
 
-Fen is built and maintained by Zohar Babin (https://zoharbabin.com/), CSO at Kaltura, Inc. and a long-time open-source builder. Fen itself is not affiliated with Kaltura — it's an independent open-source project.
+Fen is built and maintained by Zohar Babin (https://zoharbabin.com/), CSO at Kaltura, Inc. and a long-time open-source builder. Fen is not affiliated with Kaltura. It's an independent open-source project.
 
 ## What Fen is
 
@@ -19,7 +19,7 @@ Fen is built and maintained by Zohar Babin (https://zoharbabin.com/), CSO at Kal
 - GitHub sync (clone, pull, push with a token limited to one repository), conflicts that wait for your choice, and version history that includes iCloud versions.
 - iPhone and iPad: keyboard shortcuts, a share sheet in and out, and one pane at a time on a narrow screen.
 - Free, MIT-licensed, no telemetry, no account required.
-- Signed and notarized by Apple — installs without Gatekeeper warnings.
+- Signed and notarized by Apple, so it installs without Gatekeeper warnings.
 
 ## Links
 
@@ -33,9 +33,9 @@ Fen is built and maintained by Zohar Babin (https://zoharbabin.com/), CSO at Kal
 
 - Mac, download: `Fen.app.zip` from https://github.com/zoharbabin/fen/releases/latest. Needs macOS 15 or later.
 - Mac, Homebrew: `brew tap zoharbabin/fen https://github.com/zoharbabin/fen` then `brew install --cask fen`.
-- iPhone, iPad and the Mac App Store: in App Review. One listing will cover all three.
+- iPhone, iPad and the Mac App Store: not out yet. One listing will cover all three.
 - From source: https://github.com/zoharbabin/fen#build-from-source
 
 ## Where Fen is headed
 
-Shipped: the editor, export and the `fen-export` command, Quick Look, workspaces, search, wiki-links and backlinks, document types, Ask with sources, a write gate, an opt-in MCP server, GitHub sync, version history, iPhone and iPad support, signed and notarized builds, and a Homebrew cask. In review: the App Store release. Later: Live Preview parity (Experimental).
+Next: the App Store release. Later: Live Preview parity (Experimental). The full list is at https://github.com/zoharbabin/fen/issues.

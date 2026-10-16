@@ -1,6 +1,6 @@
 # Image Format Test
 
-This file exercises Fen's preview across the image formats GitHub's Markdown renderer commonly supports — PNG, JPEG, GIF, SVG, and WebP — both as local relative-path files and as remote HTTP(S) URLs. Use it to confirm the preview loads every combination correctly.
+This file exercises Fen's preview across the image formats GitHub's Markdown renderer commonly supports (PNG, JPEG, GIF, SVG and WebP), both as local relative-path files and as remote HTTP(S) URLs. Use it to confirm the preview loads every combination correctly.
 
 ## Local images (relative path)
 

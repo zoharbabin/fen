@@ -34,7 +34,7 @@
 - **AI on your terms.** You choose the provider: Apple's on-device model, a Gemma 4 model you download, Ollama, or an OpenAI-compatible service. With none added, Fen makes no AI request.
 - **One gate for every AI edit.** Ask AI, Enrich and agents all change a note through the same gate. You start it, you see the change, and Undo reverts it.
 - **Agents on a leash.** The opt-in MCP server (Mac) lets any MCP client read your workspaces and write through that same gate, on their own git branch. Your checkout stays put.
-- **Plain files, native, free.** Your notes are `.md` files in your own folders, with no vault or proprietary format. Fen is Swift and SwiftUI, not Electron. It's MIT licensed, with no account and no telemetry. If Fen ever charges for anything, it will be a one-time purchase, not a subscription.
+- **Plain files, native, free.** Your notes are `.md` files in your own folders, with no vault or proprietary format. Fen is Swift and SwiftUI, not Electron. It's MIT licensed, with no account and no telemetry.
 
 <table>
   <tr>
@@ -54,7 +54,7 @@ brew tap zoharbabin/fen https://github.com/zoharbabin/fen
 brew install --cask fen
 ```
 
-**iPhone and iPad:** needs iOS 18 or later. The App Store release is in review. It isn't available as a download yet.
+**iPhone and iPad:** needs iOS 18 or later. Fen isn't on the App Store yet.
 
 **Updates:** choose **Fen > Check for Updates…**. Fen checks only when you ask, then downloads, verifies and installs the new version. With Homebrew, `brew upgrade --cask fen` works too. A build from source only opens the Releases page.
 
@@ -81,13 +81,13 @@ brew install --cask fen
 
 - **Split view with scroll sync.** Markdown on one side, the rendered page on the other, tracking each other as you type.
 - **GitHub-Flavored Markdown** through Apple's [`swift-cmark`](https://github.com/apple/swift-cmark): tables, task lists, strikethrough, autolinks, footnotes, `==highlight==` marks and `> [!NOTE]` alerts.
-- **Math, diagrams and more.** MathJax equations, Mermaid diagrams, syntax highlighting, emoji shortcodes, GeoJSON maps (opt in) and an interactive 3D viewer for `stl` blocks. All of it renders in the preview, in exports and in the CLI.
+- **Math, diagrams and more.** MathJax equations, Mermaid diagrams, syntax highlighting, emoji shortcodes, GeoJSON maps and an interactive 3D viewer for `stl` blocks. All of it renders in the preview, in exports and in the CLI. MathJax, Mermaid, the 3D viewer and maps are off until you turn them on in **Settings > Rendering**.
 - **Live preview mode (Experimental, Cmd+Shift+P).** Hides Markdown markers away from the caret and shows the styling they mean, while the file stays plain text. See [how it works](docs/ARCHITECTURE.md#slash-command-menu-focus-mode-live-preview-and-the-editor-gutter).
 - **Writing tools.** Slash-command menu, outline sidebar (Cmd+Shift+O), focus mode (Cmd+Shift+F), synced line numbers, find and replace, a formatting toolbar, auto-pair and list continuation.
 - **Vim keys (Mac, off by default).** Normal and Insert mode with basic motions. Nothing else from Vim is included.
 - **Images.** Paste or drop an image and Fen saves it in a `<document>.assets` folder next to the file and links it.
 - **Themes.** Light and dark pairs that follow the system, custom preview CSS, and per-document `fen:` front-matter overrides.
-- **Safe HTML.** Inline HTML goes through a vendored [DOMPurify](https://github.com/cure53/DOMPurify) first, so a document can't run scripts or load remote content.
+- **Safe HTML.** Inline HTML goes through a vendored [DOMPurify](https://github.com/cure53/DOMPurify) first, so a document can't run scripts.
 
 ### Sync, files and sharing
 
@@ -158,7 +158,7 @@ See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for why things are shaped this way.
 ## Get involved
 
 - **Found a bug?** [Open an issue](https://github.com/zoharbabin/fen/issues/new?template=bug_report.md).
-- **Want a feature?** [Suggest it](https://github.com/zoharbabin/fen/issues/new?template=feature_request.md). Check the [open issues](https://github.com/zoharbabin/fen/issues) first. [Issue #3](https://github.com/zoharbabin/fen/issues/3) tracks the AI and knowledge layer.
+- **Want a feature?** [Suggest it](https://github.com/zoharbabin/fen/issues/new?template=feature_request.md). Check the [open issues](https://github.com/zoharbabin/fen/issues) first.
 - **Want to code?** Read [CONTRIBUTING.md](CONTRIBUTING.md). Issues labeled [good first issue](https://github.com/zoharbabin/fen/labels/good%20first%20issue) are a good start.
 - **Found a vulnerability?** Don't post it in a public issue. Use [GitHub's private vulnerability reporting](https://github.com/zoharbabin/fen/security/advisories/new).
 - **Like Fen?** Star the repo and tell a friend. It helps other people find it.

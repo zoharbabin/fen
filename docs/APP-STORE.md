@@ -10,7 +10,7 @@ Part of [#40](https://github.com/zoharbabin/fen/issues/40). The store build is a
 | Entitlements | `macOS/Fen.entitlements`: `allow-jit` | `macOS/FenAppStore.entitlements`: sandbox, user-selected read-write files, app-scope bookmarks, network client |
 | `Info.plist` | `macOS/Info.plist` | `macOS/Info-AppStore.plist`: no Sparkle keys, adds the category and the encryption answer |
 | Updates | Sparkle, and the release-page fallback | None. The `APPSTORE` flag removes `AppUpdater` and the **Check for Updates…** command. The target doesn't link Sparkle. |
-| Git (GitHub sync, agent branches, conflict checks) | Uses the system `git` | Off. `GitTool.locate()` returns `nil` when `APP_SANDBOX_CONTAINER_ID` is set, so the UI hides clone and sync. iOS has its own GitHub copy that uses the API ([ARCHITECTURE.md](ARCHITECTURE.md#github-sync-clone-pull-and-push-with-the-git-you-have-a-scoped-token-in-the-keychain)). |
+| Git (GitHub sync, agent branches, the git diff in conflict checks) | Uses the system `git` | Off. `GitTool.locate()` returns `nil` when `APP_SANDBOX_CONTAINER_ID` is set, so the UI hides clone and sync. Conflict checks fall back to content hashes. iOS has its own GitHub copy that uses the API ([ARCHITECTURE.md](ARCHITECTURE.md#github-sync-clone-pull-and-push-with-the-git-you-have-a-scoped-token-in-the-keychain)). |
 | Fen home | `~/.fen` | `~/Library/Containers/com.zoharbabin.fen/Data/.fen` |
 | MCP server | Works | Off. The sandbox has no `network.server` entitlement and we don't add it, so Settings has no Agents tab (`AppSandbox.isActive()`). |
 
@@ -21,7 +21,7 @@ All on one Mac, with an ad hoc signed build (no Apple account needed).
 | Question | Answer | How we know |
 |---|---|---|
 | Does `git` run in the sandbox? | `/usr/bin/git` fails (`xcrun: error: cannot be used within an App Sandbox`). The Xcode copy runs, but only on a Mac with Xcode. We turn git off. | A small sandboxed probe that starts each `git` |
-| Is `allow-jit` needed? | No. The store target has no JIT entitlement and no hardened runtime. | `scripts/test-appstore-sandbox.sh`: the editor, the preview and the workspace flows all work. We didn't test every Mermaid and MathJax diagram. |
+| Is `allow-jit` needed? | No. The store target has no JIT entitlement and no hardened runtime. | `scripts/test-appstore-sandbox.sh`: the editor, the preview and the workspace flows all work. We didn't try every Mermaid and MathJax diagram. |
 | Do folder grants, indexing, search and backlinks work? | Yes. | The `WorkspaceControlsUITests` pass against the sandboxed build |
 | Does a workspace survive a relaunch? | Yes. The saved bookmark resumes. | `testWorkspaceKeepsWorkingAfterRelaunch` |
 | Is the sandbox set up for the data folder? | Yes. `.fen` is inside the container. | Listed the container after a run |
@@ -30,43 +30,29 @@ Run it yourself: `scripts/test-appstore-sandbox.sh`. It sets your container's `.
 
 ## Before you submit
 
-These need the owner's Apple Developer account. Everything else is in the repo.
+These steps need the owner's Apple Developer account. Never reuse the notarization secrets, and keep store credentials out of the repo.
 
-| Step | Where |
+| Step | How |
 |---|---|
-| Register the App ID `com.zoharbabin.fen` with App Sandbox, and `com.zoharbabin.fen.quicklook`. The team is `CG9APRC4WT` in `project.yml`. | Done. Xcode did it when it archived with `-allowProvisioningUpdates` |
-| Create the store certificates and a Mac App Store provisioning profile for each ID. | Done. Xcode made them on export, and the profile is "Mac Team Store Provisioning Profile" |
-| Create the app record in App Store Connect with that bundle ID. | Done. The record is "Fen.md". Both 1.0 drafts hold the listing text and screenshots from [APP-STORE-LISTING.md](APP-STORE-LISTING.md). The app-level forms are done too: subtitle, categories, content rights, age rating, privacy answers, price and availability. The Mac build 1.0 (1) and iOS build 1.0 (2) are uploaded and picked. The review contact is filled in. Both 1.0 versions were submitted for App Review on 2026-10-14 and show "Waiting for Review". The release type is unchanged from the drafts. |
-| Archive: `xcodebuild archive -scheme FenMacOSAppStore -project FenUITesting.xcodeproj -destination 'platform=macOS' -archivePath build/Fen.xcarchive -allowProvisioningUpdates`. Then export a signed `.pkg` with `xcodebuild -exportArchive -exportOptionsPlist <plist> -allowProvisioningUpdates`, using `method` `app-store-connect`, `signingStyle` `automatic` and `destination` `export`. Set `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION` first. Each upload needs a higher build number. | Your Mac |
-| Upload with Xcode Organizer or Transporter. | Your Mac |
-| Never reuse the notarization secrets. Keep store credentials out of the repo. | |
+| Register the App IDs `com.zoharbabin.fen` (App Sandbox) and `com.zoharbabin.fen.quicklook` | Xcode does it when you archive with `-allowProvisioningUpdates`. The team is in `project.yml`. |
+| Create the store certificates and a Mac App Store provisioning profile for each ID | Xcode does it on export. |
+| Create the app record in App Store Connect | Use the bundle ID `com.zoharbabin.fen`. The iOS app shares it, so Mac, iPhone and iPad sit in one record. Fill in the listing from [APP-STORE-LISTING.md](APP-STORE-LISTING.md). |
+| Archive | `xcodebuild archive -scheme FenMacOSAppStore -project FenUITesting.xcodeproj -destination 'platform=macOS' -archivePath build/Fen.xcarchive -allowProvisioningUpdates`. Set `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION` first. Each upload needs a higher build number. |
+| Export and upload | `xcodebuild -exportArchive -exportOptionsPlist <plist> -allowProvisioningUpdates` with `method` `app-store-connect`, `signingStyle` `automatic` and `destination` `upload` (or `export` for a `.pkg` you send with Transporter). It uses the Apple account signed in to Xcode. |
+| iOS build | Same steps with the `FeniOSApp` scheme and `-destination 'generic/platform=iOS'`. It also needs the App Group for the share extension ([IOS-SHARE-EXTENSION.md](IOS-SHARE-EXTENSION.md#signing)). |
 
-## Store listing
+## Listing and questionnaires
 
-| Field | Value |
+The name, text, URLs, review note, questionnaire answers, screenshots and icon are in [APP-STORE-LISTING.md](APP-STORE-LISTING.md). The build carries three things the store checks:
+
+| File | Content |
 |---|---|
-| Name | Fen.md ("Fen" is taken in the store) |
-| Category | Productivity (set in `Info-AppStore.plist`) |
-| Privacy policy URL | `https://fen.md/privacy.html` (`site/privacy.html`) |
-| Support URL | `https://github.com/zoharbabin/fen/issues` |
-| Marketing URL | `https://fen.md` |
-| Price | Free in all 175 regions. Set in App Store Connect. |
-| Age rating | 4+. Every question is answered No or None. Set in App Store Connect. |
-| App privacy ("nutrition label") | Data not collected, and published in App Store Connect. The app has no analytics and no server. See the policy page for the connections you start yourself. |
-| Export compliance | `ITSAppUsesNonExemptEncryption` is `false`. Fen only uses the encryption built into the system (HTTPS, Keychain). |
-| Privacy manifest | `macOS/PrivacyInfo.xcprivacy`: no tracking, no collected data, the `UserDefaults` and file timestamp reasons |
-| Screenshots and icon | Made by `scripts/make-store-screenshots.sh` and listed in [APP-STORE-LISTING.md](APP-STORE-LISTING.md), together with the description, keywords and review notes |
+| `macOS/Info-AppStore.plist` | The Productivity category and `ITSAppUsesNonExemptEncryption` set to `false` |
+| `macOS/PrivacyInfo.xcprivacy` | No tracking, no collected data, and the `UserDefaults` and file timestamp reasons |
+| `site/privacy.html` | The privacy policy at `https://fen.md/privacy.html` |
 
-Suggested review note: "Fen is a local-first Markdown editor. It reads and writes only files and folders you grant. The only network use is an AI provider address you enter yourself, a model file you choose to download in Settings (data only, no code, checked against a published SHA-256), and, if you enable it, map tiles. No account is needed."
+## Known gaps
 
-## Open questions only App Review can answer
-
-- Whether the user-added AI provider setting, including a local Ollama address, passes review as is.
-- Whether downloading model weights (data files that llama.cpp reads, never executed) passes review. The store build has `com.apple.security.network.client` already, so it needs no entitlement change. The App Store and iOS builds have not been submitted with llama.cpp yet.
-
-## Not done
-
-- The Mac build 1.0 (1) is uploaded: archive with `MARKETING_VERSION=1.0 CURRENT_PROJECT_VERSION=1`, then `xcodebuild -exportArchive` with `destination` `upload`, which uses the Apple account signed in to Xcode. The iOS app uses the same bundle ID as the Mac app (`com.zoharbabin.fen`, share extension `com.zoharbabin.fen.share`), so both platforms sit in one record. Its build 1.0 (2) is uploaded the same way (build 1 lacked the encryption key and showed Missing Compliance), with the `FeniOSApp` scheme and `-destination 'generic/platform=iOS'`. Both builds are picked on their 1.0 drafts.
-- We didn't test the store build on an iPhone or iPad. The iOS app is a separate target. Its App Store path needs the same account steps, plus the App Group for the share extension ([IOS-SHARE-EXTENSION.md](IOS-SHARE-EXTENSION.md)).
 - Xcode builds of the Mac app don't bundle `DocumentIcon.icns`. Only `scripts/build-app.sh` makes it, so `.md` files show a generic icon in the store build.
-- Sandbox denials in the system log weren't reviewed beyond the passing tests.
+- Nobody has run the store build on an iPhone or iPad. The iOS app is a separate target.
+- We checked the sandbox with the passing tests only. We didn't review sandbox denials in the system log.

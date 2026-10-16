@@ -24,4 +24,5 @@ THE SOFTWARE.
 ---
 
 Fen bundles or vendors several third-party components under their own
-licenses — see the [`LICENSE/`](LICENSE/) directory for full texts.
+licenses. See the [`LICENSE/`](LICENSE/) directory for full texts, and the
+`LICENSE-*` files next to the resources under `Shared/Resources/`.
