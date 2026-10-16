@@ -12,7 +12,7 @@ Fen is built and maintained by Zohar Babin (https://zoharbabin.com/), CSO at Kal
 - An optional WYSIWYG-in-source live preview editing mode, a slash-command menu for inserting blocks, focus/typewriter mode, and synced line-number gutters between editor and preview.
 - A Quick Look extension that renders `.md` files in Finder's preview panel, and a first-run sample document for new installs.
 - Workspaces: add any number of folders, with or without git. Fen lists their notes without opening each file.
-- On-device search by words and meaning, `[[wiki-links]]` with backlinks, related documents, and typed properties from a plain `schema.yaml`.
+- On-device search by words and meaning (a model you download, EmbeddingGemma 2 or Qwen3 Embedding, covers 100+ languages), `[[wiki-links]]` with backlinks, related documents, and typed properties from a plain `schema.yaml`.
 - Ask your workspaces: answers cite numbered sources with line numbers. Inline Ask AI and Enrich edit through one gate, and each edit can be undone.
 - AI only through providers you add (Apple's on-device model, a Gemma 4 model you download, Ollama, or an OpenAI-compatible service). With none added, Fen makes no AI request.
 - An opt-in MCP server on 127.0.0.1 (Mac), with per-client tokens and workspaces, and agent branches that leave your checkout alone.
