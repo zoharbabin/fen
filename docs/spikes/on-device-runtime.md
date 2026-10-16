@@ -71,6 +71,25 @@ A device reports less than its box size: 7655 MB for 8 GB. The catalog minimums 
 - **Heat.** `LlamaAnswerProvider` refuses to start at a "serious" thermal state on iPhone and iPad, and at "critical" on a Mac. We did not test it on hardware.
 - **Cellular.** A download over cellular or a personal hotspot is off by default (`allowsExpensiveNetworkAccess`). Settings shows the switch on iOS.
 
+## Other models we looked at
+
+We started from Gemma 4 and EmbeddingGemma 2, and looked for one or two more options. We read model cards and repo listings. We ran only the models in the catalog. Scores below come from the model cards, not from our tests. The head-to-head numbers for the two embedding models are in [embedding-model.md](embedding-model.md#downloaded-models-issue-234).
+
+| Model | Decision | Why |
+|---|---|---|
+| Qwen3 Embedding 0.6B | **In the catalog** | Apache-2.0, an official single-file GGUF, 1024 dimensions. Its card scores higher than EmbeddingGemma's on multilingual MTEB. In our test it is weaker on Spanish, Italian and Portuguese, so it stays an option and not the default. |
+| Gemma 4 E2B (2-bit mobile), E2B and E4B | **In the catalog** | The sizes that fit an 8 GB iPhone, an 8 GB iPad and a Mac. See [what we verified](#what-we-verified). |
+| EmbeddingGemma 2 in 4-bit (176 MB) | Not added | We found no quality numbers for 4-bit, and the Q8_0 file is only 310 MB. |
+| Nomic Embed v2 MoE | Not added | Apache-2.0 with an official GGUF. The card shows it weaker than the models above. |
+| Granite Embedding 97M multilingual | Not added | Apache-2.0, but only unofficial GGUFs. We pin files from the model's own repo or a first-party mirror. |
+| Jina v5 text (nano, small) | Excluded | CC-BY-NC-4.0 does not allow commercial use. |
+| Harrier OSS v1 270M | Not checked | No official GGUF. |
+| BGE-M3 and multilingual E5 | Not checked | We did not look for GGUF files or scores. |
+| Qwen3.5 4B and 2B (Q4_K_M) | Not added | Apache-2.0 and 201 languages. They think by default, and we did not test how to turn that off in `LlamaAnswerProvider`. Gemma 4 already covers the sizes we need. |
+| Gemma 4 12B | Not added | About 7 GB at Q4_0 and needs 16 GB of memory. Only a Mac with that much could run it. |
+
+Adding a model means a catalog entry with a pinned commit, size and hash, plus the checks in [the catalog rules](../ARCHITECTURE.md#downloaded-models-a-confirmed-download-a-checked-file-an-engine-inside-fen). Qwen3.5 4B is the first one to try if you want a second family of answer models.
+
 ## Why GGUF files from Hugging Face
 
 Each catalog entry pins one file at one commit, with its SHA-256 and size (`Shared/AI/ModelCatalog.swift`). The URL redirects to a CDN (`*.hf.co`), so `ModelStore` follows a redirect only to the hosts the entry allows, and only over https. The confirmation text names the host and the size before anything connects. A wrong size or checksum deletes the download and stops the install (`ModelStoreTests`).
