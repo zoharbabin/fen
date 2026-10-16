@@ -61,4 +61,13 @@ struct ModelCatalogTests {
         let runtime = try String(contentsOf: root.appendingPathComponent("llamacpp.txt"), encoding: .utf8)
         #expect(runtime.contains("MIT License"))
     }
+
+    @Test("a device sold as 8 GB can run every model that is meant for a phone or an iPad")
+    func eightGigabyteDeviceIsEnough() {
+        // An iPhone 15 Pro Max (8 GB) reports 7655 MB. The run on that phone found a catalog that asked for 8 GiB.
+        let reported = Int64(7655) * 1_048_576
+        for model in ModelCatalog.all where model.platforms.contains(.iPhone) || model.platforms.contains(.iPad) {
+            #expect(model.minimumMemory <= reported, "\(model.displayName) needs more than an 8 GB device reports")
+        }
+    }
 }

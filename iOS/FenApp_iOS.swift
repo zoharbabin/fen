@@ -16,6 +16,9 @@ struct FenApp: App {
             ) { _ in MainActor.assumeIsolated { SharedNotes.importWaiting() } }
         #endif
         ScheduledEnrichment.launch()
+        #if DEBUG
+            DeviceSelfTest.runIfRequested()
+        #endif
     }
 
     var body: some Scene {
