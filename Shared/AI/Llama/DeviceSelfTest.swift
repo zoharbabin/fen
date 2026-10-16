@@ -70,8 +70,8 @@
                         return report("the model did not load, \(state())")
                     }
                     report("loaded in \(ContinuousClock.now - start), \(state())")
-                    let began = ContinuousClock.now
                     for text in ["Water the tomatoes early in the morning.", "Riega los tomates por la mañana."] {
+                        let began = ContinuousClock.now
                         let vector = try? await provider.embed(text)
                         report("embedded \(vector?.count ?? 0) values in \(ContinuousClock.now - began), \(state())")
                     }

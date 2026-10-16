@@ -67,7 +67,7 @@ What this means:
 - Without an `autoreleasepool` around each call, the same loop grew to 16 to 25 MB (sentence) and 182 MB (contextual) over 3,000 chunks. The growth came from the loop, not the model. We did not measure the footprint of a real indexing run in Fen.
 - The 60-word chunks are slower than the short queries in the first table (about 9 ms for the sentence model). The 16.5 to 19.1 ms figure is close to the "about 21 ms per chunk" end-to-end number in Limits.
 - The numbers cover this process only. Work the OS does for the model in other processes is not in them.
-- We measured one machine and one OS build. We did not measure an iPhone or iPad, or a Mac with less memory.
+- We measured one machine and one OS build. We measured an iPhone and an iPad for load time and memory only, see [on-device-runtime.md](on-device-runtime.md#on-a-real-iphone-and-ipad). We did not measure a Mac with less memory.
 
 ## Limits
 
@@ -118,7 +118,7 @@ What this means:
 - Short queries are the weak point. The recognizer reads one-word queries such as "tram", "faro" or "endpoints" as another language. Such a query finds nothing by meaning in that workspace and falls back to words. Hints and a language constraint on the recognizer moved 83 of 96 queries (the five sets plus the English set) to 84 correct, so we did not add them.
 - A workspace that mixes all six languages plus one Dutch note: the right note is in the top 3 by meaning alone for 43 of 80 queries (the misread ones count as misses). The Dutch note is found by words.
 
-Not measured: Catalan, Dutch and the other languages with no model; text that mixes languages inside one note; iPhone and iPad; the memory and time of the five extra models (we measured only the English one above). Classification and conflict checks stay English only.
+Not measured: Catalan, Dutch and the other languages with no model; text that mixes languages inside one note; search quality on iPhone and iPad (load time and memory are in [on-device-runtime.md](on-device-runtime.md#on-a-real-iphone-and-ipad)); the memory and time of the five extra models (we measured only the English one above). Classification and conflict checks stay English only.
 
 ## Downloaded models (issue #234)
 
@@ -169,4 +169,4 @@ What this means:
 
 Changing the model rebuilds each workspace index, because the provider id is part of the index signature. Fen reads the choice at launch.
 
-Not measured: Chinese, Japanese, Korean and the other languages with no hand-labeled set; notes longer than a chunk; hybrid (words plus meaning) ranking with these models; speed and memory on any device, including iPhone and iPad; indexing time for a large workspace. The sets are small, so treat the figures as a comparison between models, not as benchmarks. The Apple column is from the earlier runs above, on the same sets, but the comparison holds only on these sets.
+Not measured: Chinese, Japanese, Korean and the other languages with no hand-labeled set; notes longer than a chunk; hybrid (words plus meaning) ranking with these models; speed and memory on devices other than the iPhone and iPad runs in [on-device-runtime.md](on-device-runtime.md#on-a-real-iphone-and-ipad); indexing time for a large workspace. The sets are small, so treat the figures as a comparison between models, not as benchmarks. The Apple column is from the earlier runs above, on the same sets, but the comparison holds only on these sets.
