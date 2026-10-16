@@ -51,10 +51,11 @@ Run with `scripts/test-models-device.sh` on an iPhone 15 Pro Max (sold as 8 GB, 
 
 | Device | Model | Result |
 |---|---|---|
-| iPhone | EmbeddingGemma 2 | The first embedding took 12.9 s, which includes loading the file. The next took 0.02 s. Vectors have 768 values. Peak footprint 199 MB. |
+| iPhone | EmbeddingGemma 2 | The first embedding took 0.7 s and the next 0.03 s, on the released v0.7.1 code. The very first run, with a cold file cache, took 12.9 s. Vectors have 768 values. Peak footprint 199 MB. |
 | iPhone | Qwen3 Embedding 0.6B | The first embedding took 1.4 s, which includes loading the file. The next took 0.03 s. Vectors have 1024 values. Peak footprint 354 MB. |
 | iPhone | Gemma 4 E2B, small (2-bit) | First text after 3.3 s, whole answer after 3.6 s. It answered the code-word question correctly. Peak footprint 274 MB. Run again on the released v0.7.1 code, with the 7 GiB gate. |
 | iPad | EmbeddingGemma 2 | The first embedding took 9.5 s, which includes loading the file. The next took 0.02 s. Vectors have 768 values. Peak footprint 175 MB. |
+| iPad | Qwen3 Embedding 0.6B | The first embedding took 0.9 s and the next 0.02 s. Vectors have 1024 values. Peak footprint 329 MB. |
 | iPad | Gemma 4 E2B (Q4_0) | First text after 8.2 s, whole answer after 8.5 s. It answered the code-word question correctly. Peak footprint 250 MB. |
 
 The footprint does not count the model file, which llama.cpp maps from disk. The mobile Gemma 4 loaded and ran without the increased-memory entitlement on this 8 GB phone.
