@@ -1,6 +1,6 @@
 # iOS Share Extension
 
-Part of [#43](https://github.com/zoharbabin/fen/issues/43). Fen is in the iOS share sheet for text and web addresses. The extension leaves a `.md` file in an App Group folder. Fen moves each file into its Documents folder as a note the next time it opens or comes to the front. Find notes in the document list under **Browse > On My iPhone > Fen**. The older route still works: copy text, tap **New from Clipboard** ([how it works](ARCHITECTURE.md#share-sheet-files-in-place-a-md-file-out)).
+Fen is in the iOS share sheet for text and web addresses (issue [#43](https://github.com/zoharbabin/fen/issues/43)). The extension leaves a `.md` file in an App Group folder. Fen moves each file into its Documents folder as a note the next time it opens or comes to the front. Find notes in the document list under **Browse > On My iPhone > Fen**. The older route still works: copy text, tap **New from Clipboard** ([how it works](ARCHITECTURE.md#share-sheet-files-in-place-a-md-file-out)).
 
 ## How it works
 
@@ -17,15 +17,15 @@ Fen saves notes itself because on iOS 27 the launch screen's **New Document** bu
 
 ## Checks
 
-| Check | Status |
+| Check | Where it runs |
 |---|---|
-| `SharedTextInboxTests`, `SharedTextImportTests` (names, collisions, import, consume, purge, size cap) | Runs in CI |
-| `build iOS app (simulator)` builds the extension and embeds it | Runs in CI |
-| `scripts/test-share-inbox.sh [udid]` signs ad hoc, installs, writes a file into the simulator's group folder, opens the note from the document list and checks the text and the `.consumed` rename (`ShareInboxUITests`) | Local. Passed on the iPhone simulator. |
-| `SavedNoteUITests`: on an iPhone, open a saved note from **Browse > On My iPhone > Fen** and check its text (`TEST_RUNNER_FEN_SAVED_NOTE=1`) | Local. Passed on an iPhone 15 Pro Max. |
-| A real share from Safari, Notes and Mail on a device | Safari share done by hand, and the notes arrive. Safari is too slow to drive from a UI test. |
+| `SharedTextInboxTests`, `SharedTextImportTests` (names, collisions, import, consume, purge, size cap) | CI |
+| The iOS simulator build in `ci.yml` builds the extension and embeds it | CI |
+| `scripts/test-share-inbox.sh [udid]` signs ad hoc, installs, writes a file into the simulator's group folder, opens the note from the document list and checks the text and the `.consumed` rename (`ShareInboxUITests`) | Local |
+| `SavedNoteUITests`: on an iPhone, open a saved note from **Browse > On My iPhone > Fen** and check its text (set `TEST_RUNNER_FEN_SAVED_NOTE=1`) | Local, on a device |
+| A real share from Safari, Notes and Mail | By hand on a device. Safari is too slow to drive from a UI test. |
 
-Before a release, also run `grep -r "URLSession" Shared macOS iOS FenShare`. It must show no new match.
+The extension must make no network call. `grep -r "URLSession" FenShare Shared/Models` must show nothing.
 
 ## Signing
 

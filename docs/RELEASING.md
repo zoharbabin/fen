@@ -1,70 +1,64 @@
 # Releasing Fen
 
-This walks you through publishing a signed, notarized `Fen.app` to the GitHub [Releases](https://github.com/zoharbabin/fen/releases) page — even if you don't do this every day.
+This page shows you how to publish a signed, notarized `Fen.app` to the GitHub [Releases](https://github.com/zoharbabin/fen/releases) page. There are two ways:
 
-There are two ways to release:
-
-1. **Automatic (recommended):** push a version tag and GitHub Actions builds, signs, notarizes, and uploads the app for you.
-2. **Manual:** run the build script on your own Mac.
-
----
+| Way | Use it when |
+|---|---|
+| [Automatic](#option-a-release-with-github-actions-recommended) | Normal releases. Push a version tag and GitHub Actions does the rest. |
+| [Manual](#option-b-build-and-release-on-your-mac) | CI is down, or you're testing a signed build locally. |
 
 ## One-time setup (signing)
 
-You need an **Apple Developer account** ($99/year). You already have one.
+You need an Apple Developer account.
 
-### 1. Create a "Developer ID Application" certificate
+### Create a Developer ID Application certificate
 
-1. Open **Xcode → Settings → Accounts**, sign in with your Apple ID.
-2. Select your team → **Manage Certificates…** → **+** → **Developer ID Application**.
-3. This installs the certificate into your login Keychain.
-
-Find its exact name (you'll need it):
+1. Open **Xcode → Settings → Accounts** and sign in with your Apple ID.
+2. Select your team, choose **Manage Certificates…**, click **+**, then pick **Developer ID Application**. Xcode installs the certificate in your login Keychain.
+3. Find its exact name:
 
 ```sh
 security find-identity -v -p codesigning
 ```
 
-Look for a line like `Developer ID Application: Your Name (ABCDE12345)`. The 10-character code in parentheses is your **Team ID**.
+Look for `Developer ID Application: Your Name (ABCDE12345)`. The 10-character code in parentheses is your Team ID.
 
-### 2. Create an app-specific password (for notarization)
+### Create an app-specific password (for notarization)
 
-1. Go to <https://appleid.apple.com> → **Sign-In and Security** → **App-Specific Passwords**.
-2. Create one named e.g. `fen-notary` and copy the generated password.
+1. Go to <https://appleid.apple.com> and open **Sign-In and Security → App-Specific Passwords**.
+2. Create one (for example `fen-notary`) and copy it.
 
----
+## Option A: release with GitHub Actions (recommended)
 
-## Option A — Release via GitHub Actions (recommended)
+### Repository secrets
 
-### Add repository secrets (one time)
+`.github/workflows/release.yml` reads seven secrets. `gh secret list` shows which ones this repo has. Skip this section unless you're rotating credentials or setting up a fork.
 
-This repo has the six signing secrets configured (`gh secret list` shows them), and every release since v0.2.0 has published automatically through this path. The seventh, `SPARKLE_PRIVATE_KEY`, is needed for in-app updates (see [Sparkle key](#sparkle-key-in-app-updates)). Skip to [Cut a release](#cut-a-release) unless you're rotating credentials or setting up a fork.
-
-In GitHub: **Settings → Secrets and variables → Actions → New repository secret**. Add all seven:
+Add them under **Settings → Secrets and variables → Actions → New repository secret**:
 
 | Secret | Value |
-|--------|-------|
+|---|---|
 | `MACOS_SIGN_IDENTITY` | `Developer ID Application: Your Name (ABCDE12345)` |
-| `MACOS_CERTIFICATE` | base64 of your exported certificate (see below) |
-| `MACOS_CERTIFICATE_PWD` | the password you set when exporting the `.p12` |
-| `APPLE_ID` | your Apple ID email |
-| `APPLE_APP_PASSWORD` | the app-specific password from step 2 |
-| `APPLE_TEAM_ID` | the 10-character Team ID |
-| `SPARKLE_PRIVATE_KEY` | the EdDSA private key for in-app updates (see below) |
+| `MACOS_CERTIFICATE` | Base64 of your exported `.p12` certificate (see below) |
+| `MACOS_CERTIFICATE_PWD` | The password you set when exporting the `.p12` |
+| `APPLE_ID` | Your Apple ID email |
+| `APPLE_APP_PASSWORD` | The app-specific password from above |
+| `APPLE_TEAM_ID` | The 10-character Team ID |
+| `SPARKLE_PRIVATE_KEY` | The EdDSA private key for in-app updates (see [Sparkle key](#sparkle-key-in-app-updates)) |
 
-To produce `MACOS_CERTIFICATE`: in **Keychain Access**, find your *Developer ID Application* certificate, right-click → **Export…**, save as a `.p12` with a password, then convert it to base64 text:
+To make `MACOS_CERTIFICATE`: in **Keychain Access**, right-click your Developer ID Application certificate, choose **Export…**, and save a `.p12` with a password. Then convert it to base64:
 
 ```sh
-base64 -i Certificates.p12 | pbcopy   # now paste into the secret
+base64 -i Certificates.p12 | pbcopy   # paste into the secret
 ```
 
 ### Sparkle key (in-app updates)
 
-**Fen > Check for Updates…** installs a build only if its zip carries an EdDSA signature made with the private key that matches `SUPublicEDKey` in `macOS/Info.plist`. A tagged release fails at "Build appcast" without the secret, so a release can't ship without an appcast.
+**Fen > Check for Updates…** installs a build only if its zip carries an EdDSA signature that matches `SUPublicEDKey` in `macOS/Info.plist`. A tagged release fails at "Build appcast" without the secret, so no release ships without an appcast.
 
-Create the key once on your Mac (Sparkle's `generate_keys` is in the [Sparkle release](https://github.com/sparkle-project/Sparkle/releases) and in `.build/artifacts/sparkle/Sparkle/bin` after `swift package resolve`). It stores the private key in your login Keychain and prints the public key for `Info.plist`.
+Create the key once on your Mac. Sparkle's `generate_keys` is in the [Sparkle release](https://github.com/sparkle-project/Sparkle/releases) and in `.build/artifacts/sparkle/Sparkle/bin` after `swift package resolve`. It stores the private key in your login Keychain and prints the public key for `Info.plist`.
 
-Put the private key in the secret, then delete the exported file:
+Copy the private key into the secret, then delete the exported file:
 
 ```sh
 generate_keys -x sparkle_private_key          # writes the key to a file
@@ -72,7 +66,7 @@ gh secret set SPARKLE_PRIVATE_KEY < sparkle_private_key
 rm sparkle_private_key
 ```
 
-Keep a backup of the key in a password manager. If you lose it, installed copies of Fen can't verify any future update, and everyone has to download a new build by hand. If it leaks, replace the key and `SUPublicEDKey` in one release, signed with the old key, before you revoke anything.
+Back the key up in a password manager. If you lose it, installed copies of Fen can't verify any later update, and everyone has to download a new build by hand. If it leaks, ship one release that replaces both the key and `SUPublicEDKey`, signed with the old key, before you revoke anything.
 
 ### Cut a release
 
@@ -81,31 +75,31 @@ git tag v0.1.0
 git push origin v0.1.0
 ```
 
-The **Release** workflow runs automatically: it tests, builds, signs, notarizes, staples (retrying if Apple's ticket service drops the connection), zips, signs the zip for Sparkle, and creates a GitHub Release with `Fen.app.zip` and `appcast.xml` attached.
+The **Release** workflow tests, builds, signs, notarizes and staples the app (retrying if Apple's ticket service drops the connection). Then it zips the app, signs the zip for Sparkle, publishes a GitHub Release with `Fen.app.zip` and `appcast.xml`, and redeploys the landing page.
 
-> Skip the secrets and the workflow still runs, but it produces an **unsigned** build — fine for testing, though people will see a Gatekeeper warning.
+Without the signing secrets the workflow still builds and tests, but it only uploads an unsigned `Fen-app` workflow artifact. It publishes no release.
 
 ### Write the release notes by hand
 
-The workflow's `generate_release_notes: true` is a fallback, not the real changelog. This repo merges every change through a PR, so GitHub can generate a "What's Changed" list of merged PR titles — but that list doesn't match this repo's own format and skips the *why* behind each change, so treat it as a draft to replace, not a done release. (If a release ever lands with no merged PRs since the last tag, GitHub instead publishes a bare `**Full Changelog**: vX...vY` line with no content — same rule applies: unfinished, not done.)
+The workflow sets `generate_release_notes: true` as a fallback. GitHub's list of merged PR titles skips the why behind each change and doesn't match our format. A release with only that list, or with only a bare `**Full Changelog**: vX...vY` link, isn't done.
+
+Check the notes:
 
 ```sh
 gh release view v0.1.0 --json body -q .body
 ```
 
-If it's just the compare link, write real notes and replace them:
+Replace them with real notes:
 
 ```sh
 gh release edit v0.1.0 --notes-file notes.md
 ```
 
-Match the format every release since v0.2.6 has used — `## Added` / `## Fixed` / `## Changed` / `## Testing` / `## Docs` sections (only the ones that apply), each bullet leading with what a user or contributor would notice, followed by the *why*. End with the same `**Full Changelog**: vX...vY` link the workflow would have generated on its own. Read a recent release (e.g. `gh release view v0.2.10 --json body -q .body`) for the pattern before writing a new one.
+Use these sections, keeping only the ones that apply: `## Added`, `## Fixed`, `## Changed`, `## Testing`, `## Docs`. Each bullet leads with what a user or contributor notices, then gives the why. End with the `**Full Changelog**: vX...vY` link. Read a recent release first, for example `gh release view v0.7.1 --json body -q .body`.
 
----
+## Option B: build and release on your Mac
 
-## Option B — Build & release manually on your Mac
-
-`./scripts/build-app.sh` needs `xcodegen` on your `PATH` (`brew install xcodegen`) to build the `FenQuickLook` Quick Look extension via the Xcode project it generates from `project.yml` — SwiftPM has no app-extension concept, so that part can't come from `swift build` alone. It **auto-detects** your "Developer ID Application" certificate and signs with it — no `SIGN_IDENTITY` needed for a signed local build. To also notarize (required before others can run it without warnings):
+`./scripts/build-app.sh` needs `xcodegen` on your `PATH` (`brew install xcodegen`). It builds the `FenQuickLook` extension through the Xcode project generated from `project.yml`, because SwiftPM can't build app extensions. The script auto-detects your Developer ID Application certificate and signs with it. To also notarize, which others need to run the app without warnings:
 
 ```sh
 # 1. Store notary credentials once (creates a keychain profile)
@@ -119,13 +113,17 @@ SIGN_IDENTITY="Developer ID Application: Your Name (ABCDE12345)" \
 NOTARY_PROFILE="fen-notary" \
 ./scripts/build-app.sh
 
-# 3. Zip and upload to a GitHub release
+# 3. Zip it
 cd dist
 ditto -c -k --keepParent "Fen.app" "Fen.app.zip"
-gh release create v0.1.0 Fen.app.zip --generate-notes
+
+# 4. Sign the zip for Sparkle and publish both files
+SPARKLE_PRIVATE_KEY="$(cat /path/to/sparkle_private_key)" \
+../scripts/make-appcast.sh Fen.app.zip 0.1.0 "$BUILD" appcast.xml
+gh release create v0.1.0 Fen.app.zip appcast.xml --generate-notes
 ```
 
----
+`$BUILD` is the app's `CFBundleVersion` (the commit count). Read it with `/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' Fen.app/Contents/Info.plist`. Without `appcast.xml`, **Check for Updates…** can't find the release. Then [write the notes](#write-the-release-notes-by-hand).
 
 ## Update the Homebrew cask
 
@@ -140,15 +138,19 @@ CI checks the cask's style and that its sha256 matches the published zip. `maste
 
 The cask sets `auto_updates true` because Fen updates itself through Sparkle. A plain `brew upgrade` skips Fen. `brew upgrade --cask fen` and `brew upgrade --greedy` still upgrade it.
 
-We don't submit to the official `homebrew-cask` repo. Users tap this repo (see [README](../README.md#install)).
-
----
+We don't submit to the official `homebrew-cask` repo. Users tap this repo (see the [README](../README.md#install)).
 
 ## Versioning
 
-The marketing version comes from the git tag (e.g. tag `v0.1.0` → version `0.1.0`). The build number is the commit count. Without a tag, the version is `0.0.0-dev`.
+| Value | Source |
+|---|---|
+| Marketing version | The git tag without the `v` (tag `v0.1.0` gives `0.1.0`). Without a tag it's `0.0.0-dev`. |
+| Build number | The commit count. |
+| Landing page `softwareVersion` | The latest release tag, stamped in at deploy time. |
 
-The landing page's JSON-LD `softwareVersion` follows the same tag automatically: `site/index.html` carries a `__FEN_LATEST_VERSION__` placeholder, and `.github/workflows/pages.yml` substitutes in the latest release tag at deploy time (via `git describe --tags`), into a deploy-only copy of `site/` — never into the tracked file. `release.yml` dispatches `pages.yml` directly after a successful publish (via `gh workflow run pages.yml`), so cutting a release redeploys the page even when nothing under `site/` changed — a plain `release: { types: [published] }` trigger on `pages.yml` wouldn't work here, since a release published by the workflow's own `GITHUB_TOKEN` can't cascade-trigger another workflow's `release` event (GitHub Actions only exempts `workflow_dispatch`/`repository_dispatch` from that anti-recursion safeguard).
+`site/index.html` carries a `__FEN_LATEST_VERSION__` placeholder. `.github/workflows/pages.yml` replaces it with the latest tag (`git describe --tags`) in a deploy-only copy of `site/`, never in the tracked file.
+
+`release.yml` ends by running `gh workflow run pages.yml`, so every release redeploys the page. A `release: published` trigger on `pages.yml` wouldn't fire. A release created with `GITHUB_TOKEN` can't trigger other workflows, except through `workflow_dispatch`.
 
 ## Milestones match releases
 
@@ -157,11 +159,11 @@ Every milestone is named exactly like a release tag (`v0.7.0`, nothing more), an
 | When | Do |
 |---|---|
 | You file or plan an issue | Put it in the next release's milestone. If the work has no date, use `Backlog`. |
-| The next release grows a user-visible change | A new feature bumps the minor number, a fix only bumps the patch. Rename the milestone if the number changes. |
+| The next release grows a user-visible change | A new feature bumps the minor number. A fix only bumps the patch. Rename the milestone if the number changes. |
 | You cut the release | Move any open issue to the next milestone, then close the milestone. It must have 0 open issues. |
 | You close an issue in a PR | The issue's milestone is the release that PR ships in. |
 
-Don't create milestones for themes, epics or ordering ("Foundations", "Phase 2"). Put that in the issue body or a label.
+Don't create milestones for themes, epics or ordering ("Foundations", "Phase 2"). Use the issue body or a label.
 
 ## Verifying a build
 

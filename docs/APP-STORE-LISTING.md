@@ -2,7 +2,7 @@
 
 Part of [#40](https://github.com/zoharbabin/fen/issues/40). Paste these into App Store Connect. The build side is in [APP-STORE.md](APP-STORE.md).
 
-The same text works for the Mac and iOS records, except the Mac block in the description. Where they differ, the table says so.
+The Mac and iOS records use the same text. Only the description differs, as noted under it.
 
 ## Text
 
@@ -60,14 +60,14 @@ ON EVERY DEVICE
 Free and open source under the MIT license. Source code and issues: github.com/zoharbabin/fen
 ```
 
-The Mac record adds this block before "ON EVERY DEVICE", adds "and Vim keys" to the slash-commands bullet, and drops the iPad and iPhone bullets. MCP, agent branches, Quick Look and Vim keys exist only on the Mac.
+The Mac record changes four things. It adds the block below before "ON EVERY DEVICE". It adds "and Vim keys" to the slash-commands bullet. It drops the iPad and iPhone bullets. It cuts "or copy a GitHub repository and sync it from the app", because the store build has no git.
 
 ```text
 FOR THE MAC
-• Let an AI tool such as Claude Code read your notes over a local MCP server. It is off by default and listens only on your Mac.
-• A tool that writes works on its own git branch, so your checkout stays as it is.
 • Quick Look shows .md files in Finder.
 ```
+
+Don't mention MCP or agent branches in the Mac listing. The store build leaves them out ([APP-STORE.md](APP-STORE.md#what-differs)). They ship in the direct download only.
 
 Check the claims before you paste: each line is a feature in the [README](../README.md) or [ARCHITECTURE.md](ARCHITECTURE.md). Change the text when the app changes.
 

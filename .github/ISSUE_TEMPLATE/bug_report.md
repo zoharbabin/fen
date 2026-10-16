@@ -21,7 +21,7 @@ If the bug is content-specific, paste or attach a minimal `.md` file that
 reproduces it.
 
 **Environment**
-- Fen version (`Fen → About Fen`):
+- Fen version (**Fen > About Fen**):
 - macOS/iOS version:
 - Mac model (Apple Silicon/Intel):
 

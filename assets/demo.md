@@ -6,7 +6,7 @@ fen: { toc: true }
 
 # Fen Markdown Reference & Test Suite
 
-This document exercises the Markdown surface Fen supports: the original [Markdown syntax](https://daringfireball.net/projects/markdown/syntax) plus the [GitHub Flavored Markdown](https://github.github.com/gfm/) extensions Fen ships with. Open it in Fen to sanity-check rendering after any change to the parser, styles, or preview pipeline. Some sections note a Preferences toggle — those features render only once that toggle is on; everything else is on by default.
+This document exercises the Markdown surface Fen supports: the original [Markdown syntax](https://daringfireball.net/projects/markdown/syntax) plus the [GitHub Flavored Markdown](https://github.github.com/gfm/) extensions Fen ships with. Open it in Fen to sanity-check rendering after any change to the parser, styles, or preview pipeline. Some sections name a toggle in Settings. Those features render only once you turn the toggle on. Everything else is on by default.
 
 [TOC]
 
@@ -114,7 +114,7 @@ Unordered lists use asterisks, pluses, and hyphens interchangeably:
 * Green
 * Blue
 
-Ordered lists ignore the actual numbers you type — every item below
+Ordered lists ignore the actual numbers you type. Every item below
 renders as `1.`, `2.`, `3.`:
 
 1. Bird
@@ -122,7 +122,7 @@ renders as `1.`, `2.`, `3.`:
 1. Parish
 
 List items can hold multiple paragraphs, a nested blockquote, and a
-nested code block (indented twice — 8 spaces or two tabs):
+nested code block (indented twice: 8 spaces or two tabs):
 
 1. First paragraph of this item.
 
@@ -138,9 +138,9 @@ nested code block (indented twice — 8 spaces or two tabs):
 
 Task lists (GFM):
 
-- [x] Ship the Mermaid v11 upgrade
-- [x] Fix inline diagram rendering
-- [ ] Ship this demo rewrite
+- [x] Write the draft
+- [x] Check the preview
+- [ ] Publish
 
 ## Code Blocks
 
@@ -164,7 +164,7 @@ struct Fen {
 ```
 
 ```json
-{ "name": "fen", "version": "0.2.6" }
+{ "name": "fen", "version": "1.0.0" }
 ```
 
 Inline code spans use single backticks: call `MarkdownRenderer().render(_:)`.
@@ -200,8 +200,8 @@ instead of navigating this preview.
 | Autolinks     | On      | See below                           |
 | Strikethrough | On      | See below                           |
 | Task lists    | On      | See above                           |
-| Mermaid       | Off     | Preferences → Rendering             |
-| SmartyPants   | Off     | Preferences → Markdown              |
+| Mermaid       | Off     | Settings → Rendering                |
+| SmartyPants   | Off     | Settings → Markdown                 |
 | Render TOC    | On      | This document's `fen: { toc: true }` front matter |
 
 ## Strikethrough (GFM)
@@ -250,27 +250,27 @@ Footnotes render inline.[^1] They can span multiple lines, too.[^long]
 ## Front Matter
 
 This document opens with a YAML front matter block (`title`/`author`)
-that Fen strips out and uses for the window/tab title when **Detect
-front matter** is enabled in Preferences → Rendering (on by default).
+that Fen strips from the preview and reads for the page title when **Detect
+front matter** is enabled in Settings → Rendering (on by default).
 
 ## Table of Contents
 
 The `[TOC]` marker near the top of this document is replaced with a
-generated table of contents when TOC rendering is on -- either the
-**Renders TOC** toggle in Preferences → Rendering (off by default), or,
+generated table of contents when TOC rendering is on, either through the
+**Render table of contents** toggle in Settings → Rendering (off by default) or,
 as this document does, a per-document `fen: { toc: true }` key in its
 own front matter, which overrides the global preference.
 
 ## Smart Punctuation
 
-Enable **SmartyPants** in Preferences → Markdown to turn straight quotes
+Enable **SmartyPants** in Settings → Markdown to turn straight quotes
 and plain punctuation into their typographic equivalents: "double
 quotes", 'single quotes', em-dashes -- like this, and ellipses...
 
 ## Diagrams: Mermaid
 
 Fen supports [Mermaid](https://mermaid.js.org) diagrams in fenced code
-blocks. Enable **Mermaid diagrams** in Preferences → Rendering to render
+blocks. Enable **Mermaid diagrams** in Settings → Rendering → Math & Diagrams to render
 these inline as SVG instead of plain code.
 
 ### Flow Chart
@@ -316,7 +316,7 @@ another task     : 24d
 ## 3D Models: STL
 
 Fen renders `stl` fenced code blocks as an interactive 3D viewer (issue
-#120). Enable **STL 3D viewer** in Preferences → Rendering, then drag to
+#120). Enable **STL 3D viewer** in Settings → Rendering → Math & Diagrams, then drag to
 orbit and scroll to zoom. Hover over a model and click the wireframe
 button in the corner to switch that model between shaded and wireframe
 rendering (issue #122).

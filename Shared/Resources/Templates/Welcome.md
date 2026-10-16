@@ -1,6 +1,6 @@
 # Welcome to Fen
 
-Fen edits Markdown on one side and renders it live on the other. This is a real document — try editing it.
+Fen edits Markdown on one side and renders it live on the other. This is a real document. Try editing it.
 
 ## Formatting
 
@@ -20,15 +20,19 @@ func greet(name: String) -> String {
 | Focus mode | Cmd+Shift+F |
 | Live preview | Cmd+Shift+P |
 
-## Math
+## Math and diagrams
 
-Fen renders inline math like $E = mc^2$ and block math:
+Math and Mermaid diagrams show as source until you turn them on in **Settings** (Cmd+,) under **Rendering > Math & Diagrams**.
+
+### Math
+
+Once MathJax is on, Fen renders inline math like $E = mc^2$ and block math:
 
 $$
 \int_0^1 x^2 \, dx = \frac{1}{3}
 $$
 
-## Diagrams
+### Diagrams
 
 ```mermaid
 graph LR
@@ -40,4 +44,4 @@ graph LR
 
 - Type `/` at the start of a line to insert a heading, table, or diagram from a menu.
 - Open **Settings** (Cmd+,) to pick a theme and tune the editor.
-- Start a new document with **File > New** whenever you're ready — it opens blank.
+- Start a new document with **File > New** whenever you're ready. It opens blank.
