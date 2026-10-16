@@ -45,14 +45,16 @@ Run on a Mac with Apple Silicon, macOS 26.
 
 Answer check (`Tests/FenTests/LlamaAnswerTests.swift`, run with `FEN_MODEL_DIR`): one short note that holds a code word. The model must return the word for an English question and for a Spanish one, with none of `<|channel`, `<turn|>`, `<bos>` in the text. All three models passed. A short answer took about 0.3 s once the model was loaded, and the first request about 2 to 4 s because it loads the file. This is one note and two questions per model. It shows that the prompt format and stop handling work. It does not measure answer quality.
 
-## On a real iPhone
+## On a real iPhone and iPad
 
-Run with `scripts/test-models-device.sh` on an iPhone 15 Pro Max (sold as 8 GB, reports 7655 MB), thermal state nominal. Each run is one model, one short prompt, so it shows that the model loads and answers. It is not a sustained-load or speed benchmark.
+Run with `scripts/test-models-device.sh` on an iPhone 15 Pro Max (sold as 8 GB, reports 7655 MB) and an iPad Air 11-inch with the M2 (8 GB, reports 7643 MB), thermal state nominal. Each run is one model, one short prompt, so it shows that the model loads and answers. It is not a sustained-load or speed benchmark.
 
-| Model | Result |
-|---|---|
-| EmbeddingGemma 2 | The first embedding took 12.9 s, which includes loading the file. The next took 0.02 s. Vectors have 768 values. Peak footprint 199 MB. |
-| Gemma 4 E2B, small (2-bit) | First text after 4.3 s, whole answer after 4.7 s. It answered the code-word question correctly. Peak footprint 273 MB. |
+| Device | Model | Result |
+|---|---|---|
+| iPhone | EmbeddingGemma 2 | The first embedding took 12.9 s, which includes loading the file. The next took 0.02 s. Vectors have 768 values. Peak footprint 199 MB. |
+| iPhone | Gemma 4 E2B, small (2-bit) | First text after 4.3 s, whole answer after 4.7 s. It answered the code-word question correctly. Peak footprint 273 MB. |
+| iPad | EmbeddingGemma 2 | The first embedding took 9.5 s, which includes loading the file. The next took 0.02 s. Vectors have 768 values. Peak footprint 175 MB. |
+| iPad | Gemma 4 E2B (Q4_0) | First text after 8.2 s, whole answer after 8.5 s. It answered the code-word question correctly. Peak footprint 250 MB. |
 
 The footprint does not count the model file, which llama.cpp maps from disk. The mobile Gemma 4 loaded and ran without the increased-memory entitlement on this 8 GB phone.
 
@@ -60,7 +62,7 @@ A device reports less than its box size: 7655 MB for 8 GB. The catalog minimums 
 
 ## Gaps you should know about
 
-- **Only one phone was run.** An iPhone 15 Pro Max (8 GB). The memory minimums for other devices (3 GiB for the embedding models, 7 GiB for the Gemma 4 sizes that run on iPhone and iPad, 12 GiB for the largest) are estimates from file size and context length. No iPad run is recorded here yet.
+- **Two devices were run.** An iPhone 15 Pro Max (8 GB) and an iPad Air with the M2 (8 GB). The memory minimums for other devices (3 GiB for the embedding models, 7 GiB for the Gemma 4 sizes that run on iPhone and iPad, 12 GiB for the largest) are estimates from file size and context length.
 - **No iOS memory entitlement.** We did not add `com.apple.developer.kernel.increased-memory-limit` to `iOS/Fen.entitlements`. The mobile model ran without it on an 8 GB iPhone. Add it only if a model fails to load on a device we allow.
 - **The 2 GB mobile Gemma 4 is the only answer model offered on iPhone.** Its quality is unmeasured beyond the check above. It is a 2-bit quant.
 - **A download on iOS stops when the app is suspended.** It resumes from the saved part the next time you start it. We did not add a background `URLSession`, because a background session hands the file to the system and does not give the app the redirect check that `ModelStore` makes.
