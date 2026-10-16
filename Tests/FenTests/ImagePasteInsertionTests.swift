@@ -59,6 +59,33 @@ struct ImagePasteInsertionTests {
         #expect(outsideContents.isEmpty)
     }
 
+    @Test
+    func sidecarDirectorySymlinkedToASiblingSharingTheNamePrefixIsRejected() throws {
+        let parent = try makeTempDocumentDirectory()
+        defer { try? FileManager.default.removeItem(at: parent) }
+        let documentDirectory = parent.appendingPathComponent("notes", isDirectory: true)
+        let siblingDirectory = parent.appendingPathComponent("notes-private", isDirectory: true)
+        try FileManager.default.createDirectory(at: documentDirectory, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: siblingDirectory, withIntermediateDirectories: true)
+
+        // "notes-private" starts with the string "notes" but is not inside it.
+        try FileManager.default.createSymbolicLink(
+            at: documentDirectory.appendingPathComponent("notes.assets"), withDestinationURL: siblingDirectory
+        )
+
+        let result = ImageSidecarWriter.write(
+            data: Data([0x89, 0x50, 0x4E, 0x47]),
+            contentType: .png,
+            documentURL: documentDirectory.appendingPathComponent("notes.md")
+        )
+
+        #expect(result == nil)
+        let siblingContents = try FileManager.default.contentsOfDirectory(
+            at: siblingDirectory, includingPropertiesForKeys: nil
+        )
+        #expect(siblingContents.isEmpty)
+    }
+
     // MARK: - Rule 2.3: destination filename is always internally generated, bytes verbatim
 
     @Test

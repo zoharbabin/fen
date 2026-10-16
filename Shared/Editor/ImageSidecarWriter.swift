@@ -38,7 +38,11 @@ enum ImageSidecarWriter {
         // realpath(3), and silently falls back to returning the unresolved path, which would
         // make this guard a no-op against a symlinked sidecar directory (issue #18 rule 2.2).
         let resolvedSidecarDirectory = sidecarDirectory.resolvingSymlinksInPath()
-        guard resolvedSidecarDirectory.path.hasPrefix(resolvedDocumentDirectory.path) else { return nil }
+        // Compare with a trailing "/" so a sibling that only shares a name prefix
+        // ("/notes-private" vs "/notes") doesn't count as inside the document's directory.
+        let documentRoot = resolvedDocumentDirectory.path.hasSuffix("/")
+            ? resolvedDocumentDirectory.path : resolvedDocumentDirectory.path + "/"
+        guard (resolvedSidecarDirectory.path + "/").hasPrefix(documentRoot) else { return nil }
 
         guard let filename = nextAvailableFilename(in: resolvedSidecarDirectory, extension: fileExtension) else {
             return nil
