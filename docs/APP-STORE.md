@@ -54,5 +54,4 @@ The name, text, URLs, review note, questionnaire answers, screenshots and icon a
 ## Known gaps
 
 - Xcode builds of the Mac app don't bundle `DocumentIcon.icns`. Only `scripts/build-app.sh` makes it, so `.md` files show a generic icon in the store build.
-- Nobody has run the store build on an iPhone or iPad. The iOS app is a separate target.
 - We checked the sandbox with the passing tests only. We didn't review sandbox denials in the system log.
