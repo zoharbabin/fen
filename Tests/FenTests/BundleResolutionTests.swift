@@ -113,7 +113,7 @@ struct BundleResolutionTests {
         prefs.htmlMathJaxInlineDollar = true
         let html = HTMLComposer().compose(title: nil, body: rendered.html, preferences: prefs)
         #expect(!html.contains("cdnjs.cloudflare.com"), "MathJax must not load from a CDN — Fen is local-first")
-        #expect(html.contains("window.MathJax"), "Expected the v3 MathJax config object before the library script")
+        #expect(!html.contains("inlineMath: [['$'"), "`$` is never a MathJax delimiter: the renderer decides (#250)")
         #expect(html.contains("MathJax"), "Expected the vendored MathJax bundle to be inlined")
     }
 
