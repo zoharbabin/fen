@@ -62,7 +62,7 @@ enum LivePreviewWebSnapshot {
     ) async -> [LivePreviewSnapshots.Picture?] {
         guard let first = keys.first else { return [] }
         let lines = keys.enumerated().map { index, key in
-            let escaped = key.source
+            let escaped = MarkdownRenderer.mathJaxSource(key.source)
                 .replacingOccurrences(of: "&", with: "&amp;")
                 .replacingOccurrences(of: "<", with: "&lt;")
                 .replacingOccurrences(of: ">", with: "&gt;")

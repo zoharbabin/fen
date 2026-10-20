@@ -44,6 +44,9 @@ public struct MarkdownRenderer: Sendable {
         /// between the source Markdown and the rendered HTML. Off by default since it's
         /// only useful to the live preview, not export.
         public var sourcePositions: Bool = false
+        /// Which inline math delimiters to hide from cmark and hand to MathJax as `\(...\)`
+        /// (issue #250). Empty leaves the text alone. See `hideInlineMath`.
+        public var inlineMath: LivePreviewEditing.MathDelimiters = []
 
         public init() {}
 
@@ -62,6 +65,9 @@ public struct MarkdownRenderer: Sendable {
             opts.alerts = preferences.extensionAlerts
             opts.emojiShortcodes = preferences.extensionEmoji
             opts.sanitizeRawHTML = preferences.extensionSanitizeRawHTML
+            if preferences.htmlMathJax {
+                opts.inlineMath = preferences.htmlMathJaxInlineDollar ? [.parentheses, .dollars] : .parentheses
+            }
             return opts
         }
     }
@@ -147,6 +153,9 @@ public struct MarkdownRenderer: Sendable {
             frontMatterLineCount = extracted.lineCount
         }
 
+        let hidden = hideInlineMath(in: text, delimiters: options.inlineMath)
+        text = hidden.text
+
         // Parse markdown to AST
         // CMARK_OPT_UNSAFE lets raw HTML in the source through -- cmark-gfm otherwise strips it
         // to an HTML comment. Always paired with the caller running `HTMLSanitizer` (vendored
@@ -194,6 +203,8 @@ public struct MarkdownRenderer: Sendable {
         if let resolver = options.wikiLinks {
             html = applyWikiLinks(to: html, resolver: resolver)
         }
+
+        html = restoreInlineMath(in: html, formulas: hidden.formulas)
 
         // Heading extraction always runs so RenderResult.headings is populated regardless of
         // renderTOC (the document outline navigator, issue #12, needs it even with [TOC] off);

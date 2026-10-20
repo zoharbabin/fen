@@ -305,7 +305,9 @@ struct GFMFeatureCoverageTests {
     @MainActor
     func mathJax() async throws {
         let md = "Inline math: $x+y$"
-        let webView = try await renderPreviewWebView(markdown: md) { prefs in
+        var options = MarkdownRenderer.Options()
+        options.inlineMath = [.parentheses, .dollars]
+        let webView = try await renderPreviewWebView(markdown: md, options: options) { prefs in
             prefs.htmlMathJax = true
             prefs.htmlMathJaxInlineDollar = true
         }
@@ -347,5 +349,41 @@ struct CodeBlockCoverageTests {
         })();
         """)
         #expect((isPreCode as? Bool) == true)
+    }
+}
+
+/// Issue #250, end to end: the page a user sees, not the HTML string.
+@Suite("Inline math in the preview")
+struct InlineMathPreviewTests {
+    @Test("Prices stay text and real formulas typeset")
+    @MainActor
+    func pricesAndFormulas() async throws {
+        let md = """
+        Braze for $47.50 per share in cash, about $5.66B enterprise value.
+
+        Costs \\$4 and \\$5 total.
+
+        Math: $x_1 + y_2$ and \\(a^2\\) and $\\{1, 2\\}$.
+        """
+        var options = MarkdownRenderer.Options()
+        options.inlineMath = [.parentheses, .dollars]
+        let webView = try await renderPreviewWebView(markdown: md, options: options) { prefs in
+            prefs.htmlMathJax = true
+            prefs.htmlMathJaxInlineDollar = true
+        }
+        // MathJax typesets the whole page in one pass, so once the third paragraph is done the others are too.
+        let typeset = try await pollUntilTrue(
+            webView, js: "document.querySelectorAll('mjx-container').length === 3", timeout: .seconds(10)
+        )
+        #expect(typeset, "Expected exactly the three real formulas to typeset")
+        let paragraphs = try await webView.evaluateJavaScript(
+            "Array.from(document.querySelectorAll('p'))"
+                + ".map(p => [p.textContent, p.querySelectorAll('mjx-container').length])"
+        ) as? [[Any]]
+        #expect(paragraphs?[0][0] as? String == "Braze for $47.50 per share in cash, about $5.66B enterprise value.")
+        #expect(paragraphs?[0][1] as? Int == 0)
+        #expect(paragraphs?[1][0] as? String == "Costs $4 and $5 total.")
+        #expect(paragraphs?[1][1] as? Int == 0)
+        #expect(paragraphs?[2][1] as? Int == 3)
     }
 }

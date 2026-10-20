@@ -273,15 +273,10 @@ public struct HTMLComposer: Sendable {
     private func mathJaxTags(preferences: Preferences) -> [String] {
         guard preferences.htmlMathJax else { return [] }
 
+        // Inline formulas reach the page as `\(...\)`, MathJax's default, so no config object
+        // is needed. `$` is never a MathJax delimiter: `MarkdownRenderer.hideInlineMath` decides
+        // which `$` pairs are math (issue #250).
         var scripts: [String] = []
-        if preferences.htmlMathJaxInlineDollar {
-            // MathJax v3's config object must exist before its script tag loads.
-            scripts.append(inlineScript("""
-            window.MathJax = {
-                tex: { inlineMath: [['$', '$'], ['\\\\(', '\\\\)']] }
-            };
-            """))
-        }
         if let mathJaxJS = loadExtensionFile(named: "mathjax-tex-svg", ext: "js") {
             scripts.append(inlineScript(mathJaxJS))
         }
