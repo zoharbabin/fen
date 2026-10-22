@@ -8,6 +8,9 @@ struct FenApp: App {
     init() {
         MCPController.shared.launch()
         ScheduledEnrichment.launch()
+        #if DEBUG
+            DeviceSelfTest.runIfRequested()
+        #endif
     }
 
     var body: some Scene {

@@ -5,8 +5,11 @@
     /// A debug-only check that runs one catalog model on the device it is installed on and prints
     /// what it measured (issue #234). `scripts/test-models-device.sh` copies the file into the app,
     /// launches it with `FEN_MODEL_SELFTEST=<model id>` and reads the lines that start with
-    /// `SELFTEST`. A release build has none of this code.
+    /// `SELFTEST`. A release build has none of this code. The id `apple-system` runs the OS model
+    /// (`OnDeviceProvider`) with the same note and question, so its numbers sit next to the others.
     public enum DeviceSelfTest {
+        public static let systemModelID = "apple-system"
+
         public static func runIfRequested() {
             #if canImport(llama)
                 start()
@@ -49,10 +52,39 @@
                 "thermal \(ProcessInfo.processInfo.thermalState.rawValue) peak \(peakMegabytes()) MB"
             }
 
+            private static func ask(_ provider: some AIProvider, since start: ContinuousClock.Instant) async {
+                let note = AIContextItem(
+                    workspaceID: nil,
+                    label: "vault.md",
+                    text: "The vault code word is PELICAN-42."
+                )
+                var first: Duration?
+                var text = ""
+                do {
+                    for try await piece in provider.send(prompt: "What is the vault code word?", context: [note]) {
+                        if first == nil {
+                            first = ContinuousClock.now - start
+                        }
+                        text += piece
+                    }
+                } catch {
+                    report("answer failed: \(error.localizedDescription), \(state())")
+                }
+                report(
+                    "first text after \(first.map { "\($0)" } ?? "never"), all done in \(ContinuousClock.now - start)"
+                )
+                report("answer: \(text)")
+                report("answer is right: \(text.contains("PELICAN-42")), \(state())")
+            }
+
             private static func run(modelID: String) async {
                 let home = FenHome.standard
                 report("models folder \(home.modelsDirectory.path)")
                 report("memory \(ProcessInfo.processInfo.physicalMemory / 1_048_576) MB, \(state())")
+                if modelID == systemModelID {
+                    report("system model: \(OnDeviceModelAvailability.current)")
+                    return await ask(OnDeviceProvider(), since: ContinuousClock.now)
+                }
                 guard let model = ModelCatalog.model(id: modelID) else { return report("unknown model \(modelID)") }
                 let store = ModelStore(home: home)
                 guard store.isInstalled(model), let file = try? store.fileURL(for: model) else {
@@ -76,29 +108,7 @@
                         report("embedded \(vector?.count ?? 0) values in \(ContinuousClock.now - began), \(state())")
                     }
                 } else {
-                    let provider = LlamaAnswerProvider(model: model, file: file)
-                    let note = AIContextItem(
-                        workspaceID: nil,
-                        label: "vault.md",
-                        text: "The vault code word is PELICAN-42."
-                    )
-                    var first: Duration?
-                    var text = ""
-                    do {
-                        for try await piece in provider.send(prompt: "What is the vault code word?", context: [note]) {
-                            if first == nil {
-                                first = ContinuousClock.now - start
-                            }
-                            text += piece
-                        }
-                    } catch {
-                        report("answer failed: \(error.localizedDescription), \(state())")
-                    }
-                    report(
-                        "first text after \(first.map { "\($0)" } ?? "never"), all done in \(ContinuousClock.now - start)"
-                    )
-                    report("answer: \(text)")
-                    report("answer is right: \(text.contains("PELICAN-42")), \(state())")
+                    await ask(LlamaAnswerProvider(model: model, file: file), since: start)
                 }
             }
         }

@@ -14,7 +14,7 @@ We measured the llama.cpp column. We read the other columns from documentation a
 |---|---|---|---|---|
 | License | MIT | MIT | Part of the OS | Part of the OS |
 | Ships as | Prebuilt xcframework, one SwiftPM line | Swift packages built from source | Converted `.mlpackage` files | OS framework |
-| Platforms | macOS and iOS | Apple Silicon only | macOS and iOS | Devices with Apple Intelligence |
+| Platforms | macOS and iOS | Apple Silicon only | macOS and iOS | macOS 26 and iOS 26, on devices with Apple Intelligence. Fen already uses it (`OnDeviceProvider`). |
 | Model files | One GGUF per model | Several safetensors and config files | One conversion per model, per Fen release | Not downloadable |
 | Embedding models | Yes | Yes | Only models someone converted | No |
 | `swift build` and `swift test` | Work | Need Xcode for Metal shaders | Work | Work |
@@ -42,6 +42,8 @@ Why not the others: MLX Swift costs more dependencies and a shader build step. C
 
 ## Measurements on real devices
 
+### iPhone and iPad
+
 Dated 2026-10, from `scripts/test-models-device.sh`. Both devices are sold as 8 GB, thermal state nominal. Each run is one model and one short prompt. It shows that the model loads and answers. It isn't a speed or sustained-load benchmark.
 
 | Device | Model | First result | Next result | Peak footprint |
@@ -55,17 +57,34 @@ Dated 2026-10, from `scripts/test-models-device.sh`. Both devices are sold as 8 
 
 The first embedding includes loading the file. The footprint doesn't count the model file, which llama.cpp maps from disk. The mobile Gemma 4 ran without the increased-memory entitlement.
 
+### Measurements on a Mac
+
+Dated 2026-10, from `scripts/test-models-mac.sh` ([#253](https://github.com/zoharbabin/fen/issues/253)). The machine is a MacBook Pro with an M3 Pro and 36 GiB, on macOS 26.6.2, thermal state nominal throughout. Same method as above: one model, one short prompt, a Debug build of the Mac app.
+
+| Model | First result | Next result | Peak footprint |
+|---|---|---|---|
+| EmbeddingGemma 2 | 0.6 s (6.2 s on the very first run) | 0.01 s | 252 MB |
+| Qwen3 Embedding 0.6B | 0.7 s | 0.01 s | 412 MB |
+| Gemma 4 E2B mobile (2-bit) | First text 2.3 s, done 2.5 s | | 409 MB |
+| Gemma 4 E2B (Q4_0) | First text 2.4 s, done 2.6 s | | 411 MB |
+| Gemma 4 E4B (Q4_0) | First text 3.4 s, done 3.8 s | | 719 MB |
+| Apple system model | First text 1.5 s, then 1.1 s and 0.3 s on reruns | | 21 MB |
+
+All five catalog models answered the code-word question correctly. So did the system model. The 6.2 s EmbeddingGemma run was the first load of a freshly downloaded file. Run it again and it takes 0.6 s.
+
+The footprint counts only the Fen process. The system model runs mostly in a system service, so its 21 MB isn't the memory it uses.
+
 A device reports less memory than its box size: 7655 MB for 8 GB. The catalog minimums use that figure (`ModelCatalog`), not 8 GiB, which would turn away every 8 GB iPhone and iPad.
 
 ## Open gaps
 
 The on-device verification is tracked in [#237](https://github.com/zoharbabin/fen/issues/237).
 
-- **Two devices only.** Minimums for other devices (3 GiB for embedding models, 7 GiB for the Gemma 4 sizes on iPhone and iPad, 12 GiB for the largest) are estimates from file size and context length.
+- **Three devices only.** One iPhone, one iPad and one Mac with 36 GiB. We have not run the Mac catalog models on a Mac with 16 GiB or less. Minimums for other devices (3 GiB for embedding models, 7 GiB for the Gemma 4 sizes on iPhone and iPad, 12 GiB for the largest) are estimates from file size and context length.
 - **No iOS memory entitlement.** `iOS/Fen.entitlements` has no `com.apple.developer.kernel.increased-memory-limit`. Add it only if a model fails to load on a device we allow.
 - **Answer quality of the 2 GB mobile Gemma 4 is unmeasured.** It is a 2-bit quant and the only answer model offered on iPhone.
 - **iOS downloads stop when the app is suspended** and resume from the saved part on the next start. We use no background `URLSession`, because it hands the file to the system and skips the redirect check `ModelStore` makes.
-- **Heat.** `LlamaAnswerProvider` refuses to start at a "serious" thermal state on iPhone and iPad, and at "critical" on a Mac. Not tested on hardware.
+- **Heat.** `LlamaAnswerProvider` refuses to start at a "serious" thermal state on iPhone and iPad, and at "critical" on a Mac. The refusal isn't tested on hardware: every run above stayed at "nominal".
 - **Cellular.** Downloads over cellular or a personal hotspot are off by default (`allowsExpensiveNetworkAccess`). Settings shows the switch on iOS.
 
 ## Other models we looked at
