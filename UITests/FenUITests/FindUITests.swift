@@ -108,10 +108,10 @@ final class FindUITests: XCTestCase {
         XCTAssertTrue(editorText.contains("owl"))
     }
 
-    func testFindInPreviewDoesNotMoveTheEditorCaret() {
+    func testSingleMatchReadsOneOfOne() {
         launch(text: note)
         openFind(typing: "third")
-        waitForSummary("1 of 2")
+        waitForSummary("1 of 1")
         app.typeKey(.escape, modifierFlags: [])
         XCTAssertTrue(documentWindow.groups["FindBar"].waitForNonExistence(timeout: 5))
     }

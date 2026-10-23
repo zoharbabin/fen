@@ -217,10 +217,13 @@
         }
 
         private func focusFindField() {
-            focus = .find
-            // The field editor exists a beat after focus lands, so select its text on the next turn.
+            // A field that has only just appeared ignores focus set in the same turn, so ask on the next one.
+            // The field editor exists a beat after focus lands, so select its text on the turn after.
             DispatchQueue.main.async {
-                NSApp.sendAction(#selector(NSText.selectAll(_:)), to: nil, from: nil)
+                focus = .find
+                DispatchQueue.main.async {
+                    NSApp.sendAction(#selector(NSText.selectAll(_:)), to: nil, from: nil)
+                }
             }
         }
 
