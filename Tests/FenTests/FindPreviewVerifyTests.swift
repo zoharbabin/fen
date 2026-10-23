@@ -70,6 +70,52 @@ struct FindPreviewVerifyTests {
         #expect(current.count == 1)
     }
 
+    @Test("highlights show on screen: the current match is orange, the others yellow, other text is not tinted")
+    func highlightsAreVisible() async throws {
+        let (webView, _, find) = try await page("fen one\n\nfen two\n\nplain words here")
+        try await search(find, FindQuery(text: "fen"))
+        let js = """
+        (function () {
+            function box(name, index) {
+                var r = Array.from(CSS.highlights.get(name))[index];
+                var x = document.createRange();
+                x.setStart(r.startContainer, r.startOffset);
+                x.setEnd(r.endContainer, r.endOffset);
+                var b = x.getBoundingClientRect();
+                return [b.left, b.top, b.width, b.height];
+            }
+            var p = document.querySelector('p:last-of-type').getBoundingClientRect();
+            return { current: box('fen-find-current', 0), other: box('fen-find', 0),
+                     plain: [p.left, p.top, p.width, p.height] };
+        })();
+        """
+        let boxes = try #require(await webView.evaluateJavaScript(js) as? [String: [Double]])
+        let image = try await webView.takeSnapshot(configuration: WKSnapshotConfiguration())
+        let tiff = try #require(image.tiffRepresentation)
+        let rep = try #require(NSBitmapImageRep(data: tiff))
+        let scale = Double(rep.pixelsWide) / Double(webView.bounds.width)
+
+        // Colors along a row just inside the bottom edge of the box, where glyphs rarely draw.
+        func colors(_ box: [Double]) -> [(r: Double, g: Double, b: Double)] {
+            let y = Int((box[1] + box[3] - 2) * scale)
+            return stride(from: box[0] + 1, to: box[0] + box[2] - 1, by: 1).compactMap { x in
+                rep.colorAt(x: Int(x * scale), y: y)?.usingColorSpace(.sRGB).map {
+                    (Double($0.redComponent), Double($0.greenComponent), Double($0.blueComponent))
+                }
+            }
+        }
+        func warm(_ list: [(r: Double, g: Double, b: Double)], blueBelow: Double) -> Bool {
+            list.contains { $0.r > 0.9 && $0.b < blueBelow }
+        }
+        let current = try colors(#require(boxes["current"]))
+        let other = try colors(#require(boxes["other"]))
+        let plain = try colors(#require(boxes["plain"]))
+        // Orange (255, 149, 0 at 80%) is far less blue than yellow (255, 214, 10 at 45%) over a light page.
+        #expect(warm(current, blueBelow: 0.45))
+        #expect(warm(other, blueBelow: 0.85) && !warm(other, blueBelow: 0.45))
+        #expect(!warm(plain, blueBelow: 0.95))
+    }
+
     @Test("a match never runs from one paragraph into the next")
     func blocksSeparate() async throws {
         let (_, _, find) = try await page("end of one\n\nstart of two")
