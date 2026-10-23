@@ -93,8 +93,8 @@ struct FindEditorTargetTests {
         textView.cacheDisplay(in: textView.bounds, to: rep)
         let scale = Double(rep.pixelsWide) / Double(textView.bounds.width)
 
-        // Colors along a row just inside the bottom edge of the characters' box, where glyphs rarely draw.
         func colors(at characters: NSRange) -> [(r: Double, g: Double, b: Double)] {
+            // A row just inside the bottom edge of the characters' box, where glyphs rarely draw.
             let glyphs = layout.glyphRange(forCharacterRange: characters, actualCharacterRange: nil)
             let box = layout.boundingRect(forGlyphRange: glyphs, in: container)
                 .offsetBy(dx: textView.textContainerOrigin.x, dy: textView.textContainerOrigin.y)
@@ -105,8 +105,8 @@ struct FindEditorTargetTests {
                 }
             }
         }
-        // The most orange-or-yellow pixel in the row: red minus blue, whatever the page color is.
         func tint(_ list: [(r: Double, g: Double, b: Double)]) -> (warmth: Double, greenShare: Double) {
+            // The most orange-or-yellow pixel in the row: red minus blue, whatever the page color is.
             let best = list.max { $0.r - $0.b < $1.r - $1.b } ?? (0, 0, 0)
             return (best.r - best.b, best.g / max(best.r, 0.01))
         }
