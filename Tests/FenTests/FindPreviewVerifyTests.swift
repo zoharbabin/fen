@@ -95,8 +95,8 @@ struct FindPreviewVerifyTests {
         let rep = try #require(NSBitmapImageRep(data: tiff))
         let scale = Double(rep.pixelsWide) / Double(webView.bounds.width)
 
-        // Colors along a row just inside the bottom edge of the box, where glyphs rarely draw.
         func colors(_ box: [Double]) -> [(r: Double, g: Double, b: Double)] {
+            // A row just inside the bottom edge of the box, where glyphs rarely draw.
             let y = Int((box[1] + box[3] - 2) * scale)
             return stride(from: box[0] + 1, to: box[0] + box[2] - 1, by: 1).compactMap { x in
                 rep.colorAt(x: Int(x * scale), y: y)?.usingColorSpace(.sRGB).map {
