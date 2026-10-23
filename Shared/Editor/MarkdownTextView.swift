@@ -196,6 +196,9 @@ import SwiftUI
                 let selectedRanges = textView.selectedRanges
                 textView.string = text
                 textView.selectedRanges = selectedRanges
+                // `string =` posts no change notification, so Find would keep counting the old text.
+                let find = find
+                Task { @MainActor in find?.documentChanged() }
             }
             context.coordinator.apply(insertion, to: textView) // an edit from outside, like a Properties fix
             textView.baseHorizontalInset = horizontalInset

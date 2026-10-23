@@ -209,6 +209,32 @@ struct FindStateTests {
         #expect(!find.isPresented)
     }
 
+    @Test("select all matches also clears the editor highlights")
+    func selectAllClearsHighlights() async throws {
+        let (find, editor) = try await opened("a b a", query: "a")
+        let before = editor.clears
+        find.selectAllMatches()
+        #expect(editor.clears == before + 1)
+    }
+
+    @Test("Replace All uses the text and query as they are now, not the last finished search")
+    func replaceAllIgnoresStaleResults() async throws {
+        let find = FindState()
+        let editor = FakeFindEditor("fen bar") { find.documentChanged() }
+        find.editor = editor
+        find.visiblePanes = [.editor]
+        find.isPresented = true
+        find.showsReplace = true
+        find.replacement = "owl"
+        find.query = FindQuery(text: "fen")
+        find.queryChanged()
+        try #require(await settled(find))
+        find.query = FindQuery(text: "bar")
+        find.queryChanged()
+        find.replaceAll()
+        #expect(editor.findText == "fen owl")
+    }
+
     @Test("find in selection stays inside the selection")
     func inSelection() async throws {
         let find = FindState()

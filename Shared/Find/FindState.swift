@@ -502,28 +502,40 @@
             updateReplacementPreview()
         }
 
+        /// The matches in the editor's text right now. A search may still be running, or the text may have
+        /// changed under it, so a replace never trusts `editorRanges`.
+        private func liveEditorRanges(in text: String) -> [NSRange] {
+            let scope = inSelection ? selectionScope : nil
+            return (try? FindEngine.find(query, in: text, within: scope).ranges) ?? []
+        }
+
+        private func shiftSelectionScope(by delta: Int) {
+            guard inSelection, let scope = selectionScope else { return }
+            selectionScope = NSRange(location: scope.location, length: max(0, scope.length + delta))
+        }
+
         func replaceCurrent() {
             guard canReplace, let range = currentRange, let editor else { return }
-            guard let strings = try? FindEngine.replacements(
-                for: [range], in: editor.findText, query: query, template: replacement, keepCase: keepCase
-            ) else { return }
-            if inSelection, let scope = selectionScope {
-                let delta = strings[0].utf16.count - range.length
-                selectionScope = NSRange(location: scope.location, length: max(0, scope.length + delta))
-            }
+            let text = editor.findText
+            guard liveEditorRanges(in: text).contains(range),
+                  let strings = try? FindEngine.replacements(
+                      for: [range], in: text, query: query, template: replacement, keepCase: keepCase,
+                      within: inSelection ? selectionScope : nil
+                  ) else { return }
+            shiftSelectionScope(by: strings[0].utf16.count - range.length)
             editor.replaceFindMatches([range], with: strings)
         }
 
         func replaceAll() {
-            guard canReplace, !editorRanges.isEmpty, let editor else { return }
-            let ranges = editorRanges
-            guard let strings = try? FindEngine.replacements(
-                for: ranges, in: editor.findText, query: query, template: replacement, keepCase: keepCase
-            ) else { return }
-            if inSelection, let scope = selectionScope {
-                let delta = zip(ranges, strings).reduce(0) { $0 + $1.1.utf16.count - $1.0.length }
-                selectionScope = NSRange(location: scope.location, length: max(0, scope.length + delta))
-            }
+            guard canReplace, let editor else { return }
+            let text = editor.findText
+            let ranges = liveEditorRanges(in: text)
+            guard !ranges.isEmpty,
+                  let strings = try? FindEngine.replacements(
+                      for: ranges, in: text, query: query, template: replacement, keepCase: keepCase,
+                      within: inSelection ? selectionScope : nil
+                  ) else { return }
+            shiftSelectionScope(by: zip(ranges, strings).reduce(0) { $0 + $1.1.utf16.count - $1.0.length })
             editor.replaceFindMatches(ranges, with: strings)
         }
 
@@ -539,6 +551,7 @@
             searchTask?.cancel()
             generation += 1
             clearResults()
+            editor?.clearFindMatches()
             Task { await preview?.findClear() }
         }
 

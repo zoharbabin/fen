@@ -208,6 +208,18 @@ struct FindEngineTests {
         #expect(try replaced("xa ya", query, "B") == ["B"])
     }
 
+    @Test("a regex replacement inside a selection expands groups the same way the search matched")
+    func scopedRegexReplacement() throws {
+        let text = "x1234"
+        let scope = NSRange(location: 0, length: 3)
+        let query = FindQuery(text: "x(\\d+)", isRegex: true)
+        let ranges = try FindEngine.find(query, in: text, within: scope).ranges
+        let strings = try FindEngine.replacements(
+            for: ranges, in: text, query: query, template: "y$1", keepCase: false, within: scope
+        )
+        #expect(strings == ["y12"])
+    }
+
     @Test("keep case copies the match's capitalization")
     func keepCase() throws {
         let query = FindQuery(text: "fen")

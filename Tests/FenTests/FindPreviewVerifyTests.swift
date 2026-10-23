@@ -77,6 +77,17 @@ struct FindPreviewVerifyTests {
         #expect(find.previewCount == 0)
     }
 
+    @Test("a match that starts or ends on the newline between blocks still paints")
+    func matchOnBlockEdge() async throws {
+        let (webView, _, find) = try await page("end of one\n\nstart of two")
+        try await search(find, FindQuery(text: "\\nstart", isRegex: true))
+        #expect(find.previewCount == 1)
+        #expect(try await painted(webView, name: "fen-find-current") == ["start"])
+        try await search(find, FindQuery(text: "one\\n", isRegex: true))
+        #expect(find.previewCount == 1)
+        #expect(try await painted(webView, name: "fen-find-current") == ["one"])
+    }
+
     @Test("the copy button's label and hidden elements are not searchable")
     func skipsChrome() async throws {
         let (webView, _, find) = try await page("```swift\nlet x = 1\n```\n\nafter")

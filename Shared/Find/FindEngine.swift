@@ -182,22 +182,29 @@ public enum FindEngine {
 
     // MARK: - Replace
 
-    /// The replacement text for each of `ranges`, which must be matches `find` returned for `query`.
+    /// The replacement text for each of `ranges`, which must be matches `find` returned for `query` in `scope`.
     /// A regex template expands `$1`, `$&` and `\$` as ICU defines them. `keepCase` copies the match's
     /// capitalization onto the result.
     public static func replacements(
-        for ranges: [NSRange], in text: String, query: FindQuery, template: String, keepCase: Bool
+        for ranges: [NSRange], in text: String, query: FindQuery, template: String, keepCase: Bool,
+        within scope: NSRange? = nil
     ) throws -> [String] {
         let string = text as NSString
+        // Matched again over the same scope `find` used, so edges (`\b`, lookbehind) resolve the same way.
+        var matches: [Int: NSTextCheckingResult] = [:]
         let expression = query.isRegex ? try regex(for: query) : nil
+        if let expression {
+            let range = scope.map { NSIntersectionRange($0, NSRange(location: 0, length: string.length)) }
+                ?? NSRange(location: 0, length: string.length)
+            expression.enumerateMatches(in: text, options: [], range: range) { match, _, _ in
+                if let match {
+                    matches[match.range.location] = match
+                }
+            }
+        }
         return ranges.map { range in
             var result = template
-            if let expression,
-               let match = expression.firstMatch(
-                   in: text, options: [.anchored, .withTransparentBounds],
-                   range: NSRange(location: range.location, length: string.length - range.location)
-               ),
-               match.range == range {
+            if let expression, let match = matches[range.location], match.range == range {
                 result = expression.replacementString(for: match, in: text, offset: 0, template: template)
             }
             return keepCase ? matchingCase(of: string.substring(with: range), applyTo: result) : result

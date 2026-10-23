@@ -122,8 +122,8 @@
         if (dirty) { build(); }
     }
 
-    // First segment whose flat range ends after `position`.
-    function segmentAt(position) {
+    // Index of the first segment whose flat range ends after `position`.
+    function segmentIndexAt(position) {
         var low = 0;
         var high = segments.length - 1;
         while (low < high) {
@@ -131,18 +131,30 @@
             var seg = segments[mid];
             if (seg.flat + seg.flatLength <= position) { low = mid + 1; } else { high = mid; }
         }
-        return segments[low];
+        return low;
     }
 
+    // The DOM position for a flat offset. A flat offset can sit on a newline this script inserted between
+    // blocks. A start there moves to the next text, an end there moves back to the end of the previous text.
     function point(position, isEnd) {
         if (!segments.length) { return null; }
-        var seg = segmentAt(isEnd ? position - 1 : position);
-        if (!seg) { return null; }
+        var probe = isEnd ? position - 1 : position;
+        var index = segmentIndexAt(probe);
+        var seg = segments[index];
+        if (probe < seg.flat) {
+            if (!isEnd) { return { node: seg.node, offset: seg.start }; }
+            if (index === 0) { return null; }
+            seg = segments[index - 1];
+            return { node: seg.node, offset: seg.start + seg.length };
+        }
+        if (probe >= seg.flat + seg.flatLength) {
+            return isEnd ? { node: seg.node, offset: seg.start + seg.length } : null;
+        }
         if (seg.flatLength !== seg.length) {
             // A collapsed run of whitespace: the start of the run, or its end.
             return { node: seg.node, offset: seg.start + (isEnd ? seg.length : 0) };
         }
-        var within = (isEnd ? position - 1 : position) - seg.flat;
+        var within = probe - seg.flat;
         return { node: seg.node, offset: seg.start + within + (isEnd ? 1 : 0) };
     }
 
