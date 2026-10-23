@@ -77,6 +77,49 @@ struct FindEditorTargetTests {
         #expect(background(at: 8, in: harness) == nil)
     }
 
+    @Test(
+        "highlights show on screen, with and without Live Preview: current orange, others yellow, other text clear",
+        arguments: [false, true]
+    )
+    func highlightsAreVisible(livePreview: Bool) async throws {
+        let harness = makeHarness("fen one\n\nfen two\n\nplain words here", livePreview: livePreview)
+        harness.window.orderBack(nil)
+        harness.textView.layoutSubtreeIfNeeded()
+        try await search(harness, "fen")
+        let textView = harness.textView
+        let layout = try #require(textView.layoutManager)
+        let container = try #require(textView.textContainer)
+        let rep = try #require(textView.bitmapImageRepForCachingDisplay(in: textView.bounds))
+        textView.cacheDisplay(in: textView.bounds, to: rep)
+        let scale = Double(rep.pixelsWide) / Double(textView.bounds.width)
+
+        // Colors along a row just inside the bottom edge of the characters' box, where glyphs rarely draw.
+        func colors(at characters: NSRange) -> [(r: Double, g: Double, b: Double)] {
+            let glyphs = layout.glyphRange(forCharacterRange: characters, actualCharacterRange: nil)
+            let box = layout.boundingRect(forGlyphRange: glyphs, in: container)
+                .offsetBy(dx: textView.textContainerOrigin.x, dy: textView.textContainerOrigin.y)
+            let y = Int((box.maxY - 2) * scale)
+            return stride(from: box.minX + 1, to: box.maxX - 1, by: 1).compactMap { x in
+                rep.colorAt(x: Int(x * scale), y: y)?.usingColorSpace(.sRGB).map {
+                    (Double($0.redComponent), Double($0.greenComponent), Double($0.blueComponent))
+                }
+            }
+        }
+        // The most orange-or-yellow pixel in the row: red minus blue, whatever the page color is.
+        func tint(_ list: [(r: Double, g: Double, b: Double)]) -> (warmth: Double, greenShare: Double) {
+            let best = list.max { $0.r - $0.b < $1.r - $1.b } ?? (0, 0, 0)
+            return (best.r - best.b, best.g / max(best.r, 0.01))
+        }
+        let text = textView.string as NSString
+        let current = tint(colors(at: NSRange(location: 0, length: 3)))
+        let other = tint(colors(at: NSRange(location: 9, length: 3)))
+        let plain = tint(colors(at: text.range(of: "plain")))
+        #expect(current.warmth > plain.warmth + 0.2)
+        #expect(other.warmth > plain.warmth + 0.2)
+        // Yellow has more green in it than orange does.
+        #expect(current.greenShare < other.greenShare)
+    }
+
     @Test("showing matches, and moving between them, leaves the caret and selection alone")
     func navigationKeepsSelection() async throws {
         let harness = makeHarness("fen and fen and fen")
