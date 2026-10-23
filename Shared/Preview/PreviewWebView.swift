@@ -16,6 +16,14 @@ import WebKit
         var onScrollChange: ((CGFloat) -> Void)?
         var onOpenInternalLink: ((URL) -> Void)?
         var onHoverLink: ((String?) -> Void)?
+        /// The window's Find (issue #255). The preview registers as its target; `find.js` paints the matches.
+        var find: FindState?
+
+        func finding(_ state: FindState) -> Self {
+            var copy = self
+            copy.find = state
+            return copy
+        }
 
         func makeCoordinator() -> Coordinator {
             Coordinator(self)
@@ -57,6 +65,14 @@ import WebKit
                 context.coordinator,
                 name: "linkHoverHandler"
             )
+
+            webView.configuration.userContentController.addUserScript(PreviewFindDriver.userScript())
+            webView.configuration.userContentController.add(
+                context.coordinator,
+                name: PreviewFindDriver.messageName
+            )
+            context.coordinator.findDriver.webView = webView
+            find?.preview = context.coordinator.findDriver
 
             context.coordinator.load(html: html, baseURL: baseURL, into: webView)
             context.coordinator.lastHTML = html
@@ -104,6 +120,7 @@ import WebKit
             /// rule 3.4), and re-applied in `didFinish` after every reload.
             var lastFocusLineRange: FocusLineRange?
             let schemeHandler = PreviewSchemeHandler()
+            let findDriver = PreviewFindDriver()
             private let scrollGuard = ExternalScrollGuard()
             private var reloadGeneration = 0
 
@@ -154,6 +171,8 @@ import WebKit
             }
 
             func webView(_ webView: WKWebView, didFinish _: WKNavigation!) {
+                // A reload wipes the page's highlights, so a search that is open runs again.
+                defer { parent.find?.previewReloaded() }
                 if scrollGuard.hasScrolledSinceLoad {
                     // ScrollSync already applied a fraction while this page was still loading
                     // (e.g. slow remote images delayed didFinish past that update). Re-apply it
@@ -211,6 +230,10 @@ import WebKit
                 _: WKUserContentController,
                 didReceive message: WKScriptMessage
             ) {
+                if message.name == PreviewFindDriver.messageName {
+                    parent.find?.previewChanged()
+                    return
+                }
                 if message.name == "linkHoverHandler", let href = message.body as? String {
                     parent.onHoverLink?(href.isEmpty ? nil : href)
                     return
@@ -246,6 +269,7 @@ import WebKit
             config.setURLSchemeHandler(context.coordinator.schemeHandler, forURLScheme: PreviewSchemeHandler.scheme)
 
             let webView = WKWebView(frame: .zero, configuration: config)
+            webView.isFindInteractionEnabled = true // the system find bar, with Cmd+F on a keyboard (issue #255)
             webView.navigationDelegate = context.coordinator
             webView.scrollView.delegate = context.coordinator
             context.coordinator.webView = webView

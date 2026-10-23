@@ -60,7 +60,7 @@ struct FenApp: App {
             Link("Fen Help", destination: URL(string: "https://github.com/zoharbabin/fen#readme")!)
         }
 
-        findCommands()
+        FindCommands()
         FormattingCommands()
         copyCommands()
         fileMenuCommands()
@@ -93,42 +93,4 @@ struct FenApp: App {
         exportPDFCommands()
         printCommands()
     }
-
-    @CommandsBuilder
-    func findCommands() -> some Commands {
-        CommandGroup(after: .textEditing) {
-            Section {
-                Button("Find…") {
-                    performTextFinderAction(.showFindInterface)
-                }
-                .keyboardShortcut("f", modifiers: .command)
-
-                Button("Find Next") {
-                    performTextFinderAction(.nextMatch)
-                }
-                .keyboardShortcut("g", modifiers: .command)
-
-                Button("Find Previous") {
-                    performTextFinderAction(.previousMatch)
-                }
-                .keyboardShortcut("g", modifiers: [.command, .shift])
-
-                Button("Find and Replace…") {
-                    performTextFinderAction(.showReplaceInterface)
-                }
-                .keyboardShortcut("f", modifiers: [.command, .option])
-            }
-        }
-    }
-}
-
-// MARK: - Find Menu
-
-/// `performTextFinderAction:` reads the requested action from `sender.tag`,
-/// so each Find menu item needs a throwaway sender carrying the right tag.
-@MainActor
-private func performTextFinderAction(_ action: NSTextFinder.Action) {
-    let item = NSMenuItem()
-    item.tag = action.rawValue
-    NSApp.sendAction(#selector(NSResponder.performTextFinderAction(_:)), to: nil, from: item)
 }

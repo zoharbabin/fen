@@ -83,7 +83,8 @@ brew install --cask fen
 - **GitHub-Flavored Markdown** through Apple's [`swift-cmark`](https://github.com/apple/swift-cmark): tables, task lists, strikethrough, autolinks, footnotes, `==highlight==` marks and `> [!NOTE]` alerts.
 - **Math, diagrams and more.** MathJax equations, Mermaid diagrams, syntax highlighting, emoji shortcodes, GeoJSON maps and an interactive 3D viewer for `stl` blocks. All of it renders in the preview, in exports and in the CLI. MathJax, Mermaid, the 3D viewer and maps are off until you turn them on in **Settings > Rendering**.
 - **Live preview mode (Experimental, Cmd+Shift+P).** Hides Markdown markers away from the caret and shows the styling they mean, while the file stays plain text. See [how it works](docs/ARCHITECTURE.md#slash-command-menu-focus-mode-live-preview-and-the-editor-gutter).
-- **Writing tools.** Slash-command menu, outline sidebar (Cmd+Shift+O), focus mode (Cmd+Shift+F), synced line numbers, find and replace, a formatting toolbar, auto-pair and list continuation.
+- **Writing tools.** Slash-command menu, outline sidebar (Cmd+Shift+O), focus mode (Cmd+Shift+F), synced line numbers, a formatting toolbar, auto-pair and list continuation.
+- **Find (Cmd+F).** One bar for the editor, the preview or both. Smart case, accent-insensitive, whole word and regex, with Replace (Option+Cmd+F) and a match strip beside the scrollbar. See [how it works](docs/ARCHITECTURE.md#find-swift-matches-each-pane-paints-one-bar-per-window-macos).
 - **Vim keys (Mac, off by default).** Normal and Insert mode with basic motions. Nothing else from Vim is included.
 - **Images.** Paste or drop an image and Fen saves it in a `<document>.assets` folder next to the file and links it.
 - **Themes.** Light and dark pairs that follow the system, custom preview CSS, and per-document `fen:` front-matter overrides.

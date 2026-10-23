@@ -21,6 +21,7 @@ public struct WorkspacesView: View {
     @State private var showingAsk = false
     @State private var showingClone = false
     private let panelRequest = AskPanelRequest.shared
+    private let searchRequest = WorkspaceSearchRequest.shared
     @State private var query = ""
     @State private var scopeSelection = SearchScopeSelection()
     @State private var showingScopeChooser = false
@@ -91,8 +92,10 @@ public struct WorkspacesView: View {
             library.start()
             selection = selection ?? library.currentWorkspaceID
             showAskIfRequested()
+            searchIfRequested()
         }
         .onChange(of: panelRequest.isRequested) { _, _ in showAskIfRequested() }
+        .onChange(of: searchRequest.query) { _, _ in searchIfRequested() }
         .onChange(of: selection) { _, new in library.setCurrent(new) }
         // A compact layout stays on the list unless told to show Ask. Going back to the list turns Ask off.
         .onChange(of: showingAsk) { _, on in compactColumn = on ? .detail : .sidebar }
@@ -162,6 +165,13 @@ public struct WorkspacesView: View {
             needsChoice: scopeSelection.needsChoice(available: available),
             open: openResult
         )
+    }
+
+    private func searchIfRequested() {
+        guard let requested = searchRequest.query else { return }
+        query = requested
+        showingAsk = false
+        searchRequest.query = nil
     }
 
     private func showAskIfRequested() {
@@ -320,33 +330,6 @@ public struct WorkspacesView: View {
         #else
             return await UIApplication.shared.open(url)
         #endif
-    }
-}
-
-// MARK: - Sidebar row
-
-private struct WorkspaceRow: View {
-    let workspace: Workspace
-    let state: WorkspaceState
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Label(workspace.name, systemImage: "folder")
-            Text(subtitle)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-        .accessibilityElement(children: .combine)
-    }
-
-    private var subtitle: String {
-        switch state.phase {
-        case let .scanning(found): "Listing… \(found) files"
-        case .canceled: "Listing canceled"
-        case .failed: "Unavailable"
-        case .idle:
-            state.hasScanned ? "\(state.snapshot.documents.count) files" : "Waiting"
-        }
     }
 }
 
