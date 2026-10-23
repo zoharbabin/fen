@@ -40,15 +40,15 @@ struct PreviewReloadRaceVerifyTest {
         coordinator.lastHTML = htmlA
         _ = try await pollUntilTrue(webView, js: "document.body.dataset.page === 'A'")
 
-        // Mirrors updateNSView's reload branch, using a real evaluateJavaScript read (a
-        // literal in place of the source-fraction the real currentSourceFractionJS would
-        // read, since this fixture's page isn't scrollable) with the older request's write
-        // delayed after its already-completed read so the completion order is deterministic.
-        // `writeDelayMS`'s sleep is the race-simulation mechanism itself, not a
-        // wait-for-UI-to-settle workaround: it's what makes "the older request's write lands
-        // after the newer one's" reproducible instead of racing on real timing noise, so it
-        // stays. Returns the `Task` so the caller can await actual completion instead of
-        // guessing how long both reloads take to settle.
+        /// Mirrors updateNSView's reload branch, using a real evaluateJavaScript read (a
+        /// literal in place of the source-fraction the real currentSourceFractionJS would
+        /// read, since this fixture's page isn't scrollable) with the older request's write
+        /// delayed after its already-completed read so the completion order is deterministic.
+        /// `writeDelayMS`'s sleep is the race-simulation mechanism itself, not a
+        /// wait-for-UI-to-settle workaround: it's what makes "the older request's write lands
+        /// after the newer one's" reproducible instead of racing on real timing noise, so it
+        /// stays. Returns the `Task` so the caller can await actual completion instead of
+        /// guessing how long both reloads take to settle.
         func startReload(targetHTML: String, readFraction: CGFloat, writeDelayMS: UInt64) -> Task<Void, Never> {
             let generation = coordinator.beginReload()
             return Task { @MainActor in
