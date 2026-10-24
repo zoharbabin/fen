@@ -267,8 +267,12 @@
             offsets = [];
             current = -1;
             if (supported) {
-                CSS.highlights.delete('fen-find');
-                CSS.highlights.delete('fen-find-current');
+                // Emptying a highlight before removing it makes WebKit repaint the ranges it covered.
+                ['fen-find', 'fen-find-current'].forEach(function (name) {
+                    var h = CSS.highlights.get(name);
+                    if (h) { h.clear(); }
+                    CSS.highlights.delete(name);
+                });
             }
         },
 

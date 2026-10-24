@@ -184,8 +184,8 @@
             }
             if let suggestion = find.suggestion {
                 hints.append(Hint(id: "suggestion", view: AnyView(
-                    HStack(spacing: 4) {
-                        Text("Did you mean")
+                    HStack(spacing: 0) {
+                        Text("Did you mean ")
                         Button("“\(suggestion)”") { find.query.text = suggestion }
                             .buttonStyle(.link)
                             .accessibilityIdentifier("FindSuggestion")
