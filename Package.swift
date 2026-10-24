@@ -55,6 +55,7 @@ let package = Package(
                 .copy("Resources/Extensions"),
                 .copy("Resources/Highlight"),
                 .copy("Resources/ScrollSync"),
+                .copy("Resources/Find"),
                 .copy("Resources/Emoji"),
             ]
         ),

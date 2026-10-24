@@ -1076,6 +1076,20 @@ Both routes save a `.md` file in Fen's Documents folder, named from the first he
 
 Don't use `NewDocumentButton(prepareDocument:)` for this. On iOS 27 the closure never runs and you get an empty document.
 
+## Find: Swift matches, each pane paints, one bar per window (macOS)
+
+Cmd+F opens one find bar for the document window, in Editor, Preview and Split mode. `FindState` (`Shared/Find/FindState.swift`) owns the query, the results and the current match. `FindBar` is the view. `FindCommands` routes the menu items (Cmd+F, Option+Cmd+F, Cmd+G, Shift+Cmd+G, Cmd+E) to the window that has focus through notifications, the same way the other document commands work.
+
+**`FindEngine` is the only matcher.** It runs on the editor's text and on the preview's text, so both panes agree on what a match is. Literal queries use `NSString.range(of:options:)` and ignore case (smart case: a capital in the query makes it exact), accents and character width. Regex queries use `NSRegularExpression` with `.reportProgress`, so a runaway pattern stops when a newer search replaces it. Results cap at 50,000. Matching the preview in JavaScript would give a second regex dialect and no way to cancel it, so we don't.
+
+**The editor paints with temporary attributes.** `EditorFindPainter` marks matches near the viewport on the layout manager and never touches the text storage, so undo, the syntax highlighter and Live Preview are unaffected. Moving between matches does not move the caret or the selection. That matters in Live Preview, where a caret move reveals Markdown markers and shifts the layout. Esc closes the bar and selects the current match. Replace and Replace All go through `shouldChangeText(inRanges:)`, so each is one undo step.
+
+**The preview paints with the CSS Custom Highlight API.** `Shared/Resources/Find/find.js` builds one flat string from the rendered text (`snapshot`), and paints offsets Swift sends back (`show`, `setCurrent`). It never edits the DOM, so `data-sourcepos` anchors and scroll sync keep working. It skips scripts, styles, buttons and hidden nodes, and it opens a closed `<details>` to reveal a match. `PreviewFindDriver` calls it with `callAsyncJavaScript` and passes the query as an argument, never as interpolated source. A reload (`previewReloaded()`) and late DOM changes (the `findHandler` message, for example after Mermaid or MathJax finishes) trigger a new search, and a stale version number is re-searched instead of painted.
+
+**Other notes.** When the query has three or more characters and you have workspaces, the bar shows a count of other notes that match. It calls the existing local `WorkspaceLibrary.search`, and the link opens the Workspaces window with that query. Nothing new talks to the network. Finding passages by meaning is not part of Find: that is Search and Ask, which already do it.
+
+Tests: `FindEngineTests` (matching), `FindStateTests` and `FindEditorTargetTests` (state, painting, replace, undo), `FindPreviewVerifyTests` (real `WKWebView`), `FindPerformanceTests` (1 MB documents), and `UITests/FenUITests/FindUITests.swift` (the real app).
+
 ## Vim keys: a small Normal/Insert subset, macOS only, off by default
 
 The `editorVimMode` preference (Settings) is off by default and macOS only. The iOS software keyboard has no Escape key, and a text view there never sees which key was pressed.

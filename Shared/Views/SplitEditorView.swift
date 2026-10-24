@@ -27,6 +27,9 @@ public struct SplitEditorView: View {
     #if os(macOS)
         @State private var pdfExportController = PDFExportController()
         @State private var printController = PrintController()
+        @State var find = FindState()
+        @State var otherNotes: OtherNotesMatches?
+        @Environment(\.openWindow) var openWindow
     #endif
     @State private var renderedHTML: String = ""
     @State private var renderTask: Task<Void, Never>?
@@ -49,12 +52,6 @@ public struct SplitEditorView: View {
     @State private var renderGeneration = 0
 
     let preferences = Preferences.shared
-
-    enum ViewMode: String, CaseIterable {
-        case split = "Split"
-        case editorOnly = "Editor"
-        case previewOnly = "Preview"
-    }
 
     /// Not `private`: `SplitEditorView+LivePreviewMode.swift` reads and writes both to enforce the
     /// Live-Preview/`.editorOnly` invariant.
@@ -145,6 +142,7 @@ public struct SplitEditorView: View {
 
         #if os(macOS)
             let withReceivers = withToggles
+                .modifier(FindCommandReceivers(find: find, panes: findPanes))
                 .onWindowCommand(.exportToHTML) {
                     htmlExportController.presentSavePanel(document: document, preferences: preferences)
                 }
@@ -196,6 +194,7 @@ public struct SplitEditorView: View {
 
     private var mainContent: some View {
         VStack(spacing: 0) {
+            findBar
             // On macOS, `HSplitView` gives the outline a real draggable divider (backed by
             // `NSSplitView`) -- a plain `HStack` + static `Divider()` has no drag gesture, which
             // is why the sidebar previously couldn't be resized at all. iOS has no `HSplitView`
@@ -316,6 +315,10 @@ public struct SplitEditorView: View {
             insertion: related.insertion,
             caret: editorCaret
         )
+        #if os(macOS)
+        .finding(find)
+        .findStrip(find.editorStrip, isActive: find.isPresented)
+        #endif
         .accessibilityIdentifier("EditorTextView")
         .relatedSuggestions(related)
         .requestedLineJumps(fileURL: document.fileURL, lineCount: sourceLineCount, jump: jumpToLine(_:))
@@ -347,6 +350,8 @@ public struct SplitEditorView: View {
                     hoveredLinkHref = href
                 }
             )
+            .finding(find)
+            .findStrip(find.previewStrip, isActive: find.isPresented)
             // WKWebView is a native NSView; macOS only surfaces AXValue for
             // roles like scroll areas or text fields, not the generic "Other"
             // role a wrapped webview gets, so a `.accessibilityValue` here is

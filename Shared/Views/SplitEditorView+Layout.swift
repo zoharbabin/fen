@@ -8,6 +8,14 @@ public extension Notification.Name {
     static let toggleEditor = Notification.Name("toggleEditor")
 }
 
+extension SplitEditorView {
+    enum ViewMode: String, CaseIterable {
+        case split = "Split"
+        case editorOnly = "Editor"
+        case previewOnly = "Preview"
+    }
+}
+
 /// Which panes show for a view mode at a given width (issue #42). A phone, or an iPad in Slide Over
 /// or a narrow Split View, is too narrow for two panes, so it shows one at a time.
 extension SplitEditorView.ViewMode {

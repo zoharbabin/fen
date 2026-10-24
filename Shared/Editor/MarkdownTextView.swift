@@ -1,19 +1,6 @@
 import Highlightr
 import SwiftUI
 
-/// Shared helper: pick a readable caret/insertion-point color for a background.
-@MainActor
-func caretColor(for background: PlatformColor) -> PlatformColor {
-    var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
-    #if os(macOS)
-        (background.usingColorSpace(.deviceRGB) ?? background).getRed(&red, green: &green, blue: &blue, alpha: &alpha)
-    #else
-        background.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
-    #endif
-    let luminance = 0.299 * red + 0.587 * green + 0.114 * blue
-    return luminance < 0.5 ? .white : .black
-}
-
 #if os(macOS)
     import AppKit
     import UniformTypeIdentifiers
@@ -67,6 +54,8 @@ func caretColor(for background: PlatformColor) -> PlatformColor {
         var insertion: EditorInsertion?
         /// Filled with the caret or selection, for "Ask AI" (issue #6).
         var caret: EditorCaret?
+        /// The window's Find (issue #255). Set it with `finding(_:)`.
+        var find: FindState?
 
         func makeCoordinator() -> Coordinator {
             Coordinator(self)
@@ -114,7 +103,6 @@ func caretColor(for background: PlatformColor) -> PlatformColor {
             // this, paste(_:)/drag-drop never calls readSelection(from:type:) for a raw image
             // pasteboard type at all (confirmed empirically, issue #18).
             textView.importsGraphics = true
-            textView.usesFindBar = true
             textView.isAutomaticQuoteSubstitutionEnabled = false
             textView.isAutomaticDashSubstitutionEnabled = false
             textView.isAutomaticTextReplacementEnabled = false
@@ -142,6 +130,7 @@ func caretColor(for background: PlatformColor) -> PlatformColor {
             textView.delegate = context.coordinator
             textView.imagePasteCoordinator = context.coordinator
             context.coordinator.textView = textView
+            find?.editor = context.coordinator
             context.coordinator.documentURL = documentURL
             context.coordinator.apply(insertion, to: textView)
 
@@ -207,6 +196,9 @@ func caretColor(for background: PlatformColor) -> PlatformColor {
                 let selectedRanges = textView.selectedRanges
                 textView.string = text
                 textView.selectedRanges = selectedRanges
+                // `string =` posts no change notification, so Find would keep counting the old text.
+                let find = find
+                Task { @MainActor in find?.documentChanged() }
             }
             context.coordinator.apply(insertion, to: textView) // an edit from outside, like a Properties fix
             textView.baseHorizontalInset = horizontalInset
@@ -258,6 +250,7 @@ func caretColor(for background: PlatformColor) -> PlatformColor {
             var themeName: String
             var documentURL: URL?
             let related = RelatedEditorState()
+            let findPainter = EditorFindPainter()
             private var isApplyingExternalScroll = false
             private var lastAppliedScrollFraction: CGFloat?
             private var lastAppliedTotalHeight: CGFloat?
@@ -378,6 +371,7 @@ func caretColor(for background: PlatformColor) -> PlatformColor {
                 guard let textView = notification.object as? MarkdownNSTextView else { return }
                 parent.text = textView.string
                 parent.onTextChange?()
+                parent.find?.documentChanged()
                 applyFocusModeIfNeeded(in: textView)
                 recenterCaretOnActiveLine(in: textView)
                 recomputeSlashMenu(in: textView)
@@ -493,6 +487,7 @@ func caretColor(for background: PlatformColor) -> PlatformColor {
             }
 
             @MainActor @objc func scrollViewDidScroll(_: Notification) {
+                textView.map { findPainter.viewportMoved(in: $0) }
                 guard !isApplyingExternalScroll,
                       let textView, let scrollView = textView.enclosingScrollView else { return }
                 let contentView = scrollView.contentView
