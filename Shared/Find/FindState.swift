@@ -335,7 +335,7 @@
                     editorCurrent = Self.index(atOrAfter: editorAnchor, in: result.ranges.map(\.location))
                     editor.showFindMatches(
                         result.ranges,
-                        current: editorCurrent,
+                        current: activePane == .editor ? editorCurrent : nil,
                         scroll: reveal && activePane == .editor
                     )
                 case .failure:
@@ -393,7 +393,8 @@
                 previewCount = result.ranges.count
                 previewCurrent = Self.index(atOrAfter: previewAnchor, in: result.ranges.map(\.location))
                 let newer = await preview.findShow(
-                    offsets: previewOffsets, version: snapshot.version, current: previewCurrent,
+                    offsets: previewOffsets, version: snapshot.version,
+                    current: activePane == .preview ? previewCurrent : nil,
                     scroll: reveal && activePane == .preview
                 )
                 guard newer != nil else { return }
@@ -471,8 +472,12 @@
             if let other = Pane.allCases.first(where: { $0 != pane }) {
                 // Only the pane you drive has a current match. The other keeps its highlights.
                 switch other {
-                case .editor: editorCurrent = nil
-                case .preview: previewCurrent = nil
+                case .editor:
+                    editorCurrent = nil
+                    editor?.showFindMatches(editorRanges, current: nil, scroll: false)
+                case .preview:
+                    previewCurrent = nil
+                    Task { await preview?.findSetCurrent(nil, scroll: false) }
                 }
             }
             select(current ?? 0)

@@ -116,6 +116,24 @@ struct FindPreviewVerifyTests {
         #expect(!warm(plain, blueBelow: 0.95))
     }
 
+    @Test("in split mode only the pane you drive shows a current match")
+    func onlyTheActivePaneHasACurrentMatch() async throws {
+        let text = "fen one\n\nfen two\n\nfen three"
+        let (webView, _, find) = try await page(text)
+        let editor = FakeFindEditor(text)
+        find.editor = editor
+        find.visiblePanes = [.editor, .preview]
+        find.activePane = .editor
+        try await search(find, FindQuery(text: "fen"))
+        #expect(editor.shown.last?.current == 0)
+        #expect(try await painted(webView, name: "fen-find-current").isEmpty)
+        #expect(try await painted(webView).count == 3)
+
+        find.switchPane(to: .preview)
+        try #require(await pollUntilTrue { await (try? painted(webView, name: "fen-find-current"))?.count == 1 })
+        #expect(editor.shown.last?.current == nil)
+    }
+
     @Test("a match never runs from one paragraph into the next")
     func blocksSeparate() async throws {
         let (_, _, find) = try await page("end of one\n\nstart of two")
