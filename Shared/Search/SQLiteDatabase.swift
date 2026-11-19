@@ -114,8 +114,8 @@ final class SQLiteStatement {
     @discardableResult
     func step() throws -> Bool {
         switch sqlite3_step(statement) {
-        case SQLITE_ROW: return true
-        case SQLITE_DONE: return false
+        case SQLITE_ROW: true
+        case SQLITE_DONE: false
         default: throw database.lastError()
         }
     }

@@ -4,8 +4,9 @@
     /// Tab/Backspace/Enter/Home key handling (issues #15, #17, #51) Coordinator methods, split
     /// out of `MarkdownTextView.swift` to keep that file under the project's file-length lint
     /// limit -- mirrors `MarkdownTextView+FocusMode.swift`'s precedent.
+    @MainActor
     extension MarkdownTextView.Coordinator {
-        @MainActor func textView(_ textView: NSTextView, doCommandBy selector: Selector) -> Bool {
+        func textView(_ textView: NSTextView, doCommandBy selector: Selector) -> Bool {
             let preferences = Preferences.shared
             switch selector {
             case #selector(NSResponder.cancelOperation(_:)):
@@ -36,11 +37,11 @@
         }
 
         /// Esc closes the slash menu first. With no menu open it leaves Vim's Insert mode (issue #102).
-        @MainActor private func handleEscape(in textView: NSTextView) -> Bool {
+        private func handleEscape(in textView: NSTextView) -> Bool {
             dismissSlashMenuIfOpenOnEscape() || (textView as? MarkdownNSTextView)?.leaveVimInsertMode() == true
         }
 
-        @MainActor func textView(
+        func textView(
             _ textView: NSTextView, shouldChangeTextIn range: NSRange, replacementString: String?
         ) -> Bool {
             guard Preferences.shared.editorCompleteMatchingCharacters,
@@ -53,7 +54,7 @@
         /// edit through the same `textDidChange` path a real keystroke would take (this
         /// method fires *instead of* the normal keystroke once `doCommandBySelector`
         /// returns true, so `NSTextView` never generates its own change notification here).
-        @MainActor private func insertTabAsSpaces(in textView: NSTextView) {
+        private func insertTabAsSpaces(in textView: NSTextView) {
             let location = textView.selectedRange().location
             let column = columnOfCharacter(at: location, in: textView.string)
             let spaces = MarkdownTextEditing.tabInsertion(atColumn: column)
@@ -62,7 +63,7 @@
 
         /// Returns `true` if this Backspace was fully handled here (outdent or atomic pair
         /// deletion), `false` to let `NSTextView` perform its normal single-character delete.
-        @MainActor private func handleBackspace(in textView: NSTextView) -> Bool {
+        private func handleBackspace(in textView: NSTextView) -> Bool {
             let location = textView.selectedRange().location
             let ns = textView.string as NSString
 
@@ -94,7 +95,7 @@
 
         /// Returns `true` if Enter was handled here (list/blockquote continuation or
         /// termination), `false` to let `NSTextView` insert a plain newline.
-        @MainActor private func handleNewline(in textView: NSTextView, autoIncrement: Bool) -> Bool {
+        private func handleNewline(in textView: NSTextView, autoIncrement: Bool) -> Bool {
             let location = textView.selectedRange().location
             let ns = textView.string as NSString
             let lineRange = ns.lineRange(for: NSRange(location: location, length: 0))
@@ -132,7 +133,7 @@
         /// Returns `true` if Home was handled here (moved to first-non-whitespace or column
         /// 0), `false` to let `NSTextView` perform its normal Home behavior (e.g. on a
         /// soft-wrapped visual row, where smart Home doesn't apply).
-        @MainActor private func handleSmartHome(in textView: NSTextView) -> Bool {
+        private func handleSmartHome(in textView: NSTextView) -> Bool {
             let location = textView.selectedRange().location
             let ns = textView.string as NSString
             let lineRange = ns.lineRange(for: NSRange(location: location, length: 0))
@@ -172,7 +173,7 @@
         /// Applies `MarkdownTextEditing.pairDecision` for a just-typed character. Returns
         /// `true` if this method fully handled the edit (the caller must then suppress the
         /// original `shouldChangeTextIn` edit), `false` to let it proceed normally.
-        @MainActor private func applyPairDecision(
+        private func applyPairDecision(
             for character: Character,
             in textView: NSTextView,
             range: NSRange
@@ -205,7 +206,7 @@
 
         /// The 0-based column of `location` on its own line (distance from the start of the
         /// line, not the whole document).
-        @MainActor private func columnOfCharacter(at location: Int, in text: String) -> Int {
+        private func columnOfCharacter(at location: Int, in text: String) -> Int {
             let ns = text as NSString
             let lineStart = ns.lineRange(for: NSRange(location: location, length: 0)).location
             return location - lineStart
@@ -215,7 +216,7 @@
         /// `NSTextView.insertText`-equivalent undo-registered replacement, then notifying
         /// `parent`/`onTextChange` exactly like `textDidChange` does, since these
         /// programmatic edits bypass the normal `NSText` notification chain.
-        @MainActor private func replaceAndNotify(
+        private func replaceAndNotify(
             in textView: NSTextView,
             range: NSRange,
             with replacement: String

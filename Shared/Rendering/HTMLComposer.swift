@@ -204,6 +204,12 @@ public struct HTMLComposer: Sendable {
     }
     blockquote.markdown-alert-warning { border-left-color: #9a6700; background-color: rgba(154, 103, 0, 0.1); }
     blockquote.markdown-alert-caution { border-left-color: #cf222e; background-color: rgba(207, 34, 46, 0.1); }
+    div.fen-notice {
+        border-left: 4px solid #9a6700; border-radius: 3px; background-color: rgba(154, 103, 0, 0.1);
+        padding: 0.5em 1em; margin: 1em 0;
+    }
+    div.fen-notice p.fen-notice-title { font-weight: bold; margin: 0 0 0.5em; color: #9a6700; }
+    div.fen-notice pre { margin: 0; overflow-x: auto; white-space: pre; }
     p.markdown-alert-title { font-weight: bold; margin-top: 0; }
     .markdown-alert-note p.markdown-alert-title { color: #0969da; }
     .markdown-alert-tip p.markdown-alert-title { color: #1a7f37; }

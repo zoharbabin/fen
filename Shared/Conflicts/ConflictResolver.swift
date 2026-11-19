@@ -255,7 +255,7 @@ struct ConflictResolver {
     func revert(_ flag: ConflictFlag, in workspaceID: UUID) async throws {
         guard let resolution = flag.resolution,
               let entry = gate.entries(for: workspaceID)
-              .last(where: { $0.runID == resolution.runID && !$0.isUndone }) else { return }
+                  .last(where: { $0.runID == resolution.runID && !$0.isUndone }) else { return }
         _ = try await gate.undoRouted(entry.id, workspaceID: workspaceID)
     }
 

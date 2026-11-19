@@ -183,8 +183,11 @@ public extension HTMLComposer {
     /// background via a separate `html body { background-color: ... }` override rather than in
     /// the `body` rule itself, so those two themes show no swatch (rule 3.3).
     static func themeSwatchColors(cssFileName: String) -> (background: Color, text: Color)? {
-        guard let backgroundColorRegex, let css = HTMLComposer().loadStyleCSS(named: cssFileName) else { return nil }
-        guard let background = firstCaptureColor(backgroundColorRegex, in: css) else { return nil }
+        guard let backgroundColorRegex, let css = HTMLComposer().loadStyleCSS(named: cssFileName),
+              let background = firstCaptureColor(
+                  backgroundColorRegex,
+                  in: css
+              ) else { return nil }
         let text = textColorRegex.flatMap { firstCaptureColor($0, in: css) } ?? .black
         return (background, text)
     }

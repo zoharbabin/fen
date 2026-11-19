@@ -114,10 +114,10 @@ extension WriteGate {
         guard !entry.isUndone else { throw WriteError.alreadyUndone }
         let context = try context(for: workspaceID)
         guard let branch = await agentBranches.open(
-            directory: context.root,
-            client: entry.agent ?? entry.provenance.model
-        ),
-            branch.name == branchName else { throw WriteError.unknownChange }
+                  directory: context.root,
+                  client: entry.agent ?? entry.provenance.model
+              ),
+              branch.name == branchName else { throw WriteError.unknownChange }
         try await locks.run(lockKey(branch)) {
             try await revert(entry, on: branch, context)
         }

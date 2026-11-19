@@ -4,9 +4,9 @@ import Foundation
 import Testing
 
 /// Issue #135: unordered list markers are drawn as round bullets.
+@MainActor
 extension LivePreviewBlockRenderTests {
-    @Test @MainActor
-    func aDashMarkerIsHiddenAndDrawnAsABullet() throws {
+    @Test func aDashMarkerIsHiddenAndDrawnAsABullet() throws {
         let (view, coordinator) = makeView("- item\n\nTail")
         style(view, coordinator)
         let storage = try #require(view.textStorage)
@@ -24,8 +24,7 @@ extension LivePreviewBlockRenderTests {
         #expect(painted)
     }
 
-    @Test @MainActor
-    func orderedAndTaskItemsKeepTheirMarker() throws {
+    @Test func orderedAndTaskItemsKeepTheirMarker() throws {
         let (view, coordinator) = makeView("1. one\n- [ ] task\n* star\n\nTail")
         style(view, coordinator)
         let storage = try #require(view.textStorage)
@@ -36,8 +35,7 @@ extension LivePreviewBlockRenderTests {
         #expect(storage.attribute(.fenBlockDecoration, at: star, effectiveRange: nil) as? String == "bullet")
     }
 
-    @Test @MainActor
-    func theCaretLineKeepsItsDash() throws {
+    @Test func theCaretLineKeepsItsDash() throws {
         let (view, coordinator) = makeView("- item")
         view.setSelectedRange(NSRange(location: 3, length: 0))
         coordinator.applyLivePreviewStylingIfNeeded(in: view, fullDocument: true)

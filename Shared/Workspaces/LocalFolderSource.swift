@@ -152,7 +152,7 @@ public struct LocalFolderSource: WorkspaceSource {
     public func read(relativePath path: String) throws -> Data {
         switch evaluate(relativePath: path) {
         case let .failure(reason): throw WorkspaceFileError.excluded(reason)
-        case .success: return try Data(contentsOf: rootURL.appendingPathComponent(path))
+        case .success: try Data(contentsOf: rootURL.appendingPathComponent(path))
         }
     }
 

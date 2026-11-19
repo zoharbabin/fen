@@ -3,12 +3,13 @@
 
     /// Focus/typewriter mode (issue #19) Coordinator methods, split out of
     /// `MarkdownTextView.swift` to keep that file under the project's file-length lint limit.
+    @MainActor
     extension MarkdownTextView.Coordinator {
         /// Recomputes the active paragraph from the caret's current position and dims/undims
         /// only the paragraph(s) whose boundaries changed since the last call (rule 4.1) --
         /// never rewrites every paragraph's attributes on every keystroke. Also fully clears
         /// dimming the moment focus mode turns off (rule 3.5).
-        @MainActor func applyFocusModeIfNeeded(in textView: MarkdownNSTextView) {
+        func applyFocusModeIfNeeded(in textView: MarkdownNSTextView) {
             guard let textStorage = textView.textStorage else { return }
             guard parent.isFocusModeEnabled else {
                 if focusModeActiveRange != nil {
@@ -61,7 +62,7 @@
         /// dimming preference is off -- but only when that value actually differs from the last
         /// one passed (rule 4.2/4.2's "does not fire redundantly"), since `applyFocusModeIfNeeded`
         /// calls this on every text/selection change, not only ones where the range itself moved.
-        @MainActor private func notifyFocusRangeChangeIfNeeded(text: String) {
+        private func notifyFocusRangeChangeIfNeeded(text: String) {
             let newValue: FocusLineRange? = if parent.isFocusModeEnabled, parent.isFocusModeDimsTextEnabled,
                                                let activeRange = focusModeActiveRange {
                 FocusModeEditing.lineRange(forCharacterRange: activeRange, in: text)
@@ -76,7 +77,7 @@
         /// Applies the dimmed variant of each subrange's current foreground color, stashing
         /// the pre-dim color first so `undimRange` can restore it exactly. Skips any subrange
         /// already dimmed (has a stash present), so repeated calls never compound the dim.
-        @MainActor func dimRange(_ range: NSRange, in textStorage: NSTextStorage) {
+        func dimRange(_ range: NSRange, in textStorage: NSTextStorage) {
             guard range.length > 0 else { return }
             textStorage.beginEditing()
             textStorage.enumerateAttribute(.foregroundColor, in: range, options: []) { value, subrange, _ in
@@ -94,7 +95,7 @@
 
         /// Restores each dimmed subrange's stashed original foreground color and removes the
         /// stash. Subranges with no stash present (never dimmed) are left untouched.
-        @MainActor func undimRange(_ range: NSRange, in textStorage: NSTextStorage) {
+        func undimRange(_ range: NSRange, in textStorage: NSTextStorage) {
             guard range.length > 0 else { return }
             textStorage.beginEditing()
             textStorage.enumerateAttribute(
@@ -112,7 +113,7 @@
         /// Highlightr's `setAttributes` just replaced the whole range with (rule 4.3) -- called
         /// from `CodeAttributedString.highlightDelegate` once that async pass lands, since it
         /// would otherwise silently wipe out a dim applied before it.
-        @MainActor func didHighlight(_ range: NSRange, success: Bool) {
+        func didHighlight(_ range: NSRange, success: Bool) {
             guard success else { return }
             if parent.isFocusModeEnabled, let activeRange = focusModeActiveRange,
                let textStorage = textView?.textStorage {
@@ -131,7 +132,7 @@
         /// `scrollViewDidScroll`'s existing `onScroll`/`ScrollSync` path automatically rather
         /// than introducing a second scroll-notification mechanism; it never touches the
         /// preview's render pipeline.
-        @MainActor func recenterCaretOnActiveLine(in textView: MarkdownNSTextView) {
+        func recenterCaretOnActiveLine(in textView: MarkdownNSTextView) {
             guard parent.isFocusModeEnabled, parent.isFocusModeCentersCaretEnabled,
                   let scrollView = textView.enclosingScrollView else { return }
             let contentView = scrollView.contentView
