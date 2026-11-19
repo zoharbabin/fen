@@ -350,10 +350,10 @@ cmark-gfm passes raw HTML through unchanged (`CMARK_OPT_UNSAFE`), so GitHub-styl
 
 ## Pandoc grid tables: a notice in the preview, no rendering
 
-Fen's baseline is GFM, and GitHub doesn't render pandoc grid tables either. cmark-gfm folds one into a single paragraph. `MarkdownRenderer+GridTables.swift` (issue #258) swaps that paragraph for a `div.fen-notice` that says "This is a pandoc grid table. Fen renders GFM pipe tables only." and keeps the original text in a `<pre>` below it.
+Fen's baseline is GFM, and GitHub doesn't render pandoc grid tables either. cmark-gfm folds one into a single paragraph. `MarkdownRenderer+GridTables.swift` (issue #258) swaps that paragraph for a `div.fen-notice` that says "This is a pandoc grid table. Fen renders GFM pipe tables only." and keeps the paragraph's text in a `<pre>` below it. That text is cmark's rendered output, so `*x*` shows as emphasis and `\'` as `'`.
 
 - **Preview only.** `Options.gridTableNotice` is off by default. `SplitEditorView` turns it on. Exports keep the source text as written.
-- **Matching.** A `<p>` whose first line is a `+---+===+` border and whose second line starts with `|`. Fenced code renders as `<pre>`, so it never matches. A `+ item` list marker has a space after the `+`, so it never matches either.
+- **Matching.** A `<p>` whose first line is a `+---+===+` border and whose second line starts with `|`. Smart punctuation (en and em dashes) and hard wrap (`<br />`) are handled. A table in a tight list item, or one that directly follows a text line, isn't matched. Fenced code renders as `<pre>`, so it never matches. A `+ item` list marker has a space after the `+`, so it never matches either.
 - **Scroll sync.** The wrapper keeps the paragraph's `data-sourcepos`.
 
 ## STL 3D viewer: preference-gated, one scene per block

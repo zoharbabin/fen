@@ -60,6 +60,35 @@ struct GridTableNoticeTests {
         #expect(html.contains("<table"))
     }
 
+    @Test func smartPunctuationDoesNotHideTheBorders() {
+        var options = MarkdownRenderer.Options()
+        options.gridTableNotice = true
+        options.smartPunctuation = true
+        let html = MarkdownRenderer().render("+---+---+\n| a | b |\n+---+---+", options: options).html
+        #expect(html.contains(MarkdownRenderer.gridTableNotice))
+    }
+
+    @Test func hardWrapDoesNotHideTheTableOrDoubleItsLines() {
+        var options = MarkdownRenderer.Options()
+        options.gridTableNotice = true
+        options.hardBreaks = true
+        let html = MarkdownRenderer().render(Self.grid, options: options).html
+        #expect(html.contains(MarkdownRenderer.gridTableNotice))
+        #expect(!html.contains("<br />"))
+    }
+
+    @Test func tableInsideABlockquoteOrLooseListGetsANotice() {
+        let quoted = Self.render("> +--+--+\n> | a | b |\n> +--+--+")
+        #expect(quoted.contains(MarkdownRenderer.gridTableNotice))
+        let loose = Self.render("- item\n\n  +--+--+\n  | a | b |\n  +--+--+\n\n- next")
+        #expect(loose.contains(MarkdownRenderer.gridTableNotice))
+    }
+
+    @Test func tableDirectlyAfterATextLineIsNotMatched() {
+        let html = Self.render("Table: schedule\n+--+--+\n| a | b |\n+--+--+")
+        #expect(!html.contains("fen-notice"))
+    }
+
     @Test("The notice and the original text render in the real preview")
     @MainActor
     func noticeRendersInWebKit() async throws {
@@ -75,15 +104,17 @@ struct GridTableNoticeTests {
             var pre = box.querySelector('pre');
             var rect = box.getBoundingClientRect();
             var below = title.getBoundingClientRect().bottom <= pre.getBoundingClientRect().top + 1;
+            var preRect = pre.getBoundingClientRect();
+            var inside = preRect.top >= rect.top && preRect.bottom <= rect.bottom + 1 && preRect.left >= rect.left;
             var mono = getComputedStyle(pre).fontFamily.toLowerCase().indexOf('mono') >= 0
                 || getComputedStyle(pre).fontFamily.toLowerCase().indexOf('menlo') >= 0
                 || getComputedStyle(pre).fontFamily.toLowerCase().indexOf('courier') >= 0;
-            return [title.textContent, pre.textContent.indexOf('| 09:30 |') >= 0, rect.height > 40, below, mono]
+            return [title.textContent, pre.textContent.indexOf('| 09:30 |') >= 0, rect.height > 40, below, inside, mono]
                 .join('|');
         })();
         """
         let result = try #require(await webView.evaluateJavaScript(js) as? String)
-        #expect(result.hasPrefix("\(MarkdownRenderer.gridTableNotice)|true|true|true|"), "Got: \(result)")
+        #expect(result.hasPrefix("\(MarkdownRenderer.gridTableNotice)|true|true|true|true|"), "Got: \(result)")
         #expect(result.hasSuffix("|true"), "The source block should use a monospace font. Got: \(result)")
     }
 }
