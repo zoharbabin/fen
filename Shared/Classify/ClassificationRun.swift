@@ -170,8 +170,7 @@ struct ClassificationRun {
             try Task.checkCancellation()
             onProgress(done, candidates.count)
             let excerpt = TypeClassifier.excerpt(of: document.text, path: document.path)
-            guard let vector = await search.embedding(of: excerpt) else { continue }
-            guard let proposal = await propose(
+            guard let vector = await search.embedding(of: excerpt), let proposal = await propose(
                 classifier.verdict(for: vector), document, excerpt, context, options, &modelUsable, &summary
             ), proposal.type != document.type else { continue }
             submitType(proposal, for: document, excerpt, context, &summary)

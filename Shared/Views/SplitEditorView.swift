@@ -244,7 +244,6 @@ public struct SplitEditorView: View {
 
     // MARK: - Split View
 
-    @ViewBuilder
     private var splitView: some View {
         #if os(macOS)
             HSplitView {

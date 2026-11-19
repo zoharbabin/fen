@@ -2,8 +2,8 @@
     import AppKit
 
     /// The "Check for Updates…" menu command (issue #39).
+    @MainActor
     public extension UpdateChecker {
-        @MainActor
         static func checkAndShow() async {
             let current = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? ""
             let alert = NSAlert()

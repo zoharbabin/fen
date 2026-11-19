@@ -145,8 +145,7 @@ public final class AutosaveController {
     }
 
     private func deleteRecoveryFileIfRedundant(identity: String) {
-        guard let document else { return }
-        guard let recoveryText = Self.readRecoveryFile(identity: identity) else { return }
+        guard let document, let recoveryText = Self.readRecoveryFile(identity: identity) else { return }
         let currentText = document.text
         if let fileURL = document.fileURL,
            let onDiskContent = try? String(contentsOf: fileURL, encoding: .utf8),

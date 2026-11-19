@@ -367,8 +367,8 @@ import SwiftUI
             }
 
             func textDidChange(_ notification: Notification) {
-                guard !isPerformingProgrammaticTextEdit else { return }
-                guard let textView = notification.object as? MarkdownNSTextView else { return }
+                guard !isPerformingProgrammaticTextEdit,
+                      let textView = notification.object as? MarkdownNSTextView else { return }
                 parent.text = textView.string
                 parent.onTextChange?()
                 parent.find?.documentChanged()
@@ -382,8 +382,8 @@ import SwiftUI
             }
 
             @MainActor func textViewDidChangeSelection(_ notification: Notification) {
-                guard !isPerformingProgrammaticTextEdit else { return }
-                guard let textView = notification.object as? MarkdownNSTextView else { return }
+                guard !isPerformingProgrammaticTextEdit,
+                      let textView = notification.object as? MarkdownNSTextView else { return }
                 applyFocusModeIfNeeded(in: textView)
                 recenterCaretOnActiveLine(in: textView)
                 recomputeSlashMenu(in: textView)

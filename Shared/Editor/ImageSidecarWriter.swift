@@ -42,9 +42,10 @@ enum ImageSidecarWriter {
         // ("/notes-private" vs "/notes") doesn't count as inside the document's directory.
         let documentRoot = resolvedDocumentDirectory.path.hasSuffix("/")
             ? resolvedDocumentDirectory.path : resolvedDocumentDirectory.path + "/"
-        guard (resolvedSidecarDirectory.path + "/").hasPrefix(documentRoot) else { return nil }
-
-        guard let filename = nextAvailableFilename(in: resolvedSidecarDirectory, extension: fileExtension) else {
+        guard (resolvedSidecarDirectory.path + "/").hasPrefix(documentRoot), let filename = nextAvailableFilename(
+            in: resolvedSidecarDirectory,
+            extension: fileExtension
+        ) else {
             return nil
         }
         let fileURL = resolvedSidecarDirectory.appendingPathComponent(filename)

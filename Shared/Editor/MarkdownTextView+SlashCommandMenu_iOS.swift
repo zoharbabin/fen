@@ -5,6 +5,7 @@
     /// Slash-command menu (issue #1) Coordinator methods, split out of
     /// `MarkdownTextView_iOS.swift` to keep that file under the project's file-length lint
     /// limit -- mirrors `MarkdownTextView+FocusMode_iOS.swift`'s precedent.
+    @MainActor
     extension MarkdownTextView.Coordinator {
         /// Recomputes `slashMenuState` from the caret's current position (issue #1 rules 3.2,
         /// 4.2) and shows/hides/repositions the popup subview to match -- called from both
@@ -12,7 +13,7 @@
         /// `applyFocusModeIfNeeded`. A tap that moves the caret off the trigger span closes the
         /// menu here for free, satisfying rule 3.4's dismissal requirement with no separate
         /// dismissal-specific code.
-        @MainActor func recomputeSlashMenu(in textView: UITextView) {
+        func recomputeSlashMenu(in textView: UITextView) {
             let cursorLocation = textView.selectedRange.location
             let match = SlashCommandMenu.triggerMatch(text: textView.text, cursorLocation: cursorLocation)
             slashMenuState.triggerMatch = match
@@ -27,7 +28,7 @@
         /// Selecting a menu entry (issue #1 rule 3.5): removes exactly the triggering
         /// `/`+filter-text range, then posts through the existing `.insertMarkdownFormatting`
         /// notification path (rule 5.1) -- never duplicates `MarkdownFormatting.apply`'s logic.
-        @MainActor func commitSlashCommandMenuEntry(_ action: FormattingAction) {
+        func commitSlashCommandMenuEntry(_ action: FormattingAction) {
             guard let match = slashMenuState.triggerMatch, let textView else { return }
             slashMenuState.dismiss()
             hideSlashMenuPopup()
@@ -39,7 +40,7 @@
             NotificationCenter.default.post(name: .insertMarkdownFormatting, object: action.identifier)
         }
 
-        @MainActor private func showSlashMenuPopup(in textView: MarkdownTextView.MarkdownUITextView) {
+        private func showSlashMenuPopup(in textView: MarkdownTextView.MarkdownUITextView) {
             guard let caretRect = slashMenuState.caretRect else { return }
             let hostingController: UIHostingController<SlashCommandMenuView>
             if let existing = slashMenuHostingController {
@@ -56,7 +57,7 @@
             )
         }
 
-        @MainActor private func hideSlashMenuPopup() {
+        private func hideSlashMenuPopup() {
             slashMenuHostingController?.view.removeFromSuperview()
             slashMenuHostingController = nil
         }

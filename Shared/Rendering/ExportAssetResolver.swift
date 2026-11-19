@@ -112,9 +112,10 @@ public struct ExportAssetResolver: Sendable {
         usedLeafNames: inout Set<String>,
         assets: inout [ExportResolvedAsset]
     ) -> String? {
-        guard isLocalRelativeReference(originalSrc) else { return nil }
-
-        guard let sourceFileURL = resolvedLocalFileURL(relativePath: originalSrc, documentDirectory: documentDirectory)
+        guard isLocalRelativeReference(originalSrc), let sourceFileURL = resolvedLocalFileURL(
+            relativePath: originalSrc,
+            documentDirectory: documentDirectory
+        )
         else { return nil }
 
         switch mode {

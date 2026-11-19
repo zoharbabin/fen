@@ -357,8 +357,7 @@ final class AgentBranches: Sendable {
 
     /// Every agent branch in the repository with its unmerged commit count.
     func summaries(in directory: URL) async -> [Summary] {
-        guard let branch = await open(directory: directory, client: "x") else { return [] }
-        guard let listing = try? await run(
+        guard let branch = await open(directory: directory, client: "x"), let listing = try? await run(
             ["for-each-ref", "--format=%(refname:short)", "refs/heads/fen/"],
             branch
         ) else { return [] }

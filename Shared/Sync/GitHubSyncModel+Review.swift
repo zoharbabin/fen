@@ -266,8 +266,8 @@ extension GitHubSyncModel {
     }
 
     private func backUpIfNeeded() async {
-        guard let sync, let root = root(), working == nil else { return }
-        guard let files = try? await sync.changedFiles(at: root), !files.isEmpty else { return }
+        guard let sync, let root = root(), working == nil, let files = try? await sync.changedFiles(at: root),
+              !files.isEmpty else { return }
         await syncNow()
     }
 }

@@ -111,8 +111,8 @@ public final class ExternalChangeController {
         // the file's new content against the in-memory buffer instead: if they already match, this
         // change is Fen's own save (or a no-op external touch), not something to prompt about.
         guard let document, let fileURL = document.fileURL,
-              let onDiskContent = try? String(contentsOf: fileURL, encoding: .utf8) else { return }
-        guard onDiskContent.trimmingTrailingNewline != document.text.trimmingTrailingNewline else { return }
+              let onDiskContent = try? String(contentsOf: fileURL, encoding: .utf8),
+              onDiskContent.trimmingTrailingNewline != document.text.trimmingTrailingNewline else { return }
         // Your own autosave lands while you keep typing, so the file can trail the buffer.
         let saved = document.recentSavedTexts.withLock { $0 }
         guard !saved.contains(where: { $0.trimmingTrailingNewline == onDiskContent.trimmingTrailingNewline })
