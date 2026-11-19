@@ -74,7 +74,7 @@ struct SlashCommandMenuTests {
     ) -> (text: String, selection: NSRange)? {
         guard let match = SlashCommandMenu.triggerMatch(text: text, cursorLocation: cursorLocation),
               let entry = SlashCommandMenu.filteredEntries(query: match.filterText)
-              .first(where: { $0.title == entryTitle }) else { return nil }
+                  .first(where: { $0.title == entryTitle }) else { return nil }
         let ns = text as NSString
         let removed = ns.replacingCharacters(in: match.range, with: "")
         let cursor = NSRange(location: match.range.location, length: 0)
