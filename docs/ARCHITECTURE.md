@@ -348,6 +348,14 @@ cmark-gfm passes raw HTML through unchanged (`CMARK_OPT_UNSAFE`), so GitHub-styl
 - **Unknown shortcodes** stay as typed. A typo that vanishes silently is more confusing than one you can see.
 - **Hex runs.** A run of three or more colon-separated hex groups (a MAC or IPv6 address) matches before the shortcode branch. Otherwise the `de` in `3c:0b:59:de:37:25` would turn into an emoji (issue #125).
 
+## Pandoc grid tables: a notice in the preview, no rendering
+
+Fen's baseline is GFM, and GitHub doesn't render pandoc grid tables either. cmark-gfm folds one into a single paragraph. `MarkdownRenderer+GridTables.swift` (issue #258) swaps that paragraph for a `div.fen-notice` that says "This is a pandoc grid table. Fen renders GFM pipe tables only." and keeps the original text in a `<pre>` below it.
+
+- **Preview only.** `Options.gridTableNotice` is off by default. `SplitEditorView` turns it on. Exports keep the source text as written.
+- **Matching.** A `<p>` whose first line is a `+---+===+` border and whose second line starts with `|`. Fenced code renders as `<pre>`, so it never matches. A `+ item` list marker has a space after the `+`, so it never matches either.
+- **Scroll sync.** The wrapper keeps the paragraph's `data-sourcepos`.
+
 ## STL 3D viewer: preference-gated, one scene per block
 
 `` ```stl `` blocks render as an interactive 3D model with the vendored three.js, `STLLoader` and `OrbitControls` (issue #120). The scripts load only when you use the feature.

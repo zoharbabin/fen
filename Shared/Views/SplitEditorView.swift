@@ -562,6 +562,7 @@ public struct SplitEditorView: View {
 
         var options = MarkdownRenderer.Options.from(preferences: preferences)
         options.sourcePositions = true
+        options.gridTableNotice = true
         options.wikiLinks = wikiLinkResolver()
         options.renderTOC = documentOverrides.rendersTOC ?? options.renderTOC
         let result = renderer.render(document.text, options: options)

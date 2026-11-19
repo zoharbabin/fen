@@ -47,6 +47,10 @@ public struct MarkdownRenderer: Sendable {
         /// Which inline math delimiters to hide from cmark and hand to MathJax as `\(...\)`
         /// (issue #250). Empty leaves the text alone. See `hideInlineMath`.
         public var inlineMath: LivePreviewEditing.MathDelimiters = []
+        /// Replaces a pandoc grid table with a notice that Fen renders pipe tables only
+        /// (issue #258). Off by default so exports keep the source text as written; the live
+        /// preview turns it on.
+        public var gridTableNotice: Bool = false
 
         public init() {}
 
@@ -185,7 +189,7 @@ public struct MarkdownRenderer: Sendable {
         guard let htmlPtr = cmark_render_html(doc, cmarkOptions, cmark_parser_get_syntax_extensions(parser)) else {
             return .empty
         }
-        var html = String(cString: htmlPtr)
+        var html = applyGridTableNotice(to: String(cString: htmlPtr), enabled: options.gridTableNotice)
         free(htmlPtr)
 
         if options.highlight {
